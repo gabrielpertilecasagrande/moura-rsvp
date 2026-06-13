@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evento — Moura RSVP</title>
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main" style="max-width:760px">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow" id="eyebrow">Novo evento</div>
+          <h1 id="title">Criar evento</h1>
+        </div>
+        <a href="/admin/dashboard.html" class="btn btn-ghost btn-sm">Voltar</a>
+      </div>
+      <p class="error-msg hidden" id="err"></p>
+
+      <div class="card" style="margin-bottom:18px">
+        <div class="field"><label>Nome do evento <span class="req">*</span></label><input type="text" id="name" /></div>
+        <div class="field"><label>Descrição</label><textarea id="description" placeholder="Texto exibido na página pública."></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="field"><label>Data</label><input type="date" id="event_date" /></div>
+          <div class="field"><label>Horário</label><input type="time" id="event_time" /></div>
+        </div>
+        <div class="field"><label>Local</label><input type="text" id="location" /></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="field"><label>Data limite para confirmação</label><input type="date" id="rsvp_deadline" /></div>
+          <div class="field"><label>Convidados esperados <span class="muted" style="font-weight:400">(opcional)</span></label><input type="number" id="expected_guests" min="0" placeholder="0" /></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="field"><label>Imagem de capa</label><input type="file" id="cover_image" accept="image/*" /></div>
+          <div class="field"><label>Logo do cliente <span class="muted" style="font-weight:400">(opcional)</span></label><input type="file" id="client_logo" accept="image/*" /></div>
+        </div>
+        <div class="field"><label>Status</label>
+          <select id="status"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <h2 style="font-size:16px;margin-bottom:4px">Campos do formulário público</h2>
+        <p class="muted" style="font-size:13px;margin:0 0 14px">Nome e a confirmação de presença são sempre exigidos. Ative os campos extras que desejar.</p>
+        <div id="fieldBuilder"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:18px">
+        <h2 style="font-size:16px;margin-bottom:14px">Mensagens de retorno</h2>
+        <div class="field"><label>Mensagem ao confirmar presença</label><textarea id="confirm_message">Presença confirmada. Agradecemos e nos vemos no evento!</textarea></div>
+        <div class="field"><label>Mensagem ao recusar</label><textarea id="decline_message">Resposta registrada. Agradecemos o retorno.</textarea></div>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-danger btn-sm hidden" id="deleteBtn">Excluir evento</button>
+        <button class="btn btn-primary" id="saveBtn">Salvar evento</button>
+      </div>
+    </main>
+  </div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-event-form.js"></script>
+</body>
+</html>
