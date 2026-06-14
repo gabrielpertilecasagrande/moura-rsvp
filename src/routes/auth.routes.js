@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
 const { sign, requireAuth } = require('../middleware/auth');
+const { logActivity } = require('../utils/activity');
 
 const router = express.Router();
 
@@ -21,6 +22,8 @@ router.post('/login', (req, res) => {
   if (admin.status !== 'ativo') {
     return res.status(403).json({ error: 'Esta conta está desativada. Procure um administrador.' });
   }
+  db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
+  logActivity(admin.name || admin.email, 'fez login', null);
   res.json({
     token: sign(admin),
     admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role },

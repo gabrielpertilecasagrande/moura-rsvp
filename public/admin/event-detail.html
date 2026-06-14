@@ -21,35 +21,25 @@
           <div class="meta muted" id="evMeta"></div>
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span id="refreshSlot"></span>
           <a class="btn btn-ghost btn-sm" id="editBtn">Editar</a>
           <button class="btn btn-ghost btn-sm" id="dupBtn">Duplicar</button>
           <a class="btn btn-ghost btn-sm" id="openPublic" target="_blank">Ver página pública</a>
         </div>
       </div>
 
-      <!-- Resumo rápido do evento -->
+      <!-- Resumo rápido do evento (inclui link público + copiar + QR) -->
       <div class="card" id="quickSummary" style="margin-bottom:18px"></div>
 
       <!-- Aviso de reabertura (aparece quando encerrado pelo prazo) -->
       <div id="reopenBanner"></div>
 
-      <!-- Link público + QR -->
-      <div class="card" style="margin-bottom:18px;display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:space-between">
-        <div style="flex:1;min-width:220px">
-          <div class="eyebrow" style="color:var(--muted)">Link público de confirmação</div>
-          <code id="publicUrl" class="break-anywhere" style="font-size:14px;color:var(--navy)"></code>
-        </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn btn-accent btn-sm" id="copyBtn">Copiar link</button>
-          <button class="btn btn-ghost btn-sm" id="qrBtn">QR Code</button>
-        </div>
-      </div>
-
       <!-- Métricas de respostas -->
       <div class="stat-grid" id="pStats" style="grid-template-columns:repeat(4,1fr)"></div>
 
-      <!-- Inclusão de participantes -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:18px 0 6px">
+      <!-- Barra de ações dos participantes -->
+      <div class="participants-bar">
+        <h2 style="font-size:18px;margin:0;flex:1">Participantes</h2>
         <button class="btn btn-primary btn-sm" id="addOneBtn">+ Adicionar nome</button>
         <button class="btn btn-ghost btn-sm" id="addBulkBtn">Incluir em lote</button>
       </div>
@@ -63,18 +53,20 @@
         </div>
         <input class="search" type="text" id="search" placeholder="Pesquisar por nome…" />
         <div class="spacer" style="flex:1"></div>
-        <button class="btn btn-ghost btn-sm" id="csvBtn">CSV</button>
-        <button class="btn btn-ghost btn-sm" id="xlsxBtn">Excel</button>
-        <button class="btn btn-ghost btn-sm" id="pdfBtn">PDF</button>
+        <span class="export-group">
+          <span class="muted" style="font-size:13px">Exportar:</span>
+          <button class="btn btn-ghost btn-sm" id="csvBtn">CSV</button>
+          <button class="btn btn-ghost btn-sm" id="xlsxBtn">Excel</button>
+          <button class="btn btn-ghost btn-sm" id="pdfBtn">PDF</button>
+        </span>
       </div>
 
       <div class="table-wrap">
-        <table class="cards">
+        <table class="cards participants-table">
           <thead><tr>
-            <th>Nome</th><th>Empresa</th><th>Cargo</th><th>E-mail</th><th>Telefone</th>
-            <th>Status</th><th>Data da resposta</th><th></th>
+            <th>Participante</th><th>Status</th><th>Resposta</th><th style="text-align:right">Ações</th>
           </tr></thead>
-          <tbody id="rows"><tr><td colspan="8" class="muted" style="padding:24px">Carregando…</td></tr></tbody>
+          <tbody id="rows"><tr><td colspan="4" class="muted" style="padding:24px">Carregando…</td></tr></tbody>
         </table>
       </div>
     </main>

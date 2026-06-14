@@ -130,6 +130,15 @@ router.put('/:pid', (req, res) => {
   ).run(pid, eventId, req.admin.name || req.admin.email || 'Administrador', p.response, response,
     'Edição manual — ' + changes.join('; '));
 
+  // Registro geral: separa "alteração de status" de "alteração de dados".
+  const actor = req.admin.name || req.admin.email;
+  if (response !== p.response) {
+    logActivity(actor, 'alterou status de participante', `${name}: ${label(p.response)} → ${label(response)}`);
+  }
+  if (changes.some((c) => !c.startsWith('resposta:'))) {
+    logActivity(actor, 'editou dados de participante', name);
+  }
+
   res.json({ ok: true, participant: db.prepare('SELECT * FROM participants WHERE id = ?').get(pid) });
 });
 
@@ -171,6 +180,7 @@ router.post('/', (req, res) => {
   ).run(info.lastInsertRowid, eventId, req.admin.name || req.admin.email || 'Administrador', response,
     'Inclusão manual pelo administrador');
 
+  logActivity(req.admin.name || req.admin.email, 'incluiu participante manualmente', name);
   res.status(201).json({ ok: true, participant: db.prepare('SELECT * FROM participants WHERE id = ?').get(info.lastInsertRowid) });
 });
 

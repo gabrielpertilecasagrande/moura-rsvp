@@ -25,3 +25,4 @@ document.getElementById('search').addEventListener('input', (e) => {
   clearTimeout(t); t = setTimeout(() => load(e.target.value.trim()), 250);
 });
 load().catch((e) => toast(e.message));
+document.getElementById('refreshSlot').appendChild(refreshButton(() => load(document.getElementById('search').value.trim()), 'Atualizar'));

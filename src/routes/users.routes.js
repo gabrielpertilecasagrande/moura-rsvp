@@ -16,6 +16,7 @@ const publicView = (u) => ({
   role: u.role,
   status: u.status,
   created_at: u.created_at,
+  last_login: u.last_login,
 });
 
 const VALID_ROLES = ['admin', 'editor'];
@@ -81,6 +82,9 @@ router.put('/:id', (req, res) => {
   db.prepare('UPDATE admins SET name = ?, email = ?, role = ?, status = ? WHERE id = ?').run(
     name, email, role, status, id
   );
+  if (role !== user.role) logActivity(req.admin.name || req.admin.email, 'alterou permissão de usuário', `${name}: ${user.role} → ${role}`);
+  else if (status !== user.status) logActivity(req.admin.name || req.admin.email, 'alterou situação de usuário', `${name}: ${user.status} → ${status}`);
+  else logActivity(req.admin.name || req.admin.email, 'editou usuário', name);
   res.json(publicView(db.prepare('SELECT * FROM admins WHERE id = ?').get(id)));
 });
 
@@ -110,6 +114,8 @@ router.post('/:id/password', (req, res) => {
   const hash = bcrypt.hashSync(String(password), 10);
   const info = db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, id);
   if (!info.changes) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const alvo = db.prepare('SELECT name FROM admins WHERE id = ?').get(id);
+  logActivity(req.admin.name || req.admin.email, 'alterou senha de usuário', alvo ? alvo.name : `#${id}`);
   res.json({ ok: true, message: 'Senha redefinida.' });
 });
 

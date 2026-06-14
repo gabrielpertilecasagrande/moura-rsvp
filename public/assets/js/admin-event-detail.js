@@ -11,7 +11,6 @@ async function loadEvent() {
   document.title = `${EVENT.name} — Moura RSVP`;
   document.getElementById('evMeta').textContent =
     `${EVENT.event_date ? fmtDateBR(EVENT.event_date) : 'Data a definir'}${EVENT.event_time ? ' · ' + EVENT.event_time : ''}${EVENT.location ? ' · ' + EVENT.location : ''}`;
-  document.getElementById('publicUrl').textContent = EVENT.public_url;
   document.getElementById('openPublic').href = EVENT.public_url;
   document.getElementById('editBtn').href = `/admin/event-form.html?id=${ID}`;
   renderReopenBanner();
@@ -86,7 +85,16 @@ function renderQuickSummary(s) {
       <div class="qs"><span class="k">Convidados esperados</span><span class="v">${EVENT.expected_guests || '—'}</span></div>
       <div class="qs"><span class="k">Taxa de resposta</span><span class="v">${rate}</span></div>
       <div class="qs"><span class="k">Prazo</span><span class="v">${deadlineTag()}</span></div>
-      <div class="qs" style="grid-column:1/-1"><span class="k">Link público</span><span class="v break-anywhere" style="font-weight:500;font-size:13.5px">${esc(EVENT.public_url)}</span></div>
+    </div>
+    <div class="qs-link">
+      <div style="flex:1;min-width:200px">
+        <span class="k" style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600">Link público</span>
+        <div class="break-anywhere" style="font-size:13.5px;color:var(--navy);font-weight:500">${esc(EVENT.public_url)}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-accent btn-sm" onclick="copyLink()">Copiar link</button>
+        <button class="btn btn-ghost btn-sm" onclick="openQr()">QR Code</button>
+      </div>
     </div>`;
 }
 
@@ -115,29 +123,38 @@ function renderRows(list) {
   LAST_LIST = list;
   const tb = document.getElementById('rows');
   if (!list.length) {
-    tb.innerHTML = `<tr><td colspan="8" class="muted center" style="padding:30px">Nenhuma resposta encontrada${state.q || state.filter ? ' com os filtros aplicados' : ' ainda'}.</td></tr>`;
+    tb.innerHTML = `<tr><td colspan="4" class="muted center" style="padding:30px">Nenhuma resposta encontrada${state.q || state.filter ? ' com os filtros aplicados' : ' ainda'}.</td></tr>`;
     return;
   }
   tb.innerHTML = list.map((p) => {
     const wa = guestWa(p.phone);
+    const sub = [p.company, p.phone, p.email].filter(Boolean).map(esc).join(' · ');
+    const icon = (svg, label, attrs) => `<button class="icon-btn" title="${label}" aria-label="${label}" ${attrs}>${svg}</button>`;
     return `
     <tr>
-      <td class="row-name">${esc(p.name)}</td>
-      <td data-label="Empresa">${esc(p.company) || '—'}</td>
-      <td data-label="Cargo">${esc(p.role) || '—'}</td>
-      <td data-label="E-mail" class="break-anywhere">${esc(p.email) || '—'}</td>
-      <td data-label="Telefone">${esc(p.phone) || '—'}</td>
+      <td class="row-name" style="display:block">
+        <div class="p-name">${esc(p.name)}</div>
+        ${sub ? `<div class="p-sub muted break-anywhere">${sub}</div>` : ''}
+      </td>
       <td data-label="Status"><span class="pill ${p.response === 'confirmado' ? 'pill-ok' : 'pill-no'}">${p.response === 'confirmado' ? 'Confirmado' : 'Recusado'}</span></td>
-      <td data-label="Data" style="white-space:nowrap;font-variant-numeric:tabular-nums">${fmtDateTimeBR(p.updated_at)}</td>
-      <td class="cell-actions" style="white-space:nowrap">
-        <button class="btn btn-primary btn-sm" onclick="editParticipant(${p.id})">Editar</button>
-        <button class="btn btn-ghost btn-sm" onclick="showAudit(${p.id})">Histórico</button>
-        ${wa ? `<a class="btn btn-ghost btn-sm" href="${wa}" target="_blank" rel="noopener" style="color:#1a8f4c;border-color:#bfe6cd">Enviar mensagem</a>` : ''}
-        <button class="btn btn-danger btn-sm" onclick="deleteParticipant(${p.id})">Remover</button>
+      <td data-label="Resposta" style="white-space:nowrap;font-variant-numeric:tabular-nums">${fmtDateTimeBR(p.updated_at)}</td>
+      <td class="cell-actions" style="text-align:right">
+        ${icon(IC.edit, 'Editar', `onclick="editParticipant(${p.id})"`)}
+        ${icon(IC.history, 'Histórico', `onclick="showAudit(${p.id})"`)}
+        ${wa ? `<a class="icon-btn icon-wa" title="WhatsApp" aria-label="WhatsApp" href="${wa}" target="_blank" rel="noopener">${IC.wa}</a>` : ''}
+        ${icon(IC.trash, 'Remover', `onclick="deleteParticipant(${p.id})"`)}
       </td>
     </tr>`;
   }).join('');
 }
+
+// Ícones (SVG) para as ações
+const IC = {
+  edit: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  history: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></svg>',
+  wa: '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M17.5 14.4c-.3-.1-1.7-.8-1.9-.9-.3-.1-.5-.1-.7.1-.2.3-.7.9-.9 1.1-.2.2-.3.2-.6.1-1.6-.8-2.6-1.4-3.7-3.2-.3-.5.3-.5.8-1.5.1-.2 0-.4 0-.5 0-.1-.7-1.6-.9-2.2-.2-.6-.5-.5-.7-.5h-.6c-.2 0-.5.1-.8.4-.3.3-1 1-1 2.4s1 2.8 1.2 3c.1.2 2 3.1 4.9 4.3 1.8.8 2.5.8 3.4.7.5-.1 1.7-.7 1.9-1.4.2-.7.2-1.2.2-1.4-.1-.1-.3-.2-.6-.3M12 2a10 10 0 0 0-8.6 15l-1.4 5 5.1-1.3A10 10 0 1 0 12 2"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+};
 
 const fieldRow = (id, label, value, type = 'text') =>
   `<div class="field" style="text-align:left"><label>${label}</label><input type="${type}" id="${id}" value="${esc(value) || ''}" /></div>`;
@@ -287,12 +304,12 @@ async function downloadQr(format) {
   a.click(); URL.revokeObjectURL(a.href);
 }
 
-// ---- Eventos de interface ----
-document.getElementById('copyBtn').addEventListener('click', async () => {
+// ---- Copiar link e abrir QR (chamados pelos botões do resumo) ----
+async function copyLink() {
   try { await navigator.clipboard.writeText(EVENT.public_url); toast('Link copiado.'); }
   catch { toast('Copie manualmente: ' + EVENT.public_url); }
-});
-document.getElementById('qrBtn').addEventListener('click', () => {
+}
+function openQr() {
   modal(`<h3 style="font-size:17px">QR Code do evento</h3>
     <img id="qrPreview" alt="QR Code" style="background:#fff;border:1px solid var(--gray-soft);border-radius:10px" />
     <p class="muted" style="font-size:12px;margin:0 0 14px">Preto e branco. Aponte a câmera para abrir o link de confirmação.</p>
@@ -304,7 +321,7 @@ document.getElementById('qrBtn').addEventListener('click', () => {
     </div>
     <button class="btn btn-ghost btn-sm" style="margin-top:12px;width:100%" onclick="closeModal()">Fechar</button>`);
   fetchQrPreview();
-});
+}
 async function fetchQrPreview() {
   const res = await fetch(`/api/events/${ID}/qrcode?format=png`, { headers: { Authorization: `Bearer ${Api.token()}` } });
   const blob = await res.blob();
@@ -430,3 +447,4 @@ async function saveBulk() {
 }
 
 (async () => { await loadEvent(); await loadParticipants(); })().catch((e) => toast(e.message));
+document.getElementById('refreshSlot').appendChild(refreshButton(loadParticipants, 'Atualizar lista'));

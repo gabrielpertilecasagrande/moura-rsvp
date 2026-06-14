@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS admins (
   password_hash TEXT    NOT NULL,
   role          TEXT    NOT NULL DEFAULT 'editor',   -- 'admin' (acesso total) | 'editor' (sem gestão de usuários)
   status        TEXT    NOT NULL DEFAULT 'ativo',    -- 'pendente' | 'ativo' | 'recusado' | 'inativo'
+  last_login    TEXT,
   created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 

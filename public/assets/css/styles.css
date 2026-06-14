@@ -102,7 +102,8 @@ input:focus, textarea:focus, select:focus {
    ADMIN — layout com barra lateral
    ============================================================ */
 .admin-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
-.sidebar { background: var(--navy); color: #cdd6ec; padding: 26px 18px; display: flex; flex-direction: column; min-height: 100vh; }
+.sidebar { background: var(--navy); color: #cdd6ec; padding: 26px 18px; display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto; }
 .sidebar .brand { background: var(--white); border-radius: 10px; padding: 14px 16px; margin-bottom: 28px; }
 .sidebar .brand img { width: 100%; }
 .sidebar nav { display: flex; flex-direction: column; gap: 4px; }
@@ -492,3 +493,30 @@ tbody tr:hover { background: var(--off-white); }
   opacity: 0; transition: .25s; font-size: 14px; }
 .undo-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .undo-toast button { background: none; border: none; color: var(--cyan); font-weight: 700; cursor: pointer; font-size: 14px; }
+
+/* ---- Botão atualizar (flecha girando) ---- */
+.btn-refresh { padding: 8px; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; }
+.btn-refresh svg { transition: transform .2s; }
+@keyframes spin360 { to { transform: rotate(360deg); } }
+.btn-refresh.spinning svg { animation: spin360 .7s linear infinite; }
+
+/* ---- Ações em ícones (tabela de participantes) ---- */
+.icon-btn { width: 34px; height: 34px; display: inline-flex; align-items: center; justify-content: center;
+  border: 1px solid var(--gray-soft); background: var(--white); color: var(--navy); border-radius: 9px;
+  cursor: pointer; transition: .15s; padding: 0; }
+.icon-btn:hover { background: var(--off-white); border-color: var(--navy); }
+.icon-btn.icon-wa { color: #1a8f4c; border-color: #bfe6cd; text-decoration: none; }
+.icon-btn.icon-wa:hover { background: #e8f7ee; }
+.cell-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.participants-table .p-name { font-weight: 600; font-size: 15px; color: var(--charcoal); }
+.participants-table .p-sub { font-size: 12.5px; margin-top: 2px; }
+.participants-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 22px 0 12px; }
+.export-group { display: inline-flex; align-items: center; gap: 6px; }
+.qs-link { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--gray-soft); }
+
+@media (max-width: 767px) {
+  .participants-table tbody td.cell-actions { justify-content: flex-start; }
+  .export-group { width: 100%; justify-content: space-between; }
+  .export-group .btn { flex: 1; }
+}

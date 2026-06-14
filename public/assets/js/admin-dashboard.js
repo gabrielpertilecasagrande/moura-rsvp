@@ -71,6 +71,7 @@ function eventCard(e) {
       </div>
     </a>
     <div class="event-card-actions">
+      <a class="btn btn-primary btn-sm" href="/admin/event-detail.html?id=${e.id}">👁 Ver evento</a>
       <button class="btn btn-ghost btn-sm" onclick="duplicateEvent(${e.id}, event)">Duplicar</button>
     </div>
   </div>`;
@@ -120,3 +121,4 @@ async function runSearch(q) {
 }
 
 init().catch((e) => toast(e.message));
+document.getElementById('refreshSlot').appendChild(refreshButton(init, 'Atualizar dashboard'));

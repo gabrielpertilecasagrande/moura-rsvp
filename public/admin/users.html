@@ -20,6 +20,7 @@
           <h1>Usuários</h1>
         </div>
         <button class="btn btn-primary btn-sm" id="newUserBtn">Novo usuário</button>
+        <span id="refreshSlot" style="margin-left:8px"></span>
       </div>
       <p class="muted" style="margin:-6px 0 22px">Aprove solicitações de acesso, defina permissões e gerencie as contas do sistema.</p>
 
@@ -28,7 +29,7 @@
       <div class="card table-card" style="padding:0;overflow:hidden">
         <table class="cards">
           <thead>
-            <tr><th>Nome</th><th>E-mail</th><th>Permissão</th><th>Situação</th><th style="text-align:right">Ações</th></tr>
+            <tr><th>Nome</th><th>E-mail</th><th>Permissão</th><th>Situação</th><th>Último acesso</th><th>Criado em</th><th style="text-align:right">Ações</th></tr>
           </thead>
           <tbody id="rows"></tbody>
         </table>

@@ -57,6 +57,8 @@ function renderRows(list) {
       <td data-label="E-mail" class="break-anywhere">${esc(u.email)}</td>
       <td data-label="Permissão">${ROLE_LABEL[u.role] || u.role}</td>
       <td data-label="Situação"><span class="pill ${st.cls}">${st.label}</span></td>
+      <td data-label="Último acesso" style="white-space:nowrap;font-size:13px">${u.last_login ? fmtDateTimeBR(u.last_login) : '<span class="muted">nunca</span>'}</td>
+      <td data-label="Criado em" style="white-space:nowrap;font-size:13px">${u.created_at ? fmtDateBR(u.created_at.slice(0, 10)) : '—'}</td>
       <td class="cell-actions" style="text-align:right;white-space:nowrap">
         <button class="btn btn-ghost btn-sm" onclick="editUser(${u.id})">Editar</button>
         <button class="btn btn-ghost btn-sm" onclick="resetPass(${u.id})">Senha</button>
@@ -167,4 +169,5 @@ async function removeUser(id) {
 }
 
 document.getElementById('newUserBtn').addEventListener('click', newUser);
+document.getElementById('refreshSlot').appendChild(refreshButton(refresh, 'Atualizar usuários'));
 (async () => { await refresh(); })().catch((e) => toast(e.message));
