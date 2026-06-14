@@ -2,18 +2,21 @@
 -- Moura RSVP — Esquema relacional (SQLite)
 -- ============================================================
 -- Banco relacional simples e portável. Para migrar para
--- PostgreSQL/MySQL no futuro, o modelo abaixo é compatível
--- (basta ajustar tipos: INTEGER PK AUTOINCREMENT -> SERIAL etc.).
+-- PostgreSQL/MySQL no futuro, o modelo abaixo é compatível.
+-- Colunas novas são aplicadas por migração idempotente em db.js,
+-- preservando bancos já existentes.
 -- ============================================================
 
 PRAGMA foreign_keys = ON;
 
--- Administradores do sistema
+-- Usuários administrativos do sistema
 CREATE TABLE IF NOT EXISTS admins (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   name          TEXT    NOT NULL,
   email         TEXT    NOT NULL UNIQUE,
   password_hash TEXT    NOT NULL,
+  role          TEXT    NOT NULL DEFAULT 'editor',   -- 'admin' (acesso total) | 'editor' (sem gestão de usuários)
+  status        TEXT    NOT NULL DEFAULT 'ativo',    -- 'pendente' | 'ativo' | 'recusado' | 'inativo'
   created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -33,6 +36,8 @@ CREATE TABLE IF NOT EXISTS events (
   confirm_message  TEXT    NOT NULL DEFAULT 'Presença confirmada. Obrigado!',
   decline_message  TEXT    NOT NULL DEFAULT 'Resposta registrada. Agradecemos o retorno.',
   expected_guests  INTEGER DEFAULT 0,                -- nº esperado de convidados (base p/ "pendentes")
+  whatsapp         TEXT,                             -- nº de WhatsApp da organização (opcional)
+  force_open       INTEGER DEFAULT 0,                -- 1 = reabre confirmações mesmo após o prazo
   form_config      TEXT    NOT NULL DEFAULT '{}',    -- JSON: quais campos opcionais aparecem
   created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
   updated_at       TEXT    NOT NULL DEFAULT (datetime('now'))
@@ -53,7 +58,6 @@ CREATE TABLE IF NOT EXISTS participants (
   updated_at      TEXT    NOT NULL DEFAULT (datetime('now')),
 
   -- Campos reservados para integração futura (check-in / credenciamento / QR).
-  -- NÃO utilizados nesta versão — presentes apenas para preparar a arquitetura.
   qr_token        TEXT,
   checked_in_at   TEXT,
 
@@ -61,12 +65,13 @@ CREATE TABLE IF NOT EXISTS participants (
   UNIQUE (event_id, name_normalized)                -- garante 1 resposta por pessoa/evento
 );
 
--- Auditoria de respostas
+-- Auditoria de respostas e alterações
 CREATE TABLE IF NOT EXISTS audit_log (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   participant_id INTEGER,
   event_id       INTEGER NOT NULL,
-  action         TEXT    NOT NULL,                   -- 'criou' | 'atualizou'
+  action         TEXT    NOT NULL,                   -- 'criou' | 'atualizou' | 'editou'
+  actor          TEXT,                               -- quem alterou: 'Participante (formulário)' ou nome do usuário admin
   old_response   TEXT,
   new_response   TEXT,
   details        TEXT,

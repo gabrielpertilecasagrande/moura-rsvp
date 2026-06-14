@@ -11,9 +11,17 @@ const STAT_DEFS = [
 
 async function init() {
   const s = await Api.get('/api/dashboard');
-  document.getElementById('stats').innerHTML = STAT_DEFS.map((d) =>
+  const cards = STAT_DEFS.map((d) =>
     `<div class="stat ${d.accent ? 'accent' : ''}"><div class="n">${s[d.k] ?? 0}</div><div class="l">${d.l}</div></div>`
-  ).join('');
+  );
+  // Card de taxa de resposta (respostas ÷ convidados esperados).
+  if (s.responseRate != null) {
+    cards.push(`<div class="stat accent">
+      <div class="n">${s.responseRate}%</div>
+      <div class="l">Taxa de resposta<br><span style="font-size:11px">${s.totalResponses} de ${s.totalExpected} esperados</span></div>
+    </div>`);
+  }
+  document.getElementById('stats').innerHTML = cards.join('');
 
   const events = await Api.get('/api/events');
   const box = document.getElementById('events');

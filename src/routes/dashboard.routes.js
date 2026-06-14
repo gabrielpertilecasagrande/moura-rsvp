@@ -22,7 +22,16 @@ router.get('/', (_req, res) => {
   `).all();
   const pending = perEvent.reduce((acc, r) => acc + Math.max(0, r.exp - r.resp), 0);
 
-  res.json({ totalEvents, activeEvents, confirmed, declined, pending });
+  // Taxa de resposta = total de respostas ÷ total de convidados esperados (eventos que informaram o número).
+  const totalResponses = confirmed + declined;
+  const totalExpected = db.prepare('SELECT COALESCE(SUM(expected_guests),0) s FROM events WHERE expected_guests > 0').get().s;
+  const respExpected = perEvent.reduce((acc, r) => acc + r.resp, 0);
+  const responseRate = totalExpected > 0 ? Math.round((respExpected / totalExpected) * 100) : null;
+
+  res.json({
+    totalEvents, activeEvents, confirmed, declined, pending,
+    totalResponses, totalExpected, responseRate,
+  });
 });
 
 module.exports = router;

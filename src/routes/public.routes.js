@@ -12,8 +12,14 @@ const DEFAULT_FORM_CONFIG = {
   phone: { enabled: false, required: false, label: 'Telefone/WhatsApp' },
 };
 const parseFormConfig = (raw) => {
-  try { return { ...DEFAULT_FORM_CONFIG, ...(JSON.parse(raw || '{}')) }; }
-  catch { return { ...DEFAULT_FORM_CONFIG }; }
+  let parsed = {};
+  try { parsed = JSON.parse(raw || '{}') || {}; } catch { parsed = {}; }
+  const out = {};
+  for (const k of Object.keys(DEFAULT_FORM_CONFIG)) {
+    out[k] = { ...DEFAULT_FORM_CONFIG[k], ...(parsed[k] || {}) };
+    if (!out[k].label) out[k].label = DEFAULT_FORM_CONFIG[k].label;
+  }
+  return out;
 };
 
 function deadlinePassed(deadline) {
@@ -23,12 +29,19 @@ function deadlinePassed(deadline) {
   return Date.now() > end.getTime();
 }
 
+// Um evento está fechado se estiver inativo, OU se o prazo passou E não foi reaberto.
+function isClosed(e) {
+  if (e.status !== 'ativo') return true;
+  if (e.force_open) return false;
+  return deadlinePassed(e.rsvp_deadline);
+}
+
 // GET /api/public/events/:slug  — dados públicos do evento
 router.get('/events/:slug', (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE slug = ?').get(req.params.slug);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
-  const closed = e.status !== 'ativo' || deadlinePassed(e.rsvp_deadline);
+  const closed = isClosed(e);
   res.json({
     slug: e.slug,
     name: e.name,
@@ -39,9 +52,10 @@ router.get('/events/:slug', (req, res) => {
     cover_image: e.cover_image,
     client_logo: e.client_logo,
     rsvp_deadline: e.rsvp_deadline,
+    whatsapp: e.whatsapp || null,
     form_config: parseFormConfig(e.form_config),
     closed,
-    closed_reason: e.status !== 'ativo' ? 'inativo' : (deadlinePassed(e.rsvp_deadline) ? 'prazo' : null),
+    closed_reason: e.status !== 'ativo' ? 'inativo' : (closed ? 'prazo' : null),
   });
 });
 
@@ -50,13 +64,18 @@ router.post('/events/:slug/rsvp', (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE slug = ?').get(req.params.slug);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
-  if (e.status !== 'ativo' || deadlinePassed(e.rsvp_deadline)) {
+  if (isClosed(e)) {
     return res.status(403).json({ error: 'As confirmações para este evento estão encerradas.' });
   }
 
   const { name, company, role, email, phone, response } = req.body || {};
   if (!name || !String(name).trim()) {
     return res.status(400).json({ error: 'Informe seu nome completo.' });
+  }
+  // Exige nome + sobrenome (ao menos duas palavras com 2+ letras).
+  const parts = String(name).trim().split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, '').length >= 2);
+  if (parts.length < 2) {
+    return res.status(400).json({ error: 'Por favor, informe seu nome completo (nome e sobrenome).' });
   }
   if (response !== 'confirmado' && response !== 'recusado') {
     return res.status(400).json({ error: 'Selecione uma opção de presença.' });
@@ -85,9 +104,9 @@ router.post('/events/:slug/rsvp', (req, res) => {
       existing.id
     );
     db.prepare(`
-      INSERT INTO audit_log (participant_id, event_id, action, old_response, new_response, details)
-      VALUES (?,?,?,?,?,?)
-    `).run(existing.id, e.id, 'atualizou', existing.response, response,
+      INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
+      VALUES (?,?,?,?,?,?,?)
+    `).run(existing.id, e.id, 'atualizou', 'Participante (formulário)', existing.response, response,
       existing.response === response ? 'Dados atualizados' : `Alterou de "${existing.response}" para "${response}"`);
 
     return res.json({
@@ -104,9 +123,9 @@ router.post('/events/:slug/rsvp', (req, res) => {
   `).run(e.id, String(name).trim(), normalized, company || null, role || null, email || null, phone || null, response);
 
   db.prepare(`
-    INSERT INTO audit_log (participant_id, event_id, action, old_response, new_response, details)
-    VALUES (?,?,?,?,?,?)
-  `).run(info.lastInsertRowid, e.id, 'criou', null, response,
+    INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(info.lastInsertRowid, e.id, 'criou', 'Participante (formulário)', null, response,
     response === 'confirmado' ? 'Confirmou presença' : 'Informou que não comparecerá');
 
   res.status(201).json({

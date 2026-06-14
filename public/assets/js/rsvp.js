@@ -22,6 +22,22 @@ async function load() {
 
 function metaRow(icon, text) { return text ? `<div class="m">${icon}<span>${esc(text)}</span></div>` : ''; }
 
+// Monta o link wa.me a partir do número informado no evento.
+function whatsappHref() {
+  if (!EVENT || !EVENT.whatsapp) return null;
+  let digits = String(EVENT.whatsapp).replace(/\D/g, '');
+  if (!digits) return null;
+  // Adiciona o código do Brasil (55) quando vier só com DDD + número (10 ou 11 dígitos).
+  if (digits.length <= 11 && !digits.startsWith('55')) digits = '55' + digits;
+  return `https://wa.me/${digits}`;
+}
+const WA_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.9L2 22l5.25-1.38A9.9 9.9 0 1 0 12.04 2zm0 1.8a8.1 8.1 0 0 1 6.86 12.42l-.2.32.78 2.86-2.94-.77-.31.18A8.1 8.1 0 1 1 12.04 3.8zm4.5 10.2c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.12-.16.25-.64.8-.79.97-.14.16-.29.18-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.16.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.13.17 1.74 2.66 4.21 3.73.59.25 1.05.4 1.4.52.59.19 1.13.16 1.55.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.28z"/></svg>';
+function whatsappButton(label) {
+  const href = whatsappHref();
+  if (!href) return '';
+  return `<a class="btn-whatsapp" href="${href}" target="_blank" rel="noopener">${WA_ICON}<span>${label}</span></a>`;
+}
+
 function render() {
   const e = EVENT;
   const cover = e.cover_image
@@ -53,6 +69,7 @@ function render() {
         <p class="muted">${e.closed_reason === 'prazo'
           ? 'O prazo para confirmar presença foi encerrado.'
           : 'Este evento não está recebendo confirmações no momento.'}</p>
+        ${whatsappButton('Falar com a organização')}
       </div>`;
     return;
   }
@@ -74,7 +91,7 @@ function renderForm() {
     <div class="divider"></div>
     <div class="field">
       <label>Nome completo <span class="req">*</span></label>
-      <input type="text" name="name" required autocomplete="name" />
+      <input type="text" name="name" required autocomplete="name" placeholder="Nome e sobrenome" />
     </div>
     ${optField('company', fc.company)}
     ${optField('role', fc.role)}
@@ -94,7 +111,8 @@ function renderForm() {
       </label>
     </div>
     <p class="error-msg hidden" id="err"></p>
-    <button class="btn btn-primary" id="submit" style="width:100%;margin-top:18px">Enviar resposta</button>`;
+    <button class="btn btn-primary" id="submit" style="width:100%;margin-top:18px">Enviar resposta</button>
+    ${whatsappButton('Falar com a organização')}`;
 
   const yes = document.getElementById('ch-yes');
   const no = document.getElementById('ch-no');
@@ -110,6 +128,9 @@ async function submit() {
   const body = { name: get('name'), company: get('company'), role: get('role'), email: get('email'), phone: get('phone'), response: choice };
 
   if (!body.name) return showErr('Por favor, informe seu nome completo.');
+  // Exige nome + sobrenome (ao menos duas palavras com 2+ letras).
+  const nameParts = body.name.split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, '').length >= 2);
+  if (nameParts.length < 2) return showErr('Por favor, informe seu nome completo (nome e sobrenome).');
   if (!body.response) return showErr('Selecione se você participará ou não do evento.');
   const fc = EVENT.form_config || {};
   for (const k of ['company', 'role', 'email', 'phone']) {
@@ -133,15 +154,15 @@ function showErr(m) { const err = document.getElementById('err'); err.textConten
 function showResult(r) {
   const ok = r.response === 'confirmado';
   const check = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>';
-  const cross = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>';
   document.getElementById('form-slot').innerHTML = `
     <div class="divider"></div>
     <div class="result">
-      <div class="badge ${ok ? 'ok' : 'no'}">${ok ? check : cross}</div>
+      <div class="badge ok">${check}</div>
       <h2>${ok ? 'Presença confirmada' : 'Resposta registrada'}</h2>
       <p>${esc(r.message)}</p>
       ${r.updated ? '' : `<div class="note">Precisa alterar sua resposta? Basta acessar este mesmo link novamente e reenviar — seus dados serão atualizados.</div>`}
       <button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="location.reload()">Enviar nova resposta</button>
+      ${whatsappButton('Falar com a organização')}
     </div>`;
 }
 

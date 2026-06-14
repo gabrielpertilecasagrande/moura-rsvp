@@ -2,6 +2,13 @@ requireSession();
 mountShell('new');
 
 const EDIT_ID = new URLSearchParams(location.search).get('id');
+// Mostra o prefixo do link público ao lado do campo de slug.
+const SLUG_PREFIX = `${location.origin}/rsvp/`;
+{
+  const sp = document.getElementById('slugPrefix');
+  if (sp) sp.textContent = SLUG_PREFIX;
+}
+let removeCover = false, removeLogo = false;
 const FIELDS = [
   { key: 'company', label: 'Empresa' },
   { key: 'role', label: 'Cargo' },
@@ -43,17 +50,60 @@ async function loadForEdit() {
   document.getElementById('title').textContent = e.name;
   document.title = `${e.name} — Moura RSVP`;
   const set = (id, v) => { if (v != null) document.getElementById(id).value = v; };
-  set('name', e.name); set('description', e.description); set('event_date', e.event_date);
+  set('name', e.name); set('slug', e.slug); set('description', e.description); set('event_date', e.event_date);
   set('event_time', e.event_time); set('location', e.location); set('rsvp_deadline', e.rsvp_deadline);
   set('expected_guests', e.expected_guests); set('status', e.status);
+  set('whatsapp', e.whatsapp);
   set('confirm_message', e.confirm_message); set('decline_message', e.decline_message);
   formConfig = e.form_config || {};
+  renderAttachment('coverCurrent', e.cover_image, 'cover');
+  renderAttachment('logoCurrent', e.client_logo, 'logo');
+
   const del = document.getElementById('deleteBtn');
   del.classList.remove('hidden');
-  del.addEventListener('click', async () => {
-    if (!confirm('Excluir este evento e todas as respostas? Esta ação não pode ser desfeita.')) return;
-    await Api.del(`/api/events/${EDIT_ID}`);
-    location.href = '/admin/dashboard.html';
+  del.addEventListener('click', () => confirmDelete(e.name));
+}
+
+// Preview do anexo atual com opção de remover.
+function renderAttachment(slotId, url, which) {
+  const slot = document.getElementById(slotId);
+  if (!slot) return;
+  if (!url) { slot.innerHTML = ''; return; }
+  slot.innerHTML = `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;padding:8px;border:1px solid var(--gray-soft);border-radius:8px;background:var(--off-white)">
+      <img src="${url}" alt="" style="height:40px;width:auto;border-radius:4px;background:#fff" />
+      <span class="muted" style="font-size:12px;flex:1">Anexo atual</span>
+      <label style="display:flex;align-items:center;gap:6px;margin:0;font-size:12px;color:var(--danger);cursor:pointer">
+        <input type="checkbox" id="rm_${which}" style="accent-color:var(--danger)" /> Remover
+      </label>
+    </div>
+    <p class="muted" style="font-size:12px;margin:0 0 6px">Para trocar, selecione um novo arquivo abaixo.</p>`;
+  const cb = document.getElementById(`rm_${which}`);
+  cb.addEventListener('change', () => { if (which === 'cover') removeCover = cb.checked; else removeLogo = cb.checked; });
+}
+
+// Exclusão de evento com dupla verificação.
+function confirmDelete(name) {
+  const slot = document.getElementById('modalSlot') || (() => { const d = document.createElement('div'); d.id = 'modalSlot'; document.body.appendChild(d); return d; })();
+  slot.innerHTML = `
+    <div class="modal-bg"><div class="modal" style="text-align:left">
+      <h3 style="font-size:17px;margin-bottom:6px;color:var(--danger)">Excluir evento</h3>
+      <p style="font-size:14px;margin:0 0 12px">Você está prestes a excluir <strong>${esc(name || 'este evento')}</strong> e <strong>todas as respostas</strong>. Esta ação é permanente.</p>
+      <p class="muted" style="font-size:13px;margin:0 0 8px">Para confirmar, digite <strong>EXCLUIR</strong> abaixo:</p>
+      <input type="text" id="delConfirm" placeholder="EXCLUIR" autocomplete="off" />
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+        <button class="btn btn-ghost btn-sm" id="delCancel">Cancelar</button>
+        <button class="btn btn-danger btn-sm" id="delGo" disabled>Excluir definitivamente</button>
+      </div>
+    </div></div>`;
+  const input = document.getElementById('delConfirm');
+  const go = document.getElementById('delGo');
+  input.addEventListener('input', () => { go.disabled = input.value.trim().toUpperCase() !== 'EXCLUIR'; });
+  document.getElementById('delCancel').addEventListener('click', () => { slot.innerHTML = ''; });
+  go.addEventListener('click', async () => {
+    go.disabled = true; go.textContent = 'Excluindo…';
+    try { await Api.del(`/api/events/${EDIT_ID}`); location.href = '/admin/dashboard.html'; }
+    catch (e) { toast(e.message); slot.innerHTML = ''; }
   });
 }
 
@@ -63,9 +113,11 @@ async function save() {
   if (!v('name').trim()) { err.textContent = 'Informe o nome do evento.'; err.classList.remove('hidden'); return; }
 
   const fd = new FormData();
-  ['name', 'description', 'event_date', 'event_time', 'location', 'rsvp_deadline',
-   'expected_guests', 'status', 'confirm_message', 'decline_message'].forEach((id) => fd.append(id, v(id)));
+  ['name', 'slug', 'description', 'event_date', 'event_time', 'location', 'rsvp_deadline',
+   'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'].forEach((id) => fd.append(id, v(id)));
   fd.append('form_config', JSON.stringify(formConfig));
+  if (removeCover) fd.append('remove_cover', '1');
+  if (removeLogo) fd.append('remove_logo', '1');
   const cover = document.getElementById('cover_image').files[0];
   const logo = document.getElementById('client_logo').files[0];
   if (cover) fd.append('cover_image', cover);

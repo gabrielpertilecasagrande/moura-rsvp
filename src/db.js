@@ -30,4 +30,38 @@ try {
 const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
 db.exec(schema);
 
+// ------------------------------------------------------------
+// Migração idempotente de colunas.
+// CREATE TABLE IF NOT EXISTS não altera tabelas já existentes;
+// então adicionamos colunas novas aqui, sem apagar dados.
+// ------------------------------------------------------------
+function columnExists(table, column) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  return cols.some((c) => c.name === column);
+}
+function addColumn(table, column, definition) {
+  if (!columnExists(table, column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+    console.log(`[db] migração: coluna ${table}.${column} adicionada`);
+  }
+}
+
+addColumn('admins', 'role', "TEXT NOT NULL DEFAULT 'editor'");
+addColumn('admins', 'status', "TEXT NOT NULL DEFAULT 'ativo'");
+addColumn('events', 'whatsapp', 'TEXT');
+addColumn('events', 'force_open', 'INTEGER DEFAULT 0');
+addColumn('audit_log', 'actor', 'TEXT');
+
+// O primeiro administrador criado pelo seed deve ter acesso total.
+// Garante que qualquer conta pré-existente sem papel definido vire 'admin'
+// se for a única conta do sistema (evita travar o acesso após a migração).
+try {
+  const total = db.prepare('SELECT COUNT(*) AS n FROM admins').get().n;
+  if (total === 1) {
+    db.exec("UPDATE admins SET role = 'admin', status = 'ativo' WHERE role IS NULL OR role = 'editor'");
+  }
+} catch {
+  /* tabela ainda vazia — sem ação */
+}
+
 module.exports = db;

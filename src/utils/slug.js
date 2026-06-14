@@ -9,12 +9,15 @@ function slugify(text) {
     .slice(0, 60);
 }
 
-function uniqueSlug(db, base) {
+function uniqueSlug(db, base, excludeId = null) {
   let slug = slugify(base) || 'evento';
-  const exists = db.prepare('SELECT 1 FROM events WHERE slug = ?');
-  if (!exists.get(slug)) return slug;
+  const exists = excludeId
+    ? db.prepare('SELECT 1 FROM events WHERE slug = ? AND id <> ?')
+    : db.prepare('SELECT 1 FROM events WHERE slug = ?');
+  const taken = (s) => (excludeId ? exists.get(s, excludeId) : exists.get(s));
+  if (!taken(slug)) return slug;
   let i = 2;
-  while (exists.get(`${slug}-${i}`)) i++;
+  while (taken(`${slug}-${i}`)) i++;
   return `${slug}-${i}`;
 }
 

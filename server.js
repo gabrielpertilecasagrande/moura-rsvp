@@ -14,6 +14,7 @@ app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
 
 // ---- API ----
 app.use('/api/auth', require('./src/routes/auth.routes'));
+app.use('/api/users', require('./src/routes/users.routes'));
 app.use('/api/dashboard', require('./src/routes/dashboard.routes'));
 app.use('/api/events', require('./src/routes/events.routes'));
 app.use('/api/events/:id/participants', require('./src/routes/participants.routes'));

@@ -10,10 +10,13 @@ const password = process.env.ADMIN_PASSWORD || 'moura2026';
 
 const exists = db.prepare('SELECT id FROM admins WHERE email = ?').get(email);
 if (exists) {
-  console.log(`Administrador já existe: ${email}`);
+  // Garante que o usuário inicial tenha acesso total e esteja ativo.
+  db.prepare("UPDATE admins SET role = 'admin', status = 'ativo' WHERE id = ?").run(exists.id);
+  console.log(`Administrador já existe: ${email} (papel garantido como admin/ativo)`);
 } else {
   const hash = bcrypt.hashSync(password, 10);
-  db.prepare('INSERT INTO admins (name, email, password_hash) VALUES (?,?,?)').run(name, email, hash);
+  db.prepare("INSERT INTO admins (name, email, password_hash, role, status) VALUES (?,?,?,'admin','ativo')")
+    .run(name, email, hash);
   console.log(`Administrador criado:\n  e-mail: ${email}\n  senha:  ${password}`);
 }
 process.exit(0);
