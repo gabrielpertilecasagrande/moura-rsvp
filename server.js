@@ -2,6 +2,31 @@ require('dotenv').config();
 const path = require('path');
 const express = require('express');
 
+// ---- Auto-seed: garante que o admin inicial existe no banco ----
+// Roda SEMPRE na inicialização, mas é idempotente:
+// se o admin já existe, apenas confirma role=admin/status=ativo.
+// Isso resolve o problema de disco temporário no Railway:
+// mesmo que o banco seja resetado num redeploy, o admin é recriado.
+try {
+  const bcrypt = require('bcryptjs');
+  const db = require('./src/db');
+  const seedEmail = (process.env.ADMIN_EMAIL || 'admin@moura.com.br').toLowerCase();
+  const seedName  = process.env.ADMIN_NAME  || 'Administrador';
+  const seedPass  = process.env.ADMIN_PASSWORD || 'moura2026';
+  const exists = db.prepare('SELECT id FROM admins WHERE email = ?').get(seedEmail);
+  if (exists) {
+    db.prepare("UPDATE admins SET role='admin', status='ativo' WHERE id=?").run(exists.id);
+    console.log(`[seed] admin já existe: ${seedEmail}`);
+  } else {
+    const hash = bcrypt.hashSync(seedPass, 10);
+    db.prepare("INSERT INTO admins (name, email, password_hash, role, status) VALUES (?,?,?,'admin','ativo')")
+      .run(seedName, seedEmail, hash);
+    console.log(`[seed] admin criado: ${seedEmail}`);
+  }
+} catch (e) {
+  console.error('[seed] erro ao garantir admin:', e.message);
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -9,7 +34,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Arquivos estáticos (frontend + imagens enviadas)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+// Serve uploads do volume persistente (se DATA_DIR definido) ou da pasta local.
+const UPLOADS_PATH = process.env.DATA_DIR
+  ? path.join(path.resolve(process.env.DATA_DIR), 'uploads')
+  : path.join(__dirname, 'uploads');
+app.use('/uploads', express.static(UPLOADS_PATH));
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'assets', 'img', 'favicon.ico')));
 

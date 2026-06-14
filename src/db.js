@@ -7,9 +7,15 @@
 const path = require('path');
 const fs = require('fs');
 
-const DATA_DIR = path.join(__dirname, '..', 'data');
+// Em produção no Railway, DATA_DIR aponta para o volume persistente (ex.: /app/data).
+// Localmente, usa ./data dentro do projeto.
+const DATA_DIR = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, '..', 'data');
+
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_PATH = path.join(DATA_DIR, 'moura-rsvp.db');
+console.log(`[db] banco em: ${DB_PATH}`);
 
 let db;
 try {

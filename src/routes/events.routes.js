@@ -15,7 +15,10 @@ const router = express.Router();
 router.use(requireAuth); // todas as rotas deste arquivo exigem login
 
 // ---- Upload de imagens (capa + logo do cliente) ----
-const UPLOAD_DIR = path.join(__dirname, '..', '..', 'uploads');
+// Uploads: se DATA_DIR estiver definido (volume Railway), salva lá dentro.
+// Isso garante que capas e logos sobrevivem a redeploys, igual ao banco.
+const DATA_DIR_UP = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, '..', '..');
+const UPLOAD_DIR = path.join(DATA_DIR_UP, 'uploads');
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 const storage = multer.diskStorage({
