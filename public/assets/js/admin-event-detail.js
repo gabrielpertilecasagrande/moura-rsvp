@@ -58,8 +58,36 @@ async function loadParticipants() {
   if (state.filter) params.set('filter', state.filter);
   if (state.q) params.set('q', state.q);
   const data = await Api.get(`/api/events/${ID}/participants?${params}`);
+  renderQuickSummary(data.stats);
   renderStats(data.stats);
   renderRows(data.participants);
+}
+
+function deadlineTag() {
+  if (EVENT.status !== 'ativo') return '<span class="deadline-tag deadline-red">Evento inativo</span>';
+  if (!EVENT.rsvp_deadline) return '<span class="deadline-tag deadline-green">Sem prazo definido</span>';
+  const end = new Date(`${EVENT.rsvp_deadline}T23:59:59`).getTime();
+  const days = Math.ceil((end - Date.now()) / 86400000);
+  if (Date.now() > end) {
+    return EVENT.force_open
+      ? '<span class="deadline-tag deadline-amber">Reaberto (prazo vencido)</span>'
+      : '<span class="deadline-tag deadline-red">Prazo encerrado</span>';
+  }
+  if (days <= 7) return `<span class="deadline-tag deadline-amber">Faltam ${days} dia(s)</span>`;
+  return '<span class="deadline-tag deadline-green">Prazo aberto</span>';
+}
+
+function renderQuickSummary(s) {
+  const rate = s.expected_guests > 0 ? Math.round((s.total / s.expected_guests) * 100) + '%' : '—';
+  document.getElementById('quickSummary').innerHTML = `
+    <div class="quick-summary">
+      <div class="qs"><span class="k">Data</span><span class="v">${EVENT.event_date ? fmtDateBR(EVENT.event_date) : 'A definir'}${EVENT.event_time ? ' · ' + EVENT.event_time : ''}</span></div>
+      <div class="qs"><span class="k">Local</span><span class="v">${esc(EVENT.location) || '—'}</span></div>
+      <div class="qs"><span class="k">Convidados esperados</span><span class="v">${EVENT.expected_guests || '—'}</span></div>
+      <div class="qs"><span class="k">Taxa de resposta</span><span class="v">${rate}</span></div>
+      <div class="qs"><span class="k">Prazo</span><span class="v">${deadlineTag()}</span></div>
+      <div class="qs" style="grid-column:1/-1"><span class="k">Link público</span><span class="v break-anywhere" style="font-weight:500;font-size:13.5px">${esc(EVENT.public_url)}</span></div>
+    </div>`;
 }
 
 function renderStats(s) {
@@ -105,6 +133,7 @@ function renderRows(list) {
         <button class="btn btn-primary btn-sm" onclick="editParticipant(${p.id})">Editar</button>
         <button class="btn btn-ghost btn-sm" onclick="showAudit(${p.id})">Histórico</button>
         ${wa ? `<a class="btn btn-ghost btn-sm" href="${wa}" target="_blank" rel="noopener" style="color:#1a8f4c;border-color:#bfe6cd">Enviar mensagem</a>` : ''}
+        <button class="btn btn-danger btn-sm" onclick="deleteParticipant(${p.id})">Remover</button>
       </td>
     </tr>`;
   }).join('');
@@ -132,8 +161,8 @@ function editParticipant(pid) {
     <div class="field" style="text-align:left">
       <label>Presença</label>
       <div class="edit-presence">
-        <label class="ep ${yes ? 'on' : ''}"><input type="radio" name="ed_resp" value="confirmado" ${yes ? 'checked' : ''}/> Confirmado</label>
-        <label class="ep ${!yes ? 'on' : ''}"><input type="radio" name="ed_resp" value="recusado" ${!yes ? 'checked' : ''}/> Recusado</label>
+        <label class="ep ep-yes ${yes ? 'on' : ''}"><input type="radio" name="ed_resp" value="confirmado" ${yes ? 'checked' : ''}/> Confirmado</label>
+        <label class="ep ep-no ${!yes ? 'on' : ''}"><input type="radio" name="ed_resp" value="recusado" ${!yes ? 'checked' : ''}/> Recusado</label>
       </div>
     </div>
     <p class="error-msg hidden" id="ed_err" style="text-align:left"></p>
@@ -153,16 +182,25 @@ async function saveParticipant(pid) {
   const val = (id) => document.getElementById(id).value.trim();
   const err = document.getElementById('ed_err');
   if (!val('ed_name')) { err.textContent = 'O nome é obrigatório.'; err.classList.remove('hidden'); return; }
+  const prev = LAST_LIST.find((x) => x.id === pid);
+  const oldResp = prev ? prev.response : null;
+  const newResp = document.querySelector('input[name="ed_resp"]:checked').value;
   const payload = {
     name: val('ed_name'), company: val('ed_company'), role: val('ed_role'),
-    email: val('ed_email'), phone: val('ed_phone'),
-    response: document.querySelector('input[name="ed_resp"]:checked').value,
+    email: val('ed_email'), phone: val('ed_phone'), response: newResp,
   };
   try {
     await Api.put(`/api/events/${ID}/participants/${pid}`, payload);
     closeModal();
-    toast('Participante atualizado.');
-    loadParticipants();
+    await loadParticipants();
+    // Se o status mudou, oferece desfazer.
+    if (oldResp && oldResp !== newResp) {
+      showUndo('Status alterado.', async () => {
+        try { await Api.put(`/api/events/${ID}/participants/${pid}`, { response: oldResp }); loadParticipants(); } catch (e) { toast(e.message); }
+      });
+    } else {
+      toast('Participante atualizado.');
+    }
   } catch (e) {
     err.textContent = e.message; err.classList.remove('hidden');
   }
@@ -183,6 +221,42 @@ async function showAudit(pid) {
 
 function modal(html) { document.getElementById('modalSlot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`; }
 function closeModal() { document.getElementById('modalSlot').innerHTML = ''; }
+
+// ---- Toast com ação "Desfazer" ----
+function showUndo(message, onUndo) {
+  let el = document.querySelector('.undo-toast');
+  if (el) el.remove();
+  el = document.createElement('div');
+  el.className = 'undo-toast';
+  el.innerHTML = `<span>${esc(message)}</span><button>Desfazer</button>`;
+  document.body.appendChild(el);
+  requestAnimationFrame(() => el.classList.add('show'));
+  const hide = () => { el.classList.remove('show'); setTimeout(() => el.remove(), 250); };
+  el.querySelector('button').addEventListener('click', () => { onUndo(); hide(); });
+  el._t = setTimeout(hide, 5000);
+}
+
+// ---- Excluir participante com desfazer (a remoção só efetiva após 5s) ----
+function deleteParticipant(pid) {
+  const p = LAST_LIST.find((x) => x.id === pid);
+  if (!p) return;
+  let undone = false;
+  LAST_LIST = LAST_LIST.filter((x) => x.id !== pid);
+  renderRows(LAST_LIST);
+  const timer = setTimeout(async () => {
+    if (undone) return;
+    try { await Api.del(`/api/events/${ID}/participants/${pid}`); } catch (e) { toast(e.message); }
+    loadParticipants();
+  }, 5000);
+  showUndo(`${p.name} removido.`, () => { undone = true; clearTimeout(timer); loadParticipants(); });
+}
+
+// ---- Duplicar evento ----
+document.getElementById('dupBtn').addEventListener('click', async () => {
+  if (!confirm('Duplicar este evento? Será criada uma cópia com as mesmas configurações, sem os participantes.')) return;
+  try { const novo = await Api.post(`/api/events/${ID}/duplicate`); toast('Evento duplicado.'); location.href = `/admin/event-form.html?id=${novo.id}`; }
+  catch (e) { toast(e.message); }
+});
 
 function exportUrl(format) {
   const p = new URLSearchParams({ format });
@@ -269,8 +343,8 @@ function addOne() {
     <div class="field" style="text-align:left">
       <label>Presença</label>
       <div class="edit-presence">
-        <label class="ep on"><input type="radio" name="ao_resp" value="confirmado" checked/> Confirmado</label>
-        <label class="ep"><input type="radio" name="ao_resp" value="recusado"/> Recusado</label>
+        <label class="ep ep-yes on"><input type="radio" name="ao_resp" value="confirmado" checked/> Confirmado</label>
+        <label class="ep ep-no"><input type="radio" name="ao_resp" value="recusado"/> Recusado</label>
       </div>
     </div>
     <p class="error-msg hidden" id="ao_err" style="text-align:left"></p>
@@ -284,8 +358,14 @@ function addOne() {
       lab.classList.add('on');
     });
   });
+  // Enter no campo de nome dá entrada no registro (atalho de produtividade).
+  ['ao_name', 'ao_company', 'ao_role', 'ao_email', 'ao_phone'].forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveOne(); } });
+  });
+  document.getElementById('ao_name').focus();
 }
-async function saveOne() {
+async function saveOne(force) {
   const v = (id) => document.getElementById(id).value.trim();
   const err = document.getElementById('ao_err');
   if (!v('ao_name')) { err.textContent = 'Informe o nome.'; err.classList.remove('hidden'); return; }
@@ -294,8 +374,20 @@ async function saveOne() {
     email: v('ao_email'), phone: v('ao_phone'),
     response: document.querySelector('input[name="ao_resp"]:checked').value,
   };
-  try { await Api.post(`/api/events/${ID}/participants`, payload); closeModal(); toast('Participante adicionado.'); loadParticipants(); }
-  catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
+  if (force) payload.force_update = true;
+  try {
+    const r = await Api.post(`/api/events/${ID}/participants`, payload);
+    closeModal();
+    toast(r.updated ? 'Cadastro atualizado.' : 'Participante adicionado.');
+    loadParticipants();
+  } catch (e) {
+    // Possível duplicado: o backend devolve 409 com a mensagem; oferecemos atualizar.
+    if (/já existe/i.test(e.message)) {
+      if (confirm(e.message)) { saveOne(true); return; }
+      return;
+    }
+    err.textContent = e.message; err.classList.remove('hidden');
+  }
 }
 
 function addBulk() {
@@ -308,8 +400,8 @@ function addBulk() {
     <div class="field" style="text-align:left">
       <label>Marcar todos como</label>
       <div class="edit-presence">
-        <label class="ep on"><input type="radio" name="bulk_resp" value="confirmado" checked/> Confirmado</label>
-        <label class="ep"><input type="radio" name="bulk_resp" value="recusado"/> Recusado</label>
+        <label class="ep ep-yes on"><input type="radio" name="bulk_resp" value="confirmado" checked/> Confirmado</label>
+        <label class="ep ep-no"><input type="radio" name="bulk_resp" value="recusado"/> Recusado</label>
       </div>
     </div>
     <p class="error-msg hidden" id="bulk_err" style="text-align:left"></p>

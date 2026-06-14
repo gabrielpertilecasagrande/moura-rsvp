@@ -11,11 +11,14 @@ app.use(express.urlencoded({ extended: true }));
 // Arquivos estáticos (frontend + imagens enviadas)
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
+app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'assets', 'img', 'favicon.ico')));
 
 // ---- API ----
 app.use('/api/auth', require('./src/routes/auth.routes'));
 app.use('/api/users', require('./src/routes/users.routes'));
 app.use('/api/dashboard', require('./src/routes/dashboard.routes'));
+app.use('/api/activity', require('./src/routes/activity.routes'));
+app.use('/api/search', require('./src/routes/search.routes'));
 app.use('/api/events', require('./src/routes/events.routes'));
 app.use('/api/events/:id/participants', require('./src/routes/participants.routes'));
 app.use('/api/public', require('./src/routes/public.routes'));

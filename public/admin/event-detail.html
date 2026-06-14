@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Evento — Moura RSVP</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
   <link rel="stylesheet" href="/assets/css/styles.css" />
 </head>
 <body>
@@ -18,9 +22,13 @@
         </div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <a class="btn btn-ghost btn-sm" id="editBtn">Editar</a>
+          <button class="btn btn-ghost btn-sm" id="dupBtn">Duplicar</button>
           <a class="btn btn-ghost btn-sm" id="openPublic" target="_blank">Ver página pública</a>
         </div>
       </div>
+
+      <!-- Resumo rápido do evento -->
+      <div class="card" id="quickSummary" style="margin-bottom:18px"></div>
 
       <!-- Aviso de reabertura (aparece quando encerrado pelo prazo) -->
       <div id="reopenBanner"></div>

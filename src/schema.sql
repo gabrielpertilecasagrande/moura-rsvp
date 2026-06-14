@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS events (
   decline_message  TEXT    NOT NULL DEFAULT 'Resposta registrada. Agradecemos o retorno.',
   expected_guests  INTEGER DEFAULT 0,                -- nº esperado de convidados (base p/ "pendentes")
   whatsapp         TEXT,                             -- nº de WhatsApp da organização (opcional)
+  whatsapp_enabled INTEGER DEFAULT 1,                -- 1 = exibe o botão "Falar com a organização"
   force_open       INTEGER DEFAULT 0,                -- 1 = reabre confirmações mesmo após o prazo
   form_config      TEXT    NOT NULL DEFAULT '{}',    -- JSON: quais campos opcionais aparecem
   created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
@@ -83,3 +84,13 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE INDEX IF NOT EXISTS idx_participants_event ON participants(event_id);
 CREATE INDEX IF NOT EXISTS idx_audit_participant  ON audit_log(participant_id);
 CREATE INDEX IF NOT EXISTS idx_events_slug        ON events(slug);
+
+-- Registro de atividades dos usuários administrativos (auditoria geral)
+CREATE TABLE IF NOT EXISTS activity_log (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor      TEXT,                                  -- nome/e-mail do usuário admin
+  action     TEXT    NOT NULL,                      -- ex.: 'criou evento', 'exportou PDF'
+  details    TEXT,                                  -- descrição livre
+  created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at);

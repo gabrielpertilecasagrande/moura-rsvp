@@ -36,6 +36,26 @@ function isClosed(e) {
   return deadlinePassed(e.rsvp_deadline);
 }
 
+// Substitui {nome} / {primeiro_nome} pelo primeiro nome do participante.
+function personalize(msg, name) {
+  const first = String(name || '').trim().split(/\s+/)[0] || '';
+  return String(msg || '').replace(/\{nome\}|\{primeiro_nome\}/gi, first);
+}
+
+// Localiza participante já existente por prioridade: e-mail > telefone > nome.
+function findExisting(eventId, { email, phone, normalized }) {
+  if (email && email.trim()) {
+    const byEmail = db.prepare('SELECT * FROM participants WHERE event_id = ? AND lower(email) = lower(?)').get(eventId, email.trim());
+    if (byEmail) return byEmail;
+  }
+  if (phone && String(phone).replace(/\D/g, '')) {
+    const digits = String(phone).replace(/\D/g, '');
+    const byPhone = db.prepare("SELECT * FROM participants WHERE event_id = ? AND replace(replace(replace(replace(phone,' ',''),'-',''),'(',''),')','') = ?").get(eventId, digits);
+    if (byPhone) return byPhone;
+  }
+  return db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_normalized = ?').get(eventId, normalized);
+}
+
 // GET /api/public/events/:slug  — dados públicos do evento
 router.get('/events/:slug', (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE slug = ?').get(req.params.slug);
@@ -52,7 +72,7 @@ router.get('/events/:slug', (req, res) => {
     cover_image: e.cover_image,
     client_logo: e.client_logo,
     rsvp_deadline: e.rsvp_deadline,
-    whatsapp: e.whatsapp || null,
+    whatsapp: e.whatsapp_enabled ? (e.whatsapp || null) : null,
     form_config: parseFormConfig(e.form_config),
     closed,
     closed_reason: e.status !== 'ativo' ? 'inativo' : (closed ? 'prazo' : null),
@@ -82,17 +102,13 @@ router.post('/events/:slug/rsvp', (req, res) => {
   }
 
   const normalized = normalizeName(name);
-  const existing = db.prepare(
-    'SELECT * FROM participants WHERE event_id = ? AND name_normalized = ?'
-  ).get(e.id, normalized);
-
-  const now = new Date().toISOString();
+  const existing = findExisting(e.id, { email, phone, normalized });
 
   if (existing) {
     // Atualiza registro existente (sem duplicar)
     db.prepare(`
       UPDATE participants SET name=?, company=?, role=?, email=?,
-        phone=?, response=?, updated_at=datetime('now')
+        phone=?, response=?, name_normalized=?, updated_at=datetime('now')
       WHERE id=?
     `).run(
       String(name).trim(),
@@ -101,6 +117,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
       email || null,
       phone || null,
       response,
+      normalized,
       existing.id
     );
     db.prepare(`
@@ -111,7 +128,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
 
     return res.json({
       updated: true,
-      message: 'Encontramos uma resposta anterior e seus dados foram atualizados.',
+      message: personalize(response === 'confirmado' ? e.confirm_message : e.decline_message, name),
       response,
     });
   }
@@ -130,7 +147,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
 
   res.status(201).json({
     updated: false,
-    message: response === 'confirmado' ? e.confirm_message : e.decline_message,
+    message: personalize(response === 'confirmado' ? e.confirm_message : e.decline_message, name),
     response,
   });
 });

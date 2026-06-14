@@ -33,9 +33,6 @@ router.post('/register', (req, res) => {
   if (!name || !email || !password) {
     return res.status(400).json({ error: 'Preencha nome, e-mail e senha.' });
   }
-  if (String(password).length < 6) {
-    return res.status(400).json({ error: 'A senha deve ter ao menos 6 caracteres.' });
-  }
   const mail = String(email).toLowerCase().trim();
   const exists = db.prepare('SELECT id FROM admins WHERE email = ?').get(mail);
   if (exists) {

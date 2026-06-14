@@ -54,6 +54,7 @@ async function loadForEdit() {
   set('event_time', e.event_time); set('location', e.location); set('rsvp_deadline', e.rsvp_deadline);
   set('expected_guests', e.expected_guests); set('status', e.status);
   set('whatsapp', e.whatsapp);
+  document.getElementById('whatsapp_enabled').checked = e.whatsapp_enabled == null ? true : !!e.whatsapp_enabled;
   set('confirm_message', e.confirm_message); set('decline_message', e.decline_message);
   formConfig = e.form_config || {};
   renderAttachment('coverCurrent', e.cover_image, 'cover');
@@ -62,6 +63,8 @@ async function loadForEdit() {
   const del = document.getElementById('deleteBtn');
   del.classList.remove('hidden');
   del.addEventListener('click', () => confirmDelete(e.name));
+  dirty = false; // carregar não conta como alteração
+  maybeRestoreDraft();
 }
 
 // Preview do anexo atual com opção de remover.
@@ -115,6 +118,7 @@ async function save() {
   const fd = new FormData();
   ['name', 'slug', 'description', 'event_date', 'event_time', 'location', 'rsvp_deadline',
    'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'].forEach((id) => fd.append(id, v(id)));
+  fd.append('whatsapp_enabled', document.getElementById('whatsapp_enabled').checked ? '1' : '0');
   fd.append('form_config', JSON.stringify(formConfig));
   if (removeCover) fd.append('remove_cover', '1');
   if (removeLogo) fd.append('remove_logo', '1');
@@ -126,6 +130,7 @@ async function save() {
   const btn = document.getElementById('saveBtn'); btn.disabled = true; btn.textContent = 'Salvando…';
   try {
     const saved = EDIT_ID ? await Api.putForm(`/api/events/${EDIT_ID}`, fd) : await Api.postForm('/api/events', fd);
+    dirty = false; clearDraft(); // salvou: não avisa mais sobre alterações
     location.href = `/admin/event-detail.html?id=${saved.id}`;
   } catch (e) {
     err.textContent = e.message; err.classList.remove('hidden');
@@ -133,6 +138,57 @@ async function save() {
   }
 }
 
+// ---- Rascunho automático + aviso de alterações não salvas ----
+const DRAFT_KEY = `moura_draft_${EDIT_ID || 'new'}`;
+const TEXT_IDS = ['name', 'slug', 'description', 'event_date', 'event_time', 'location',
+  'rsvp_deadline', 'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'];
+let dirty = false;
+let draftT;
+
+function collectDraft() {
+  const d = { _t: Date.now(), wa_on: document.getElementById('whatsapp_enabled').checked, form_config: formConfig };
+  TEXT_IDS.forEach((id) => { d[id] = document.getElementById(id).value; });
+  return d;
+}
+function saveDraft() {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(collectDraft())); } catch { /* ignora */ }
+}
+function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch { /* ignora */ } }
+function applyDraft(d) {
+  TEXT_IDS.forEach((id) => { if (d[id] != null) document.getElementById(id).value = d[id]; });
+  if (d.wa_on != null) document.getElementById('whatsapp_enabled').checked = d.wa_on;
+  if (d.form_config) { formConfig = d.form_config; renderBuilder(); }
+}
+function maybeRestoreDraft() {
+  let raw; try { raw = localStorage.getItem(DRAFT_KEY); } catch { return; }
+  if (!raw) return;
+  try {
+    const d = JSON.parse(raw);
+    if (confirm('Encontramos um rascunho não salvo deste evento. Deseja restaurar as alterações?')) {
+      applyDraft(d); dirty = true;
+    } else { clearDraft(); }
+  } catch { /* ignora */ }
+}
+
+function markDirty() {
+  dirty = true;
+  clearTimeout(draftT);
+  draftT = setTimeout(saveDraft, 800); // salva rascunho ~0,8s após parar de digitar
+}
+
+// Avisa ao tentar sair com alterações não salvas (fechar aba, navegar, etc.).
+window.addEventListener('beforeunload', (e) => {
+  if (dirty) { e.preventDefault(); e.returnValue = ''; }
+});
+// Monitora alterações em todos os campos do formulário.
+document.addEventListener('input', (e) => {
+  if (e.target.closest('.main')) markDirty();
+});
+document.addEventListener('change', (e) => {
+  if (e.target.closest('.main')) markDirty();
+});
+
 document.getElementById('saveBtn').addEventListener('click', save);
 renderBuilder();
 if (EDIT_ID) loadForEdit().catch((e) => toast(e.message));
+else maybeRestoreDraft();

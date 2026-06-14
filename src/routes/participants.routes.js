@@ -4,6 +4,21 @@ const PDFDocument = require('pdfkit');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { normalizeName } = require('../utils/normalize');
+const { logActivity } = require('../utils/activity');
+
+// Localiza participante existente por prioridade: e-mail > telefone > nome.
+function findDup(eventId, { email, phone, normalized }) {
+  if (email && email.trim()) {
+    const r = db.prepare('SELECT * FROM participants WHERE event_id = ? AND lower(email) = lower(?)').get(eventId, email.trim());
+    if (r) return r;
+  }
+  if (phone && String(phone).replace(/\D/g, '')) {
+    const d = String(phone).replace(/\D/g, '');
+    const r = db.prepare("SELECT * FROM participants WHERE event_id = ? AND replace(replace(replace(replace(phone,' ',''),'-',''),'(',''),')','') = ?").get(eventId, d);
+    if (r) return r;
+  }
+  return db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_normalized = ?').get(eventId, normalized);
+}
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -41,6 +56,17 @@ router.get('/', (req, res) => {
       pending: Math.max(0, (e.expected_guests || 0) - total) },
     participants: list,
   });
+});
+
+// DELETE /api/events/:id/participants/:pid — remove participante
+router.delete('/:pid', (req, res) => {
+  const eventId = Number(req.params.id);
+  const pid = Number(req.params.pid);
+  const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ?').get(pid, eventId);
+  if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
+  db.prepare('DELETE FROM participants WHERE id = ?').run(pid);
+  logActivity(req.admin.name || req.admin.email, 'removeu participante', `${p.name}`);
+  res.json({ ok: true });
 });
 
 // GET /api/events/:id/participants/:pid/audit — histórico de alterações
@@ -119,8 +145,20 @@ router.post('/', (req, res) => {
   const response = b.response === 'recusado' ? 'recusado' : 'confirmado';
   const normalized = normalizeName(name);
 
-  const existing = db.prepare('SELECT id FROM participants WHERE event_id = ? AND name_normalized = ?').get(eventId, normalized);
-  if (existing) return res.status(409).json({ error: 'Já existe um participante com este nome neste evento.' });
+  const existing = findDup(eventId, { email: b.email, phone: b.phone, normalized });
+  if (existing && !b.force_update) {
+    return res.status(409).json({
+      error: 'Este participante já existe. Deseja atualizar o cadastro existente?',
+      duplicate: true, participant_id: existing.id, matched_name: existing.name,
+    });
+  }
+  if (existing && b.force_update) {
+    db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, updated_at=datetime('now') WHERE id=?`)
+      .run(name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, existing.id);
+    db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details) VALUES (?,?,'editou',?,?,?,?)`)
+      .run(existing.id, eventId, req.admin.name || req.admin.email || 'Administrador', existing.response, response, 'Atualização de cadastro existente (inclusão manual)');
+    return res.json({ ok: true, updated: true, participant: db.prepare('SELECT * FROM participants WHERE id=?').get(existing.id) });
+  }
 
   const info = db.prepare(
     `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response)
@@ -164,12 +202,13 @@ router.post('/bulk', (req, res) => {
     const name = cols[0];
     if (!name) continue;
     const normalized = normalizeName(name);
-    const dup = db.prepare('SELECT id FROM participants WHERE event_id = ? AND name_normalized = ?').get(eventId, normalized);
+    const dup = findDup(eventId, { email: cols[1], phone: cols[4], normalized });
     if (dup) { skipped.push(name); continue; }
     const info = insert.run(eventId, name, normalized, cols[2] || null, cols[3] || null, cols[1] || null, cols[4] || null, response);
     audit.run(info.lastInsertRowid, eventId, actor, response, 'Inclusão em lote pelo administrador');
     added++;
   }
+  logActivity(actor, 'incluiu participantes em lote', `${added} incluído(s)`);
   res.status(201).json({ ok: true, added, skipped, skipped_count: skipped.length });
 });
 
@@ -197,6 +236,7 @@ router.get('/export', async (req, res) => {
   const rows = queryParticipants(eventId, req.query);
   const safeName = (e.slug || 'evento').replace(/[^a-z0-9-]/gi, '');
   const format = (req.query.format || 'xlsx').toLowerCase();
+  logActivity(req.admin.name || req.admin.email, `exportou ${format.toUpperCase()}`, e.name);
 
   if (format === 'csv') {
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;

@@ -1,22 +1,22 @@
 requireSession();
 mountShell('dashboard');
 
+// Cores com significado: verde = positivo, vermelho = negativo, âmbar = aguardando.
 const STAT_DEFS = [
-  { k: 'totalEvents', l: 'Total de eventos' },
-  { k: 'activeEvents', l: 'Eventos ativos' },
-  { k: 'confirmed', l: 'Confirmações', accent: true },
-  { k: 'declined', l: 'Recusas' },
-  { k: 'pending', l: 'Respostas pendentes' },
+  { k: 'totalEvents', l: 'Total de eventos', tone: 'navy' },
+  { k: 'activeEvents', l: 'Eventos ativos', tone: 'cyan' },
+  { k: 'confirmed', l: 'Confirmações', tone: 'green' },
+  { k: 'declined', l: 'Recusas', tone: 'red' },
+  { k: 'pending', l: 'Respostas pendentes', tone: 'amber' },
 ];
 
 async function init() {
   const s = await Api.get('/api/dashboard');
   const cards = STAT_DEFS.map((d) =>
-    `<div class="stat ${d.accent ? 'accent' : ''}"><div class="n">${s[d.k] ?? 0}</div><div class="l">${d.l}</div></div>`
+    `<div class="stat tone-${d.tone}"><div class="n">${s[d.k] ?? 0}</div><div class="l">${d.l}</div></div>`
   );
-  // Card de taxa de resposta (respostas ÷ convidados esperados).
   if (s.responseRate != null) {
-    cards.push(`<div class="stat accent">
+    cards.push(`<div class="stat tone-cyan">
       <div class="n">${s.responseRate}%</div>
       <div class="l">Taxa de resposta<br><span style="font-size:11px">${s.totalResponses} de ${s.totalExpected} esperados</span></div>
     </div>`);
@@ -26,11 +26,25 @@ async function init() {
   const events = await Api.get('/api/events');
   const box = document.getElementById('events');
   if (!events.length) {
-    box.innerHTML = `<div class="card center" style="grid-column:1/-1"><p class="muted">Nenhum evento ainda.</p>
-      <a href="/admin/event-form.html" class="btn btn-primary" style="margin-top:12px">Criar primeiro evento</a></div>`;
+    box.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <div class="ico">📅</div>
+      <h3>Nenhum evento cadastrado ainda.</h3>
+      <p>Clique em "Novo evento" para começar.</p>
+      <a href="/admin/event-form.html" class="btn btn-primary" style="margin-top:14px">+ Novo evento</a>
+    </div>`;
     return;
   }
   box.innerHTML = events.map(eventCard).join('');
+}
+
+function deadlineTag(e) {
+  if (e.status !== 'ativo') return '';
+  if (!e.rsvp_deadline) return '';
+  const end = new Date(`${e.rsvp_deadline}T23:59:59`).getTime();
+  const days = Math.ceil((end - Date.now()) / 86400000);
+  if (Date.now() > end && !e.force_open) return '<span class="deadline-tag deadline-red">Prazo encerrado</span>';
+  if (days <= 7) return `<span class="deadline-tag deadline-amber">Faltam ${days} dia(s)</span>`;
+  return '<span class="deadline-tag deadline-green">Prazo aberto</span>';
 }
 
 function eventCard(e) {
@@ -40,20 +54,69 @@ function eventCard(e) {
   const statusPill = e.status === 'ativo'
     ? '<span class="pill pill-active">Ativo</span>' : '<span class="pill pill-inactive">Inativo</span>';
   return `
-  <a class="event-card" href="/admin/event-detail.html?id=${e.id}" style="text-decoration:none;color:inherit">
-    ${cover}
-    <div class="body">
-      <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
-        <h3>${esc(e.name)}</h3>${statusPill}
+  <div class="event-card">
+    <a href="/admin/event-detail.html?id=${e.id}" style="text-decoration:none;color:inherit">
+      ${cover}
+      <div class="body">
+        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
+          <h3>${esc(e.name)}</h3>${statusPill}
+        </div>
+        <div class="meta">${e.event_date ? fmtDateBR(e.event_date) : 'Data a definir'}${e.location ? ' · ' + esc(e.location) : ''}</div>
+        <div style="margin-top:2px">${deadlineTag(e)}</div>
+        <div class="nums">
+          <span><b>${e.total_responses}</b> respostas</span>
+          <span style="color:#0f8a4a"><b>${e.confirmed}</b> confirmados</span>
+          <span style="color:var(--danger)"><b>${e.declined}</b> recusas</span>
+        </div>
       </div>
-      <div class="meta">${e.event_date ? fmtDateBR(e.event_date) : 'Data a definir'}${e.location ? ' · ' + esc(e.location) : ''}</div>
-      <div class="nums">
-        <span><b>${e.total_responses}</b> respostas</span>
-        <span style="color:#0f8a93"><b>${e.confirmed}</b> confirmados</span>
-        <span style="color:var(--danger)"><b>${e.declined}</b> recusas</span>
-      </div>
+    </a>
+    <div class="event-card-actions">
+      <button class="btn btn-ghost btn-sm" onclick="duplicateEvent(${e.id}, event)">Duplicar</button>
     </div>
-  </a>`;
+  </div>`;
+}
+
+async function duplicateEvent(id, ev) {
+  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
+  if (!confirm('Duplicar este evento? Será criada uma cópia com as mesmas configurações, sem os participantes.')) return;
+  try {
+    const novo = await Api.post(`/api/events/${id}/duplicate`);
+    toast('Evento duplicado.');
+    location.href = `/admin/event-form.html?id=${novo.id}`;
+  } catch (e) { toast(e.message); }
+}
+
+// ---- Busca global ----
+let gst;
+const gs = document.getElementById('globalSearch');
+const gr = document.getElementById('searchResults');
+gs.addEventListener('input', () => {
+  clearTimeout(gst);
+  const q = gs.value.trim();
+  if (q.length < 2) { gr.classList.add('hidden'); gr.innerHTML = ''; return; }
+  gst = setTimeout(() => runSearch(q), 250);
+});
+document.addEventListener('click', (e) => {
+  if (!gr.contains(e.target) && e.target !== gs) gr.classList.add('hidden');
+});
+async function runSearch(q) {
+  try {
+    const r = await Api.get(`/api/search?q=${encodeURIComponent(q)}`);
+    const parts = [];
+    if (r.events.length) {
+      parts.push('<div class="sr-group">Eventos</div>');
+      parts.push(r.events.map((e) => `<a class="sr-item" href="/admin/event-detail.html?id=${e.id}">
+        <span class="sr-ico">📅</span><span><strong>${esc(e.name)}</strong>${e.location ? `<span class="sr-sub">${esc(e.location)}</span>` : ''}</span></a>`).join(''));
+    }
+    if (r.participants.length) {
+      parts.push('<div class="sr-group">Participantes</div>');
+      parts.push(r.participants.map((p) => `<a class="sr-item" href="/admin/event-detail.html?id=${p.event_id}">
+        <span class="sr-ico">${p.response === 'confirmado' ? '✅' : '❌'}</span>
+        <span><strong>${esc(p.name)}</strong><span class="sr-sub">${esc(p.event_name)}${p.email ? ' · ' + esc(p.email) : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</span></span></a>`).join(''));
+    }
+    gr.innerHTML = parts.join('') || '<div class="sr-empty">Nenhum resultado encontrado.</div>';
+    gr.classList.remove('hidden');
+  } catch (e) { /* silencioso */ }
 }
 
 init().catch((e) => toast(e.message));

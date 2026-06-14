@@ -9,6 +9,7 @@ const jpeg = require('jpeg-js');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { uniqueSlug, slugify } = require('../utils/slug');
+const { logActivity } = require('../utils/activity');
 
 const router = express.Router();
 router.use(requireAuth); // todas as rotas deste arquivo exigem login
@@ -114,17 +115,20 @@ router.post('/', upload, (req, res) => {
   const info = db.prepare(`
     INSERT INTO events (slug, name, description, event_date, event_time, location,
       cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
-      expected_guests, whatsapp, force_open, form_config)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      expected_guests, whatsapp, whatsapp_enabled, force_open, form_config)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     slug, b.name, b.description || null, b.event_date || null, b.event_time || null,
     b.location || null, cover, logo, b.rsvp_deadline || null, b.status || 'ativo',
-    b.confirm_message || 'Presença confirmada. Obrigado!',
-    b.decline_message || 'Resposta registrada. Agradecemos o retorno.',
-    parseInt(b.expected_guests, 10) || 0, b.whatsapp || null, 0, formConfig
+    b.confirm_message || 'Olá, {nome}. Sua presença no evento foi confirmada com sucesso.',
+    b.decline_message || 'Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.',
+    parseInt(b.expected_guests, 10) || 0, b.whatsapp || null,
+    (b.whatsapp_enabled === '0' || b.whatsapp_enabled === 'false' || b.whatsapp_enabled === false) ? 0 : 1,
+    0, formConfig
   );
   const created = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
   created.public_url = publicUrl(req, created.slug);
+  logActivity(req.admin.name || req.admin.email, 'criou evento', created.name);
   res.status(201).json(created);
 });
 
@@ -163,7 +167,7 @@ router.put('/:id', upload, (req, res) => {
       slug=?, name=?, description=?, event_date=?, event_time=?,
       location=?, cover_image=?, client_logo=?,
       rsvp_deadline=?, status=?, confirm_message=?,
-      decline_message=?, expected_guests=?, whatsapp=?,
+      decline_message=?, expected_guests=?, whatsapp=?, whatsapp_enabled=?,
       form_config=?, updated_at=datetime('now')
     WHERE id=?
   `).run(
@@ -180,12 +184,14 @@ router.put('/:id', upload, (req, res) => {
     b.decline_message ?? e.decline_message,
     b.expected_guests != null ? (parseInt(b.expected_guests, 10) || 0) : e.expected_guests,
     b.whatsapp != null ? (b.whatsapp || null) : e.whatsapp,
+    b.whatsapp_enabled != null ? ((b.whatsapp_enabled === '0' || b.whatsapp_enabled === 'false' || b.whatsapp_enabled === false) ? 0 : 1) : e.whatsapp_enabled,
     b.form_config ? JSON.stringify(parseFormConfig(b.form_config)) : e.form_config,
     e.id
   );
   const updated = db.prepare('SELECT * FROM events WHERE id = ?').get(e.id);
   updated.form_config = parseFormConfig(updated.form_config);
   updated.public_url = publicUrl(req, updated.slug);
+  logActivity(req.admin.name || req.admin.email, 'editou evento', updated.name);
   res.json(updated);
 });
 
@@ -198,6 +204,27 @@ router.patch('/:id/reopen', (req, res) => {
   res.json({ ok: true, force_open: open });
 });
 
+// POST /api/events/:id/duplicate — duplica um evento (sem participantes)
+router.post('/:id/duplicate', (req, res) => {
+  const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const slug = uniqueSlug(db, `${e.name} copia`);
+  const info = db.prepare(`
+    INSERT INTO events (slug, name, description, event_date, event_time, location,
+      cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
+      expected_guests, whatsapp, whatsapp_enabled, force_open, form_config)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    slug, `${e.name} (cópia)`, e.description, e.event_date, e.event_time, e.location,
+    e.cover_image, e.client_logo, e.rsvp_deadline, 'ativo', e.confirm_message, e.decline_message,
+    e.expected_guests, e.whatsapp, e.whatsapp_enabled, 0, e.form_config
+  );
+  const created = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
+  created.public_url = publicUrl(req, created.slug);
+  logActivity(req.admin.name || req.admin.email, 'duplicou evento', `${e.name} → ${created.name}`);
+  res.status(201).json(created);
+});
+
 // DELETE /api/events/:id
 router.delete('/:id', (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
@@ -205,6 +232,7 @@ router.delete('/:id', (req, res) => {
   removeUpload(e.cover_image);
   removeUpload(e.client_logo);
   db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
+  logActivity(req.admin.name || req.admin.email, 'excluiu evento', e.name);
   res.json({ ok: true });
 });
 

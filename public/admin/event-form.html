@@ -4,6 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Evento — Moura RSVP</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
   <link rel="stylesheet" href="/assets/css/styles.css" />
 </head>
 <body>
@@ -56,7 +60,11 @@
         <div class="field">
           <label>WhatsApp da organização <span class="muted" style="font-weight:400">(opcional)</span></label>
           <input type="text" id="whatsapp" placeholder="Ex.: (54) 99908-3718" />
-          <p class="muted" style="font-size:12px;margin:6px 0 0">Se preenchido, aparece na página pública um botão verde “Falar com a organização”. Deixe em branco para ocultar o botão.</p>
+          <label style="display:flex;align-items:center;gap:8px;margin:10px 0 0;cursor:pointer;font-weight:400;font-size:13px">
+            <input type="checkbox" id="whatsapp_enabled" checked style="width:18px;height:18px;accent-color:var(--navy)" />
+            Exibir o botão “Falar com a organização” na página pública
+          </label>
+          <p class="muted" style="font-size:12px;margin:6px 0 0">Marque para ativar o botão verde de WhatsApp. Desmarque para ocultá-lo sem apagar o número.</p>
         </div>
         <div class="field"><label>Status</label>
           <select id="status"><option value="ativo">Ativo</option><option value="inativo">Inativo</option></select>
@@ -70,9 +78,10 @@
       </div>
 
       <div class="card" style="margin-bottom:18px">
-        <h2 style="font-size:16px;margin-bottom:14px">Mensagens de retorno</h2>
-        <div class="field"><label>Mensagem ao confirmar presença</label><textarea id="confirm_message">Presença confirmada. Agradecemos e nos vemos no evento!</textarea></div>
-        <div class="field"><label>Mensagem ao recusar</label><textarea id="decline_message">Resposta registrada. Agradecemos o retorno.</textarea></div>
+        <h2 style="font-size:16px;margin-bottom:4px">Mensagens de retorno</h2>
+        <p class="muted" style="font-size:13px;margin:0 0 14px">Use <code>{nome}</code> para inserir o primeiro nome de quem respondeu. Se não usar, a mensagem aparece sem nomeação.</p>
+        <div class="field"><label>Mensagem ao confirmar presença</label><textarea id="confirm_message">Olá, {nome}. Sua presença no evento foi confirmada com sucesso.</textarea></div>
+        <div class="field"><label>Mensagem ao recusar</label><textarea id="decline_message">Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.</textarea></div>
       </div>
 
       <div style="display:flex;gap:10px;justify-content:flex-end">

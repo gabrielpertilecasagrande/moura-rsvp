@@ -50,6 +50,7 @@ addColumn('admins', 'role', "TEXT NOT NULL DEFAULT 'editor'");
 addColumn('admins', 'status', "TEXT NOT NULL DEFAULT 'ativo'");
 addColumn('events', 'whatsapp', 'TEXT');
 addColumn('events', 'force_open', 'INTEGER DEFAULT 0');
+addColumn('events', 'whatsapp_enabled', 'INTEGER DEFAULT 1');
 addColumn('audit_log', 'actor', 'TEXT');
 
 // O primeiro administrador criado pelo seed deve ter acesso total.

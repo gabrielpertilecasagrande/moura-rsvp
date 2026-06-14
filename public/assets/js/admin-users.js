@@ -89,7 +89,8 @@ function newUser() {
     <p class="muted" style="font-size:13px;margin:0 0 16px">A conta já é criada ativa, pronta para usar.</p>
     ${inputRow('nu_name', 'Nome completo', '')}
     ${inputRow('nu_email', 'E-mail', '', 'email')}
-    ${inputRow('nu_pass', 'Senha (mínimo 6 caracteres)', '', 'password')}
+    ${inputRow('nu_pass', 'Senha', '', 'password')}
+    ${inputRow('nu_pass2', 'Repita a senha', '', 'password')}
     ${roleSelect('nu_role', 'editor')}
     <p class="error-msg hidden" id="nu_err" style="text-align:left"></p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
@@ -100,8 +101,11 @@ function newUser() {
 async function createUser() {
   const v = (id) => document.getElementById(id).value.trim();
   const err = document.getElementById('nu_err');
-  const payload = { name: v('nu_name'), email: v('nu_email'), password: document.getElementById('nu_pass').value, role: document.getElementById('nu_role').value };
+  const pass = document.getElementById('nu_pass').value;
+  const pass2 = document.getElementById('nu_pass2').value;
+  const payload = { name: v('nu_name'), email: v('nu_email'), password: pass, role: document.getElementById('nu_role').value };
   if (!payload.name || !payload.email || !payload.password) { err.textContent = 'Preencha nome, e-mail e senha.'; err.classList.remove('hidden'); return; }
+  if (pass !== pass2) { err.textContent = 'As senhas não conferem.'; err.classList.remove('hidden'); return; }
   try { await Api.post('/api/users', payload); closeModal(); toast('Usuário criado.'); refresh(); }
   catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
 }
@@ -137,7 +141,8 @@ function resetPass(id) {
   modal(`
     <h3 style="font-size:17px;margin-bottom:4px">Redefinir senha</h3>
     <p class="muted" style="font-size:13px;margin:0 0 16px">${esc(u ? u.name : '')}</p>
-    ${inputRow('rp_pass', 'Nova senha (mínimo 6 caracteres)', '', 'password')}
+    ${inputRow('rp_pass', 'Nova senha', '', 'password')}
+    ${inputRow('rp_pass2', 'Repita a nova senha', '', 'password')}
     <p class="error-msg hidden" id="rp_err" style="text-align:left"></p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
@@ -147,6 +152,9 @@ function resetPass(id) {
 async function doReset(id) {
   const err = document.getElementById('rp_err');
   const password = document.getElementById('rp_pass').value;
+  const password2 = document.getElementById('rp_pass2').value;
+  if (!password) { err.textContent = 'Informe a nova senha.'; err.classList.remove('hidden'); return; }
+  if (password !== password2) { err.textContent = 'As senhas não conferem.'; err.classList.remove('hidden'); return; }
   try { await Api.post(`/api/users/${id}/password`, { password }); closeModal(); toast('Senha redefinida.'); }
   catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
 }
