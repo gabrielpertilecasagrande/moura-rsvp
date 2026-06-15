@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evento — Moura Eventos</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow" id="formEyebrow">Novo</div>
+          <h1 id="formTitle">Novo Evento</h1>
+        </div>
+        <a href="/admin/events.html" class="btn btn-ghost">← Voltar</a>
+      </div>
+
+      <div class="card" style="max-width:680px">
+        <div class="field"><label>Nome do evento *</label><input type="text" id="name" /></div>
+        <div class="field"><label>Cliente / Organização</label><input type="text" id="client" /></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field"><label>Data</label><input type="date" id="event_date" /></div>
+          <div class="field"><label>Horário</label><input type="time" id="event_time" /></div>
+        </div>
+        <div class="field"><label>Local / Espaço</label><input type="text" id="location" /></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field"><label>Cidade</label><input type="text" id="city" /></div>
+          <div class="field"><label>Responsável</label><input type="text" id="responsible" /></div>
+        </div>
+        <div class="field">
+          <label>Status</label>
+          <select id="status">
+            <option>Planejamento</option>
+            <option>Contratação</option>
+            <option>Produção</option>
+            <option>Evento realizado</option>
+            <option>Encerrado</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:8px">
+          <button class="btn btn-primary" id="saveBtn">Salvar evento</button>
+          <a href="/admin/events.html" class="btn btn-ghost">Cancelar</a>
+        </div>
+      </div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-event-form.js"></script>
+</body>
+</html>

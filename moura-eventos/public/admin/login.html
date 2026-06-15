@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Entrar — Moura Eventos</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="login-page">
+    <aside class="login-aside">
+      <div class="logo"><img src="/assets/img/logo-moura.png" alt="Moura" /></div>
+      <div>
+        <div class="accent-rule"></div>
+        <h2>Produção e gestão de eventos corporativos.</h2>
+        <p>Centralize fornecedores, contratações, checklist e arquivos em um só lugar.</p>
+      </div>
+      <p style="color:#7e8db3;font-size:12px">Sistema interno · Moura Agência de Relações Públicas</p>
+    </aside>
+    <main class="login-form-wrap">
+      <div class="login-form">
+        <h1>Acesso administrativo</h1>
+        <p class="sub">Entre com suas credenciais.</p>
+        <p class="error-msg hidden" id="err"></p>
+        <div class="field"><label>E-mail</label><input type="email" id="email" autocomplete="username" /></div>
+        <div class="field"><label>Senha</label><input type="password" id="password" autocomplete="current-password" /></div>
+        <button class="btn btn-primary" id="btn" style="width:100%;margin-top:6px">Entrar</button>
+        <p class="muted" style="font-size:13px;text-align:center;margin-top:16px">
+          Ainda não tem acesso? <a href="/admin/register.html">Solicitar acesso</a>
+        </p>
+      </div>
+    </main>
+  </div>
+  <script src="/assets/js/api.js"></script>
+  <script>
+    if (Api.token()) location.href = '/admin/dashboard.html';
+    const err = document.getElementById('err');
+    async function login() {
+      err.classList.add('hidden');
+      const btn = document.getElementById('btn'); btn.disabled = true; btn.textContent = 'Entrando…';
+      try {
+        const r = await Api.post('/api/auth/login', {
+          email: document.getElementById('email').value.trim(),
+          password: document.getElementById('password').value,
+        });
+        Api.setToken(r.token);
+        location.href = '/admin/dashboard.html';
+      } catch (e) {
+        err.textContent = e.message; err.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Entrar';
+      }
+    }
+    document.getElementById('btn').addEventListener('click', login);
+    document.getElementById('password').addEventListener('keydown', (e) => { if (e.key === 'Enter') login(); });
+  </script>
+</body>
+</html>

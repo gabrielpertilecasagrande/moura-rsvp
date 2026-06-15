@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fornecedores — Moura Eventos</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Cadastro</div>
+          <h1>Fornecedores</h1>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="refreshSlot"></span>
+          <a href="/admin/supplier-form.html" class="btn btn-primary">+ Novo fornecedor</a>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+        <input type="text" id="searchInput" placeholder="Buscar por nome, contato ou cidade…" style="flex:1;min-width:220px" />
+        <select id="categoryFilter">
+          <option value="">Todas as categorias</option>
+          <option>Sonorização</option><option>Iluminação</option><option>LED</option>
+          <option>Streaming</option><option>Fotografia</option><option>Filmagem</option>
+          <option>Buffet</option><option>Decoração</option><option>Cerimonial</option>
+          <option>Segurança</option><option>Recepção</option><option>Brindes</option>
+          <option>Transporte</option><option>Hospedagem</option>
+        </select>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Empresa</th>
+              <th>Categoria</th>
+              <th>Contato</th>
+              <th>WhatsApp</th>
+              <th>Cidade</th>
+              <th>Contratações</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="supplierBody"></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-suppliers.js"></script>
+</body>
+</html>

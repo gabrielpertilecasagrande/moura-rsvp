@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Solicitar acesso — Moura Eventos</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="login-page">
+    <aside class="login-aside">
+      <div class="logo"><img src="/assets/img/logo-moura.png" alt="Moura" /></div>
+      <div>
+        <div class="accent-rule"></div>
+        <h2>Solicite seu acesso ao sistema.</h2>
+        <p>Sua solicitação será enviada a um administrador. Após a aprovação, você poderá entrar com seu e-mail e senha.</p>
+      </div>
+      <p style="color:#7e8db3;font-size:12px">Sistema interno · Moura Agência de Relações Públicas</p>
+    </aside>
+    <main class="login-form-wrap">
+      <div class="login-form">
+        <h1>Solicitar acesso</h1>
+        <p class="sub">Preencha seus dados para pedir uma conta.</p>
+        <p class="error-msg hidden" id="err"></p>
+        <div class="ok-box hidden" id="ok"></div>
+        <div id="formWrap">
+          <div class="field"><label>Nome completo</label><input type="text" id="name" autocomplete="name" /></div>
+          <div class="field"><label>E-mail</label><input type="email" id="email" autocomplete="username" /></div>
+          <div class="field"><label>Senha (mínimo 8 caracteres)</label><input type="password" id="password" autocomplete="new-password" /></div>
+          <div class="field"><label>Repita a senha</label><input type="password" id="password2" autocomplete="new-password" /></div>
+          <button class="btn btn-primary" id="btn" style="width:100%;margin-top:6px">Enviar solicitação</button>
+        </div>
+        <p class="muted" style="font-size:13px;text-align:center;margin-top:16px">
+          Já tem acesso? <a href="/admin/login.html">Entrar</a>
+        </p>
+      </div>
+    </main>
+  </div>
+  <script src="/assets/js/api.js"></script>
+  <script>
+    const err = document.getElementById('err');
+    const ok = document.getElementById('ok');
+    async function register() {
+      err.classList.add('hidden');
+      const pass = document.getElementById('password').value;
+      const pass2 = document.getElementById('password2').value;
+      if (!pass) { err.textContent = 'Informe uma senha.'; err.classList.remove('hidden'); return; }
+      if (pass !== pass2) { err.textContent = 'As senhas não conferem.'; err.classList.remove('hidden'); return; }
+      const btn = document.getElementById('btn'); btn.disabled = true; btn.textContent = 'Enviando…';
+      try {
+        const r = await Api.post('/api/auth/register', {
+          name: document.getElementById('name').value.trim(),
+          email: document.getElementById('email').value.trim(),
+          password: pass,
+        });
+        document.getElementById('formWrap').classList.add('hidden');
+        ok.textContent = r.message;
+        ok.classList.remove('hidden');
+      } catch (e) {
+        err.textContent = e.message; err.classList.remove('hidden');
+        btn.disabled = false; btn.textContent = 'Enviar solicitação';
+      }
+    }
+    document.getElementById('btn').addEventListener('click', register);
+  </script>
+</body>
+</html>

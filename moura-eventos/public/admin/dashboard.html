@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — Moura Eventos</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Visão geral</div>
+          <h1>Dashboard</h1>
+        </div>
+        <span id="refreshSlot"></span>
+      </div>
+      <div class="stat-grid" id="stats"></div>
+      <div class="page-head" style="margin-top:32px;margin-bottom:14px">
+        <h2 style="font-size:18px">Eventos recentes</h2>
+        <a href="/admin/events.html" class="btn btn-ghost btn-sm">Ver todos</a>
+      </div>
+      <div id="recentEvents"></div>
+      <div class="page-head" style="margin-top:32px;margin-bottom:14px">
+        <h2 style="font-size:18px">Atividade recente</h2>
+      </div>
+      <div id="recentActivity"></div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-dashboard.js"></script>
+</body>
+</html>

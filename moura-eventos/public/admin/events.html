@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Eventos — Moura Eventos</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Gestão</div>
+          <h1>Eventos</h1>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="refreshSlot"></span>
+          <a href="/admin/event-form.html" class="btn btn-primary" id="newEventBtn">+ Novo evento</a>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px">
+        <input type="text" id="searchInput" placeholder="Buscar por nome, cliente ou cidade…" style="flex:1;min-width:220px" />
+        <select id="statusFilter">
+          <option value="">Todos os status</option>
+          <option>Planejamento</option>
+          <option>Contratação</option>
+          <option>Produção</option>
+          <option>Evento realizado</option>
+          <option>Encerrado</option>
+        </select>
+      </div>
+
+      <div class="stat-grid" id="statusStats" style="margin-bottom:24px"></div>
+      <div id="eventList"></div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-events.js"></script>
+</body>
+</html>
