@@ -5,6 +5,23 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { normalizeName } = require('../utils/normalize');
 const { logActivity } = require('../utils/activity');
+const { parseFormConfig, customFields } = require('../utils/formConfig');
+
+// Mescla as respostas de campos personalizados recebidas no corpo com as já salvas.
+function mergeExtra(prevRaw, eventCfg, bodyExtra) {
+  let prev = {};
+  try { prev = prevRaw ? JSON.parse(prevRaw) : {}; } catch { prev = {}; }
+  if (!bodyExtra || typeof bodyExtra !== 'object') return prevRaw || null;
+  const out = { ...prev };
+  for (const f of customFields(eventCfg)) {
+    if (Object.prototype.hasOwnProperty.call(bodyExtra, f.key)) {
+      const v = bodyExtra[f.key];
+      if (v != null && String(v).trim()) out[f.key] = String(v).trim().slice(0, 500);
+      else delete out[f.key];
+    }
+  }
+  return Object.keys(out).length ? JSON.stringify(out) : null;
+}
 
 // Localiza participante existente por prioridade: e-mail > telefone > nome.
 function findDup(eventId, { email, phone, normalized }) {
@@ -124,6 +141,8 @@ router.put('/:pid', (req, res) => {
   const pid = Number(req.params.pid);
   const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ?').get(pid, eventId);
   if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
+  const ev = db.prepare('SELECT form_config FROM events WHERE id = ?').get(eventId);
+  const cfg = parseFormConfig(ev ? ev.form_config : '{}');
 
   const b = req.body || {};
   const name = b.name != null ? String(b.name).trim() : p.name;
@@ -154,6 +173,9 @@ router.put('/:pid', (req, res) => {
   if ((phone || '') !== (p.phone || '')) changes.push(`telefone: "${p.phone || ''}" → "${phone || ''}"`);
   if (response !== p.response) changes.push(`resposta: ${label(p.response)} → ${label(response)}`);
 
+  const extraJson = mergeExtra(p.extra, cfg, b.extra);
+  if ((extraJson || '') !== (p.extra || '')) changes.push('campos personalizados');
+
   if (!changes.length) {
     return res.json({ ok: true, unchanged: true, participant: p });
   }
@@ -161,9 +183,9 @@ router.put('/:pid', (req, res) => {
   db.prepare(
     `UPDATE participants
        SET name = ?, name_normalized = ?, company = ?, role = ?, email = ?, phone = ?, response = ?,
-           updated_at = datetime('now')
+           extra = ?, updated_at = datetime('now')
      WHERE id = ?`
-  ).run(name, normalized, company, role, email, phone, response, pid);
+  ).run(name, normalized, company, role, email, phone, response, extraJson, pid);
 
   db.prepare(
     `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
@@ -194,6 +216,9 @@ router.post('/', (req, res) => {
   if (!name) return res.status(400).json({ error: 'Informe o nome do participante.' });
   const response = b.response === 'recusado' ? 'recusado' : 'confirmado';
   const normalized = normalizeName(name);
+  const evRow = db.prepare('SELECT form_config FROM events WHERE id = ?').get(eventId);
+  const cfg = parseFormConfig(evRow ? evRow.form_config : '{}');
+  const newExtra = mergeExtra(null, cfg, b.extra);
 
   const existing = findDup(eventId, { email: b.email, phone: b.phone, normalized });
   if (existing && !b.force_update) {
@@ -203,17 +228,17 @@ router.post('/', (req, res) => {
     });
   }
   if (existing && b.force_update) {
-    db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, updated_at=datetime('now') WHERE id=?`)
-      .run(name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, existing.id);
+    db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, extra=?, updated_at=datetime('now') WHERE id=?`)
+      .run(name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, mergeExtra(existing.extra, cfg, b.extra), existing.id);
     db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details) VALUES (?,?,'editou',?,?,?,?)`)
       .run(existing.id, eventId, req.admin.name || req.admin.email || 'Administrador', existing.response, response, 'Atualização de cadastro existente (inclusão manual)');
     return res.json({ ok: true, updated: true, participant: db.prepare('SELECT * FROM participants WHERE id=?').get(existing.id) });
   }
 
   const info = db.prepare(
-    `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response)
-     VALUES (?,?,?,?,?,?,?,?)`
-  ).run(eventId, name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response);
+    `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra)
+     VALUES (?,?,?,?,?,?,?,?,?)`
+  ).run(eventId, name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, newExtra);
 
   db.prepare(
     `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
@@ -272,18 +297,22 @@ router.get('/export', async (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
-  let fc = {};
-  try { fc = JSON.parse(e.form_config || '{}'); } catch { fc = {}; }
-  const on = (k) => fc[k] && fc[k].enabled;
+  const cfg = parseFormConfig(e.form_config);
   const fmtDateTime = (s) => (s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleString('pt-BR') : '');
   const fmtDateOnly = (s) => (s ? new Date(`${s}T12:00:00`).toLocaleDateString('pt-BR') : '');
+  const getExtra = (r, key) => { try { return (JSON.parse(r.extra || '{}') || {})[key] || ''; } catch { return ''; } };
 
-  // Colunas de dados (sem status — status vira seção/aba separada)
+  // Colunas de dados (sem status — status vira seção/aba separada), na ordem configurada.
   const cols = [{ key: 'name', header: 'Nome', width: 30, get: (r) => r.name }];
-  if (on('company')) cols.push({ key: 'company', header: 'Empresa', width: 24, get: (r) => r.company || '' });
-  if (on('role')) cols.push({ key: 'role', header: 'Cargo', width: 20, get: (r) => r.role || '' });
-  if (on('email')) cols.push({ key: 'email', header: 'E-mail', width: 28, get: (r) => r.email || '' });
-  if (on('phone')) cols.push({ key: 'phone', header: 'Telefone', width: 18, get: (r) => r.phone || '' });
+  for (const f of cfg.fields) {
+    if (!f.enabled) continue;
+    if (f.builtin) {
+      const widths = { company: 24, role: 20, email: 28, phone: 18 };
+      cols.push({ key: f.key, header: f.label, width: widths[f.key] || 20, get: (r) => r[f.key] || '' });
+    } else {
+      cols.push({ key: f.key, header: f.label, width: 22, get: (r) => getExtra(r, f.key) });
+    }
+  }
   cols.push({ key: 'date', header: 'Data da resposta', width: 20, get: (r) => fmtDateTime(r.updated_at) });
 
   const rows = queryParticipants(eventId, req.query);

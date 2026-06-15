@@ -10,6 +10,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { uniqueSlug, slugify } = require('../utils/slug');
 const { logActivity } = require('../utils/activity');
+const { parseFormConfig } = require('../utils/formConfig');
 
 const router = express.Router();
 router.use(requireAuth); // todas as rotas deste arquivo exigem login
@@ -58,24 +59,6 @@ function removeUpload(publicPath) {
     const abs = path.join(UPLOAD_DIR, path.basename(publicPath));
     if (fs.existsSync(abs)) fs.unlinkSync(abs);
   } catch { /* ignora */ }
-}
-
-const DEFAULT_FORM_CONFIG = {
-  company: { enabled: false, required: false, label: 'Empresa' },
-  role: { enabled: false, required: false, label: 'Cargo' },
-  email: { enabled: false, required: false, label: 'E-mail' },
-  phone: { enabled: false, required: false, label: 'Telefone/WhatsApp' },
-};
-
-function parseFormConfig(raw) {
-  let parsed = {};
-  try { parsed = typeof raw === 'string' ? JSON.parse(raw) : (raw || {}); } catch { parsed = {}; }
-  const out = {};
-  for (const k of Object.keys(DEFAULT_FORM_CONFIG)) {
-    out[k] = { ...DEFAULT_FORM_CONFIG[k], ...(parsed[k] || {}) };
-    if (!out[k].label) out[k].label = DEFAULT_FORM_CONFIG[k].label;
-  }
-  return out;
 }
 
 function publicUrl(req, slug) {
@@ -194,9 +177,29 @@ router.put('/:id', upload, (req, res) => {
     e.id
   );
   const updated = db.prepare('SELECT * FROM events WHERE id = ?').get(e.id);
+
+  // Detalha o que mudou, para o registro de atividades (auditoria).
+  const FIELD_LABELS = {
+    slug: 'link público', name: 'nome', description: 'descrição', event_date: 'data',
+    event_time: 'horário', location: 'local', city: 'cidade', address: 'endereço',
+    rsvp_deadline: 'prazo de confirmação', status: 'status', confirm_message: 'mensagem de confirmação',
+    decline_message: 'mensagem de recusa', expected_guests: 'convidados esperados',
+    whatsapp: 'WhatsApp', whatsapp_enabled: 'exibição do botão de WhatsApp',
+    cover_image: 'imagem de capa', client_logo: 'logo do cliente',
+  };
+  const norm = (v) => (v == null ? '' : String(v));
+  const changed = [];
+  for (const k of Object.keys(FIELD_LABELS)) {
+    if (norm(e[k]) !== norm(updated[k])) changed.push(FIELD_LABELS[k]);
+  }
+  if (norm(e.form_config) !== norm(updated.form_config)) changed.push('campos do formulário');
+  const details = changed.length
+    ? `${updated.name} — alterou: ${changed.join(', ')}`
+    : `${updated.name} — sem alterações de conteúdo`;
+  logActivity(req.admin.name || req.admin.email, 'editou evento', details);
+
   updated.form_config = parseFormConfig(updated.form_config);
   updated.public_url = publicUrl(req, updated.slug);
-  logActivity(req.admin.name || req.admin.email, 'editou evento', updated.name);
   res.json(updated);
 });
 

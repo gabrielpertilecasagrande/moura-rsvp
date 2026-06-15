@@ -11,13 +11,36 @@ async function load(q) {
     tb.innerHTML = '<tr><td colspan="4" class="muted center" style="padding:30px">Nenhuma atividade registrada ainda.</td></tr>';
     return;
   }
-  tb.innerHTML = rows.map((r) => `
+  ROWS = rows;
+  tb.innerHTML = rows.map((r, i) => {
+    const det = r.details || '';
+    const detCell = det
+      ? `<button type="button" class="act-detail-btn" onclick="showDetail(${i})">${esc(det)} <span class="act-more">ver</span></button>`
+      : '<span class="muted">—</span>';
+    return `
     <tr>
       <td class="row-name" style="font-variant-numeric:tabular-nums">${fmtDateTimeBR(r.created_at)}</td>
       <td data-label="Usuário">${esc(r.actor || '—')}</td>
       <td data-label="Ação">${esc(r.action)}</td>
-      <td data-label="Detalhe" class="break-anywhere">${esc(r.details || '—')}</td>
-    </tr>`).join('');
+      <td data-label="Detalhe" class="break-anywhere">${detCell}</td>
+    </tr>`;
+  }).join('');
+}
+
+let ROWS = [];
+function modal(html) { document.getElementById('modalSlot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal" style="max-width:460px;text-align:left">${html}</div></div>`; }
+function closeModal() { document.getElementById('modalSlot').innerHTML = ''; }
+function showDetail(i) {
+  const r = ROWS[i]; if (!r) return;
+  modal(`
+    <h3 style="font-size:17px;margin-bottom:14px">Detalhe da atividade</h3>
+    <div class="audit-line"><span class="d">Quando</span><div>${fmtDateTimeBR(r.created_at)}</div></div>
+    <div class="audit-line"><span class="d">Usuário</span><div>${esc(r.actor || '—')}</div></div>
+    <div class="audit-line"><span class="d">Ação</span><div>${esc(r.action)}</div></div>
+    <div class="audit-line" style="border:none"><span class="d">Detalhamento</span><div class="break-anywhere">${esc(r.details || '—')}</div></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:18px">
+      <button class="btn btn-primary btn-sm" onclick="closeModal()">Fechar</button>
+    </div>`);
 }
 
 let t;
