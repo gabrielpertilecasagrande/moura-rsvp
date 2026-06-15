@@ -19,6 +19,9 @@ router.post('/login', (req, res) => {
   if (admin.status === 'pendente') {
     return res.status(403).json({ error: 'Sua conta ainda está aguardando aprovação de um administrador.' });
   }
+  if (admin.status === 'bloqueado') {
+    return res.status(403).json({ error: 'Sua conta foi bloqueada. Procure um administrador.' });
+  }
   if (admin.status !== 'ativo') {
     return res.status(403).json({ error: 'Esta conta está desativada. Procure um administrador.' });
   }
@@ -47,7 +50,7 @@ router.post('/register', (req, res) => {
   const hash = bcrypt.hashSync(String(password), 10);
   db.prepare(
     `INSERT INTO admins (name, email, password_hash, role, status)
-     VALUES (?, ?, ?, 'editor', 'pendente')`
+     VALUES (?, ?, ?, 'operador', 'pendente')`
   ).run(String(name).trim(), mail, hash);
   res.status(201).json({
     ok: true,

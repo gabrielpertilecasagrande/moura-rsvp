@@ -1,12 +1,21 @@
+// Converte papéis antigos para o novo modelo de perfis.
+function normRole(role) {
+  if (role === 'editor') return 'gestor';
+  return ['admin', 'gestor', 'operador'].includes(role) ? role : 'operador';
+}
+const ROLE_LABELS = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador' };
+
 // Lê dados do usuário a partir do token JWT, sem chamada extra.
 function currentUser() {
   try {
     const t = Api.token();
     const p = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return { id: p.id, name: p.name || '', email: p.email || '', role: p.role || 'editor' };
-  } catch { return { role: 'editor' }; }
+    return { id: p.id, name: p.name || '', email: p.email || '', role: normRole(p.role) };
+  } catch { return { role: 'operador' }; }
 }
 function currentRole() { return currentUser().role; }
+// Perfis que podem criar eventos.
+function canCreateEvents() { return ['admin', 'gestor'].includes(currentRole()); }
 
 function renderShell(active) {
   const u = currentUser();
@@ -17,7 +26,7 @@ function renderShell(active) {
     : '';
   const nav = [
     item('/admin/dashboard.html', 'dashboard', 'Dashboard'),
-    item('/admin/event-form.html', 'new', 'Novo evento'),
+    canCreateEvents() ? item('/admin/event-form.html', 'new', 'Novo evento') : '',
     usersItem,
     isAdmin ? item('/admin/activity.html', 'activity', 'Atividades') : '',
   ].join('');
@@ -36,7 +45,7 @@ function renderShell(active) {
         <span class="side-avatar">${esc(initials || '?')}</span>
         <span class="side-user-info">
           <span class="side-user-name">${esc(u.name || 'Usuário')}</span>
-          <span class="side-user-role">${u.role === 'admin' ? 'Administrador' : 'Editor'}</span>
+          <span class="side-user-role">${ROLE_LABELS[u.role] || 'Operador'}</span>
         </span>
       </div>
       <button class="side-account" id="accountBtn">Minha conta</button>

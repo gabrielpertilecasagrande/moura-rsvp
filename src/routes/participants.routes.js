@@ -6,6 +6,7 @@ const { requireAuth } = require('../middleware/auth');
 const { normalizeName } = require('../utils/normalize');
 const { logActivity } = require('../utils/activity');
 const { parseFormConfig, customFields } = require('../utils/formConfig');
+const { requirePerm } = require('../utils/permissions');
 
 // Mescla as respostas de campos personalizados recebidas no corpo com as já salvas.
 function mergeExtra(prevRaw, eventCfg, bodyExtra) {
@@ -65,7 +66,7 @@ function queryParticipants(eventId, { filter, q, ids }) {
 }
 
 // GET /api/events/:id/participants?filter=&q=
-router.get('/', (req, res) => {
+router.get('/', requirePerm('can_view'), (req, res) => {
   const eventId = req.params.id;
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
@@ -84,7 +85,7 @@ router.get('/', (req, res) => {
 });
 
 // DELETE /api/events/:id/participants/:pid — remove participante
-router.delete('/:pid', (req, res) => {
+router.delete('/:pid', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
   const pid = Number(req.params.pid);
   const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ?').get(pid, eventId);
@@ -95,7 +96,7 @@ router.delete('/:pid', (req, res) => {
 });
 
 // POST /api/events/:id/participants/mass — ações em massa (confirmar/recusar/excluir)
-router.post('/mass', (req, res) => {
+router.post('/mass', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
   const e = db.prepare('SELECT id FROM events WHERE id = ?').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
@@ -128,7 +129,7 @@ router.post('/mass', (req, res) => {
 });
 
 // GET /api/events/:id/participants/:pid/audit — histórico de alterações
-router.get('/:pid/audit', (req, res) => {
+router.get('/:pid/audit', requirePerm('can_history'), (req, res) => {
   const rows = db.prepare(
     'SELECT * FROM audit_log WHERE participant_id = ? ORDER BY created_at ASC'
   ).all(req.params.pid);
@@ -136,7 +137,7 @@ router.get('/:pid/audit', (req, res) => {
 });
 
 // PUT /api/events/:id/participants/:pid — admin edita dados/resposta do participante
-router.put('/:pid', (req, res) => {
+router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
   const pid = Number(req.params.pid);
   const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ?').get(pid, eventId);
@@ -206,7 +207,7 @@ router.put('/:pid', (req, res) => {
 });
 
 // POST /api/events/:id/participants — inclusão manual de um participante
-router.post('/', (req, res) => {
+router.post('/', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
   const e = db.prepare('SELECT id FROM events WHERE id = ?').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
@@ -252,7 +253,7 @@ router.post('/', (req, res) => {
 
 // POST /api/events/:id/participants/bulk — inclusão em lote (colar lista)
 // Cada linha: Nome[ , email ][ , empresa ][ , cargo ][ , telefone ]  (vírgula, ponto-e-vírgula ou tab)
-router.post('/bulk', (req, res) => {
+router.post('/bulk', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
   const e = db.prepare('SELECT id FROM events WHERE id = ?').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
@@ -292,7 +293,7 @@ router.post('/bulk', (req, res) => {
 // Colunas opcionais aparecem só se habilitadas. Suporta exportar selecionados (ids).
 const LOGO_PATH = require('path').join(__dirname, '..', '..', 'public', 'assets', 'img', 'logo-moura.png');
 
-router.get('/export', async (req, res) => {
+router.get('/export', requirePerm('can_export'), async (req, res) => {
   const eventId = req.params.id;
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });

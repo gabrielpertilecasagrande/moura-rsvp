@@ -11,6 +11,9 @@ const { requireAuth } = require('../middleware/auth');
 const { uniqueSlug, slugify } = require('../utils/slug');
 const { logActivity } = require('../utils/activity');
 const { parseFormConfig } = require('../utils/formConfig');
+const {
+  authorizedEventIds, permsFor, grantFullAccess, normalizeRole, requireRole, requirePerm,
+} = require('../utils/permissions');
 
 const router = express.Router();
 router.use(requireAuth); // todas as rotas deste arquivo exigem login
@@ -66,29 +69,38 @@ function publicUrl(req, slug) {
   return `${base.replace(/\/$/, '')}/rsvp/${slug}`;
 }
 
-// GET /api/events  — lista todos
+// GET /api/events  — lista os eventos que o usuário pode visualizar
 router.get('/', (req, res) => {
+  const ids = authorizedEventIds(req.admin); // null = admin (todos)
+  let where = '';
+  let params = [];
+  if (ids !== null) {
+    if (!ids.length) return res.json([]); // usuário sem nenhum evento autorizado
+    where = `WHERE e.id IN (${ids.map(() => '?').join(',')})`;
+    params = ids;
+  }
   const rows = db.prepare(`
     SELECT e.*,
       (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS total_responses,
       (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.response='confirmado') AS confirmed,
       (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.response='recusado') AS declined
-    FROM events e ORDER BY e.created_at DESC
-  `).all();
-  res.json(rows.map((r) => ({ ...r, public_url: publicUrl(req, r.slug) })));
+    FROM events e ${where} ORDER BY e.created_at DESC
+  `).all(...params);
+  res.json(rows.map((r) => ({ ...r, public_url: publicUrl(req, r.slug), _perms: permsFor(req.admin, r.id) })));
 });
 
-// GET /api/events/:id  — detalhe
-router.get('/:id', (req, res) => {
+// GET /api/events/:id  — detalhe (exige permissão de visualização)
+router.get('/:id', requirePerm('can_view'), (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   e.form_config = parseFormConfig(e.form_config);
   e.public_url = publicUrl(req, e.slug);
+  e._perms = permsFor(req.admin, e.id); // o frontend usa isso para mostrar/ocultar ações
   res.json(e);
 });
 
-// POST /api/events  — cria
-router.post('/', upload, (req, res) => {
+// POST /api/events  — cria (apenas admin e gestor)
+router.post('/', requireRole('admin', 'gestor'), upload, (req, res) => {
   const b = req.body;
   if (!b.name) return res.status(400).json({ error: 'O nome do evento é obrigatório.' });
 
@@ -113,13 +125,15 @@ router.post('/', upload, (req, res) => {
     0, formConfig
   );
   const created = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
+  // Quem cria o evento (gestor) recebe acesso total a ele automaticamente.
+  if (normalizeRole(req.admin.role) !== 'admin') grantFullAccess(req.admin.id, created.id);
   created.public_url = publicUrl(req, created.slug);
   logActivity(req.admin.name || req.admin.email, 'criou evento', created.name);
   res.status(201).json(created);
 });
 
-// PUT /api/events/:id  — atualiza
-router.put('/:id', upload, (req, res) => {
+// PUT /api/events/:id  — atualiza (exige permissão de edição)
+router.put('/:id', requirePerm('can_edit'), upload, (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const b = req.body;
@@ -204,7 +218,7 @@ router.put('/:id', upload, (req, res) => {
 });
 
 // PATCH /api/events/:id/reopen  — reabre/encerra confirmações sem mexer nas datas
-router.patch('/:id/reopen', (req, res) => {
+router.patch('/:id/reopen', requirePerm('can_edit'), (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const open = req.body?.open ? 1 : 0;
@@ -213,7 +227,7 @@ router.patch('/:id/reopen', (req, res) => {
 });
 
 // POST /api/events/:id/duplicate — duplica um evento (sem participantes)
-router.post('/:id/duplicate', (req, res) => {
+router.post('/:id/duplicate', requirePerm('can_duplicate'), (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const slug = uniqueSlug(db, `${e.name} copia`);
@@ -228,24 +242,27 @@ router.post('/:id/duplicate', (req, res) => {
     e.expected_guests, e.whatsapp, e.whatsapp_enabled, 0, e.form_config
   );
   const created = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
+  // Quem duplica recebe acesso total à cópia (gestor/operador autorizado).
+  if (normalizeRole(req.admin.role) !== 'admin') grantFullAccess(req.admin.id, created.id);
   created.public_url = publicUrl(req, created.slug);
   logActivity(req.admin.name || req.admin.email, 'duplicou evento', `${e.name} → ${created.name}`);
   res.status(201).json(created);
 });
 
-// DELETE /api/events/:id
-router.delete('/:id', (req, res) => {
+// DELETE /api/events/:id  — exige permissão de exclusão
+router.delete('/:id', requirePerm('can_delete'), (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   removeUpload(e.cover_image);
   removeUpload(e.client_logo);
   db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
+  db.prepare('DELETE FROM event_access WHERE event_id = ?').run(req.params.id);
   logActivity(req.admin.name || req.admin.email, 'excluiu evento', e.name);
   res.json({ ok: true });
 });
 
 // GET /api/events/:id/qrcode?format=png|jpg|svg|pdf  — QR Code preto e branco
-router.get('/:id/qrcode', async (req, res) => {
+router.get('/:id/qrcode', requirePerm('can_view'), async (req, res) => {
   const e = db.prepare('SELECT slug, name FROM events WHERE id = ?').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const url = publicUrl(req, e.slug);
