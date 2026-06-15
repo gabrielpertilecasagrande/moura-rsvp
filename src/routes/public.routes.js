@@ -69,6 +69,8 @@ router.get('/events/:slug', (req, res) => {
     event_date: e.event_date,
     event_time: e.event_time,
     location: e.location,
+    city: e.city,
+    address: e.address,
     cover_image: e.cover_image,
     client_logo: e.client_logo,
     rsvp_deadline: e.rsvp_deadline,

@@ -1,25 +1,40 @@
 requireSession();
 mountShell('dashboard');
 
-// Cores com significado: verde = positivo, vermelho = negativo, âmbar = aguardando.
+// Cor dinâmica para taxas: <50 vermelho, 50-79 laranja, 80+ verde.
+function rateTone(pct) { if (pct >= 80) return 'green'; if (pct >= 50) return 'amber'; return 'red'; }
+const ICO = {
+  cal: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  bolt: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>',
+  check: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  x: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  rate: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+};
 const STAT_DEFS = [
-  { k: 'totalEvents', l: 'Total de eventos', tone: 'navy' },
-  { k: 'activeEvents', l: 'Eventos ativos', tone: 'cyan' },
-  { k: 'confirmed', l: 'Confirmações', tone: 'green' },
-  { k: 'declined', l: 'Recusas', tone: 'red' },
-  { k: 'pending', l: 'Respostas pendentes', tone: 'amber' },
+  { k: 'totalEvents', l: 'Total de eventos', tone: 'navy', ico: ICO.cal },
+  { k: 'activeEvents', l: 'Eventos ativos', tone: 'green', ico: ICO.bolt },
+  { k: 'confirmed', l: 'Confirmações', tone: 'green', ico: ICO.check },
+  { k: 'declined', l: 'Recusas', tone: 'red', ico: ICO.x },
+  { k: 'pending', l: 'Respostas pendentes', tone: 'amber', ico: ICO.clock },
 ];
+
+function statCard(d) {
+  const tip = d.tip ? `<span class="info-i" title="${d.tip}">i</span>` : '';
+  return `<div class="stat tone-${d.tone}">
+    <div class="stat-top"><span class="stat-ico">${d.ico || ''}</span><span class="l">${d.l}${tip}</span></div>
+    <div class="n">${d.n}</div>
+  </div>`;
+}
 
 async function init() {
   const s = await Api.get('/api/dashboard');
-  const cards = STAT_DEFS.map((d) =>
-    `<div class="stat tone-${d.tone}"><div class="n">${s[d.k] ?? 0}</div><div class="l">${d.l}</div></div>`
-  );
+  const cards = STAT_DEFS.map((d) => statCard({ ...d, n: s[d.k] ?? 0 }));
   if (s.responseRate != null) {
-    cards.push(`<div class="stat tone-cyan">
-      <div class="n">${s.responseRate}%</div>
-      <div class="l">Taxa de resposta<br><span style="font-size:11px">${s.totalResponses} de ${s.totalExpected} esperados</span></div>
-    </div>`);
+    cards.push(statCard({
+      n: s.responseRate + '%', l: 'Taxa de resposta', tone: rateTone(s.responseRate), ico: ICO.rate,
+      tip: `Proporção de quem já respondeu (confirmou ou recusou) entre os ${s.totalExpected} convidados esperados.`,
+    }));
   }
   document.getElementById('stats').innerHTML = cards.join('');
 

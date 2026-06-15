@@ -81,7 +81,7 @@ function renderQuickSummary(s) {
   document.getElementById('quickSummary').innerHTML = `
     <div class="quick-summary">
       <div class="qs"><span class="k">Data</span><span class="v">${EVENT.event_date ? fmtDateBR(EVENT.event_date) : 'A definir'}${EVENT.event_time ? ' · ' + EVENT.event_time : ''}</span></div>
-      <div class="qs"><span class="k">Local</span><span class="v">${esc(EVENT.location) || '—'}</span></div>
+      <div class="qs"><span class="k">Local</span><span class="v">${[EVENT.location, EVENT.city].filter(Boolean).map(esc).join(' · ') || '—'}</span></div>
       <div class="qs"><span class="k">Convidados esperados</span><span class="v">${EVENT.expected_guests || '—'}</span></div>
       <div class="qs"><span class="k">Taxa de resposta</span><span class="v">${rate}</span></div>
       <div class="qs"><span class="k">Prazo</span><span class="v">${deadlineTag()}</span></div>
@@ -98,15 +98,34 @@ function renderQuickSummary(s) {
     </div>`;
 }
 
+// Cor dinâmica para taxas: <50 vermelho, 50-79 laranja, 80+ verde.
+function rateTone(pct) { if (pct >= 80) return 'green'; if (pct >= 50) return 'amber'; return 'red'; }
+
+const STAT_ICONS = {
+  respostas: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/></svg>',
+  check: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  x: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  rate: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+};
+
+function statCard(d) {
+  const tip = d.tip ? `<span class="info-i" title="${d.tip}">i</span>` : '';
+  return `<div class="stat tone-${d.tone}">
+    <div class="stat-top"><span class="stat-ico">${d.ico || ''}</span><span class="l">${d.l}${tip}</span></div>
+    <div class="n">${d.n}</div>
+  </div>`;
+}
+
 function renderStats(s) {
+  const adesao = s.confirmation_rate;
   const defs = [
-    { n: s.total, l: 'Respostas' },
-    { n: s.confirmed, l: 'Confirmados', accent: true },
-    { n: s.declined, l: 'Recusas' },
-    { n: s.confirmation_rate + '%', l: 'Taxa de confirmação' },
+    { n: s.total, l: 'Respostas', tone: 'navy', ico: STAT_ICONS.respostas },
+    { n: s.confirmed, l: 'Confirmados', tone: 'green', ico: STAT_ICONS.check },
+    { n: s.declined, l: 'Recusas', tone: s.declined > 0 ? 'red' : 'gray', ico: STAT_ICONS.x },
+    { n: adesao + '%', l: 'Índice de adesão', tone: rateTone(adesao), ico: STAT_ICONS.rate,
+      tip: 'Proporção de quem confirmou entre todos que responderam. Ex.: 62 confirmados de 65 respostas = 95%.' },
   ];
-  document.getElementById('pStats').innerHTML = defs.map((d) =>
-    `<div class="stat ${d.accent ? 'accent' : ''}"><div class="n">${d.n}</div><div class="l">${d.l}</div></div>`).join('');
+  document.getElementById('pStats').innerHTML = defs.map(statCard).join('');
 }
 
 // Monta link wa.me a partir do telefone do convidado.
@@ -119,6 +138,7 @@ function guestWa(phone) {
 }
 
 let LAST_LIST = [];
+const SELECTED = new Set();
 function renderRows(list) {
   LAST_LIST = list;
   const tb = document.getElementById('rows');
@@ -131,7 +151,8 @@ function renderRows(list) {
     const sub = [p.company, p.phone, p.email].filter(Boolean).map(esc).join(' · ');
     const icon = (svg, label, attrs) => `<button class="icon-btn" title="${label}" aria-label="${label}" ${attrs}>${svg}</button>`;
     return `
-    <tr>
+    <tr data-pid="${p.id}">
+      <td class="col-check"><input type="checkbox" class="row-check" value="${p.id}" ${SELECTED.has(p.id) ? 'checked' : ''} aria-label="Selecionar ${esc(p.name)}" /></td>
       <td class="row-name" style="display:block">
         <div class="p-name">${esc(p.name)}</div>
         ${sub ? `<div class="p-sub muted break-anywhere">${sub}</div>` : ''}
@@ -141,11 +162,12 @@ function renderRows(list) {
       <td class="cell-actions" style="text-align:right">
         ${icon(IC.edit, 'Editar', `onclick="editParticipant(${p.id})"`)}
         ${icon(IC.history, 'Histórico', `onclick="showAudit(${p.id})"`)}
-        ${wa ? `<a class="icon-btn icon-wa" title="WhatsApp" aria-label="WhatsApp" href="${wa}" target="_blank" rel="noopener">${IC.wa}</a>` : ''}
+        ${wa ? `<a class="icon-btn icon-wa" title="WhatsApp" aria-label="WhatsApp" href="${wa}" target="_blank" rel="noopener"><img src="/assets/img/whatsapp.png" alt="WhatsApp" width="18" height="18" style="display:block" /></a>` : ''}
         ${icon(IC.trash, 'Remover', `onclick="deleteParticipant(${p.id})"`)}
       </td>
     </tr>`;
   }).join('');
+  syncSelectionUI();
 }
 
 // Ícones (SVG) para as ações
@@ -234,6 +256,68 @@ async function showAudit(pid) {
     <p class="muted" style="font-size:13px;margin:0 0 14px">${esc(name)}</p>
     <div style="text-align:left">${lines}</div>
     <button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="closeModal()">Fechar</button>`);
+}
+
+// ---- Seleção múltipla e ações em massa ----
+function syncSelectionUI() {
+  // remove da seleção ids que não estão mais visíveis
+  const visible = new Set(LAST_LIST.map((p) => p.id));
+  for (const id of [...SELECTED]) if (!visible.has(id)) SELECTED.delete(id);
+  const bar = document.getElementById('bulkBar');
+  const all = document.getElementById('checkAll');
+  if (all) all.checked = LAST_LIST.length > 0 && LAST_LIST.every((p) => SELECTED.has(p.id));
+  if (!SELECTED.size) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
+  bar.classList.remove('hidden');
+  bar.innerHTML = `
+    <span class="bulk-count"><strong>${SELECTED.size}</strong> selecionado(s)</span>
+    <div class="bulk-actions">
+      <button class="btn btn-sm" style="background:#1f9d63;color:#fff" onclick="bulkAction('confirmar')">Marcar Confirmado</button>
+      <button class="btn btn-sm btn-danger" onclick="bulkAction('recusar')">Marcar Recusado</button>
+      <button class="btn btn-sm btn-ghost" onclick="bulkExport()">Exportar selecionados</button>
+      <button class="btn btn-sm btn-danger" onclick="bulkAction('excluir')">Excluir</button>
+      <button class="btn btn-sm btn-ghost" onclick="clearSelection()">Cancelar</button>
+    </div>`;
+}
+function clearSelection() { SELECTED.clear(); document.querySelectorAll('.row-check').forEach((c) => { c.checked = false; }); syncSelectionUI(); }
+
+document.getElementById('rows').addEventListener('change', (e) => {
+  const cb = e.target.closest('.row-check'); if (!cb) return;
+  const id = Number(cb.value);
+  if (cb.checked) SELECTED.add(id); else SELECTED.delete(id);
+  syncSelectionUI();
+});
+document.getElementById('checkAll').addEventListener('change', (e) => {
+  if (e.target.checked) LAST_LIST.forEach((p) => SELECTED.add(p.id));
+  else LAST_LIST.forEach((p) => SELECTED.delete(p.id));
+  document.querySelectorAll('.row-check').forEach((c) => { c.checked = SELECTED.has(Number(c.value)); });
+  syncSelectionUI();
+});
+
+async function bulkAction(action) {
+  const ids = [...SELECTED];
+  if (!ids.length) return;
+  const labels = { confirmar: 'marcar como Confirmado', recusar: 'marcar como Recusado', excluir: 'EXCLUIR' };
+  if (!confirm(`Deseja ${labels[action]} ${ids.length} participante(s)?`)) return;
+  try {
+    const r = await Api.post(`/api/events/${ID}/participants/mass`, { action, ids });
+    toast(`${r.affected} participante(s) atualizados.`);
+    SELECTED.clear();
+    await loadParticipants();
+  } catch (e) { toast(e.message); }
+}
+function bulkExport() {
+  const ids = [...SELECTED].join(',');
+  if (!ids) return;
+  downloadSelected('xlsx', ids);
+}
+async function downloadSelected(format, ids) {
+  const res = await fetch(`/api/events/${ID}/participants/export?format=${format}&ids=${ids}`, { headers: { Authorization: `Bearer ${Api.token()}` } });
+  if (!res.ok) return toast('Erro ao exportar.');
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `rsvp-${EVENT.slug}-selecionados.${format}`;
+  a.click(); URL.revokeObjectURL(a.href);
 }
 
 function modal(html) { document.getElementById('modalSlot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`; }

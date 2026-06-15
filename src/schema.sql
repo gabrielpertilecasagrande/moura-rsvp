@@ -29,7 +29,9 @@ CREATE TABLE IF NOT EXISTS events (
   description      TEXT,
   event_date       TEXT,                             -- AAAA-MM-DD
   event_time       TEXT,                             -- HH:MM
-  location         TEXT,
+  location         TEXT,                             -- nome do local (ex.: Vila Capuchinhos)
+  city             TEXT,                             -- cidade (ex.: Vila Flores/RS)
+  address          TEXT,                             -- endereço (opcional)
   cover_image      TEXT,                             -- caminho do arquivo enviado
   client_logo      TEXT,                             -- caminho do arquivo enviado (opcional)
   rsvp_deadline    TEXT,                             -- AAAA-MM-DD (data limite p/ confirmar)

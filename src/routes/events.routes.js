@@ -116,13 +116,13 @@ router.post('/', upload, (req, res) => {
   const formConfig = JSON.stringify(parseFormConfig(b.form_config));
 
   const info = db.prepare(`
-    INSERT INTO events (slug, name, description, event_date, event_time, location,
+    INSERT INTO events (slug, name, description, event_date, event_time, location, city, address,
       cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
       expected_guests, whatsapp, whatsapp_enabled, force_open, form_config)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     slug, b.name, b.description || null, b.event_date || null, b.event_time || null,
-    b.location || null, cover, logo, b.rsvp_deadline || null, b.status || 'ativo',
+    b.location || null, b.city || null, b.address || null, cover, logo, b.rsvp_deadline || null, b.status || 'ativo',
     b.confirm_message || 'Olá, {nome}. Sua presença no evento foi confirmada com sucesso.',
     b.decline_message || 'Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.',
     parseInt(b.expected_guests, 10) || 0, b.whatsapp || null,
@@ -168,7 +168,7 @@ router.put('/:id', upload, (req, res) => {
   db.prepare(`
     UPDATE events SET
       slug=?, name=?, description=?, event_date=?, event_time=?,
-      location=?, cover_image=?, client_logo=?,
+      location=?, city=?, address=?, cover_image=?, client_logo=?,
       rsvp_deadline=?, status=?, confirm_message=?,
       decline_message=?, expected_guests=?, whatsapp=?, whatsapp_enabled=?,
       form_config=?, updated_at=datetime('now')
@@ -180,6 +180,8 @@ router.put('/:id', upload, (req, res) => {
     b.event_date ?? e.event_date,
     b.event_time ?? e.event_time,
     b.location ?? e.location,
+    b.city ?? e.city,
+    b.address ?? e.address,
     cover, logo,
     b.rsvp_deadline ?? e.rsvp_deadline,
     b.status ?? e.status,
@@ -213,12 +215,12 @@ router.post('/:id/duplicate', (req, res) => {
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const slug = uniqueSlug(db, `${e.name} copia`);
   const info = db.prepare(`
-    INSERT INTO events (slug, name, description, event_date, event_time, location,
+    INSERT INTO events (slug, name, description, event_date, event_time, location, city, address,
       cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
       expected_guests, whatsapp, whatsapp_enabled, force_open, form_config)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
-    slug, `${e.name} (cópia)`, e.description, e.event_date, e.event_time, e.location,
+    slug, `${e.name} (cópia)`, e.description, e.event_date, e.event_time, e.location, e.city, e.address,
     e.cover_image, e.client_logo, e.rsvp_deadline, 'ativo', e.confirm_message, e.decline_message,
     e.expected_guests, e.whatsapp, e.whatsapp_enabled, 0, e.form_config
   );

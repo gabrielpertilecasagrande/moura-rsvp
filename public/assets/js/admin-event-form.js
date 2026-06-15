@@ -52,6 +52,7 @@ async function loadForEdit() {
   const set = (id, v) => { if (v != null) document.getElementById(id).value = v; };
   set('name', e.name); set('slug', e.slug); set('description', e.description); set('event_date', e.event_date);
   set('event_time', e.event_time); set('location', e.location); set('rsvp_deadline', e.rsvp_deadline);
+  set('city', e.city); set('address', e.address);
   set('expected_guests', e.expected_guests); set('status', e.status);
   set('whatsapp', e.whatsapp);
   document.getElementById('whatsapp_enabled').checked = e.whatsapp_enabled == null ? true : !!e.whatsapp_enabled;
@@ -116,7 +117,7 @@ async function save() {
   if (!v('name').trim()) { err.textContent = 'Informe o nome do evento.'; err.classList.remove('hidden'); return; }
 
   const fd = new FormData();
-  ['name', 'slug', 'description', 'event_date', 'event_time', 'location', 'rsvp_deadline',
+  ['name', 'slug', 'description', 'event_date', 'event_time', 'location', 'city', 'address', 'rsvp_deadline',
    'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'].forEach((id) => fd.append(id, v(id)));
   fd.append('whatsapp_enabled', document.getElementById('whatsapp_enabled').checked ? '1' : '0');
   fd.append('form_config', JSON.stringify(formConfig));
@@ -140,7 +141,7 @@ async function save() {
 
 // ---- Rascunho automático + aviso de alterações não salvas ----
 const DRAFT_KEY = `moura_draft_${EDIT_ID || 'new'}`;
-const TEXT_IDS = ['name', 'slug', 'description', 'event_date', 'event_time', 'location',
+const TEXT_IDS = ['name', 'slug', 'description', 'event_date', 'event_time', 'location', 'city', 'address',
   'rsvp_deadline', 'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'];
 let dirty = false;
 let draftT;

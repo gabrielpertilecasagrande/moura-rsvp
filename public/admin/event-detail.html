@@ -61,12 +61,16 @@
         </span>
       </div>
 
+      <!-- Barra de ações em massa (aparece ao selecionar) -->
+      <div id="bulkBar" class="bulk-bar hidden"></div>
+
       <div class="table-wrap">
         <table class="cards participants-table">
           <thead><tr>
+            <th class="col-check"><input type="checkbox" id="checkAll" aria-label="Selecionar todos" /></th>
             <th>Participante</th><th>Status</th><th>Resposta</th><th style="text-align:right">Ações</th>
           </tr></thead>
-          <tbody id="rows"><tr><td colspan="4" class="muted" style="padding:24px">Carregando…</td></tr></tbody>
+          <tbody id="rows"><tr><td colspan="5" class="muted" style="padding:24px">Carregando…</td></tr></tbody>
         </table>
       </div>
     </main>

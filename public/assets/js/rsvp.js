@@ -31,7 +31,7 @@ function whatsappHref() {
   if (digits.length <= 11 && !digits.startsWith('55')) digits = '55' + digits;
   return `https://wa.me/${digits}`;
 }
-const WA_ICON = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 14.9L2 22l5.25-1.38A9.9 9.9 0 1 0 12.04 2zm0 1.8a8.1 8.1 0 0 1 6.86 12.42l-.2.32.78 2.86-2.94-.77-.31.18A8.1 8.1 0 1 1 12.04 3.8zm4.5 10.2c-.25-.13-1.47-.72-1.7-.8-.23-.09-.4-.13-.56.12-.16.25-.64.8-.79.97-.14.16-.29.18-.54.06-.25-.13-1.05-.39-2-1.23-.74-.66-1.24-1.47-1.38-1.72-.14-.25-.02-.38.11-.5.11-.11.25-.29.37-.43.13-.15.17-.25.25-.42.08-.16.04-.31-.02-.43-.06-.13-.56-1.34-.76-1.84-.2-.48-.4-.42-.56-.43h-.48c-.16 0-.43.06-.65.31-.22.25-.86.84-.86 2.05s.88 2.38 1 2.54c.13.17 1.74 2.66 4.21 3.73.59.25 1.05.4 1.4.52.59.19 1.13.16 1.55.1.47-.07 1.47-.6 1.67-1.18.21-.58.21-1.07.15-1.18-.06-.1-.23-.16-.48-.28z"/></svg>';
+const WA_ICON = '<img src="/assets/img/whatsapp.png" alt="WhatsApp" width="22" height="22" style="display:block" />';
 function whatsappButton(label) {
   const href = whatsappHref();
   if (!href) return '';
@@ -54,7 +54,7 @@ function render() {
       <div class="event-meta">
         ${metaRow(ICON.cal, dateTxt)}
         ${metaRow(ICON.clock, e.event_time)}
-        ${metaRow(ICON.pin, e.location)}
+        ${metaRow(ICON.pin, [e.location, e.city].filter(Boolean).join(' · '))}
       </div>
       ${e.description ? `<p class="event-desc">${esc(e.description)}</p>` : ''}
       <div id="form-slot"></div>

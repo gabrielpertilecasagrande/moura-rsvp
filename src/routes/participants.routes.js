@@ -24,7 +24,7 @@ const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
 
 // Monta a consulta de participantes respeitando filtro de status e busca por nome.
-function queryParticipants(eventId, { filter, q }) {
+function queryParticipants(eventId, { filter, q, ids }) {
   let sql = 'SELECT * FROM participants WHERE event_id = ?';
   const params = [eventId];
   if (filter === 'confirmado' || filter === 'recusado') {
@@ -34,6 +34,14 @@ function queryParticipants(eventId, { filter, q }) {
   if (q && q.trim()) {
     sql += ' AND name LIKE ?';
     params.push(`%${q.trim()}%`);
+  }
+  // Exportar selecionados: lista de ids separada por vírgula.
+  if (ids && String(ids).trim()) {
+    const list = String(ids).split(',').map((n) => parseInt(n, 10)).filter(Boolean);
+    if (list.length) {
+      sql += ` AND id IN (${list.map(() => '?').join(',')})`;
+      params.push(...list);
+    }
   }
   sql += ' ORDER BY name COLLATE NOCASE ASC';
   return db.prepare(sql).all(...params);
@@ -67,6 +75,39 @@ router.delete('/:pid', (req, res) => {
   db.prepare('DELETE FROM participants WHERE id = ?').run(pid);
   logActivity(req.admin.name || req.admin.email, 'removeu participante', `${p.name}`);
   res.json({ ok: true });
+});
+
+// POST /api/events/:id/participants/mass — ações em massa (confirmar/recusar/excluir)
+router.post('/mass', (req, res) => {
+  const eventId = Number(req.params.id);
+  const e = db.prepare('SELECT id FROM events WHERE id = ?').get(eventId);
+  if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
+
+  const action = req.body?.action;
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
+  if (!ids.length) return res.status(400).json({ error: 'Selecione ao menos um participante.' });
+  const actor = req.admin.name || req.admin.email || 'Administrador';
+  const placeholders = ids.map(() => '?').join(',');
+  // Garante que todos pertencem a este evento.
+  const rows = db.prepare(`SELECT id, name, response FROM participants WHERE event_id = ? AND id IN (${placeholders})`).all(eventId, ...ids);
+  if (!rows.length) return res.status(404).json({ error: 'Nenhum participante encontrado.' });
+  const validIds = rows.map((r) => r.id);
+  const ph2 = validIds.map(() => '?').join(',');
+
+  if (action === 'confirmar' || action === 'recusar') {
+    const resp = action === 'confirmar' ? 'confirmado' : 'recusado';
+    db.prepare(`UPDATE participants SET response = ?, updated_at = datetime('now') WHERE id IN (${ph2})`).run(resp, ...validIds);
+    const auditStmt = db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details) VALUES (?,?, 'editou', ?, ?, ?, 'Ação em massa')`);
+    for (const r of rows) if (r.response !== resp) auditStmt.run(r.id, eventId, actor, r.response, resp);
+    logActivity(actor, `alterou ${validIds.length} participante(s) para ${resp === 'confirmado' ? 'Confirmado' : 'Recusado'}`, null);
+    return res.json({ ok: true, affected: validIds.length });
+  }
+  if (action === 'excluir') {
+    db.prepare(`DELETE FROM participants WHERE id IN (${ph2})`).run(...validIds);
+    logActivity(actor, `removeu ${validIds.length} participante(s)`, null);
+    return res.json({ ok: true, affected: validIds.length });
+  }
+  return res.status(400).json({ error: 'Ação inválida.' });
 });
 
 // GET /api/events/:id/participants/:pid/audit — histórico de alterações
@@ -222,8 +263,10 @@ router.post('/bulk', (req, res) => {
   res.status(201).json({ ok: true, added, skipped, skipped_count: skipped.length });
 });
 
-// GET /api/events/:id/participants/export?format=xlsx|csv|pdf&filter=&q=
-// As colunas opcionais (Empresa, Cargo, E-mail, Telefone) só aparecem se habilitadas no evento.
+// GET /api/events/:id/participants/export?format=xlsx|csv|pdf&filter=&q=&ids=
+// Colunas opcionais aparecem só se habilitadas. Suporta exportar selecionados (ids).
+const LOGO_PATH = require('path').join(__dirname, '..', '..', 'public', 'assets', 'img', 'logo-moura.png');
+
 router.get('/export', async (req, res) => {
   const eventId = req.params.id;
   const e = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
@@ -232,84 +275,140 @@ router.get('/export', async (req, res) => {
   let fc = {};
   try { fc = JSON.parse(e.form_config || '{}'); } catch { fc = {}; }
   const on = (k) => fc[k] && fc[k].enabled;
-  const fmtDate = (s) => (s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleString('pt-BR') : '');
+  const fmtDateTime = (s) => (s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleString('pt-BR') : '');
+  const fmtDateOnly = (s) => (s ? new Date(`${s}T12:00:00`).toLocaleDateString('pt-BR') : '');
 
-  // Colunas dinâmicas conforme campos habilitados no evento.
+  // Colunas de dados (sem status — status vira seção/aba separada)
   const cols = [{ key: 'name', header: 'Nome', width: 30, get: (r) => r.name }];
   if (on('company')) cols.push({ key: 'company', header: 'Empresa', width: 24, get: (r) => r.company || '' });
   if (on('role')) cols.push({ key: 'role', header: 'Cargo', width: 20, get: (r) => r.role || '' });
   if (on('email')) cols.push({ key: 'email', header: 'E-mail', width: 28, get: (r) => r.email || '' });
   if (on('phone')) cols.push({ key: 'phone', header: 'Telefone', width: 18, get: (r) => r.phone || '' });
-  cols.push({ key: 'status', header: 'Status', width: 14, get: (r) => (r.response === 'confirmado' ? 'Confirmado' : 'Recusado') });
-  cols.push({ key: 'date', header: 'Data da resposta', width: 20, get: (r) => fmtDate(r.updated_at) });
+  cols.push({ key: 'date', header: 'Data da resposta', width: 20, get: (r) => fmtDateTime(r.updated_at) });
 
   const rows = queryParticipants(eventId, req.query);
+  const confirmados = rows.filter((r) => r.response === 'confirmado');
+  const recusados = rows.filter((r) => r.response === 'recusado');
   const safeName = (e.slug || 'evento').replace(/[^a-z0-9-]/gi, '');
   const format = (req.query.format || 'xlsx').toLowerCase();
+  const emitido = new Date().toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  const localLinha = [e.location, e.city].filter(Boolean).join(' - ');
+  const subtitulo = [fmtDateOnly(e.event_date), localLinha].filter(Boolean).join(' • ');
   logActivity(req.admin.name || req.admin.email, `exportou ${format.toUpperCase()}`, e.name);
 
   if (format === 'csv') {
+    const colsCsv = [...cols, { header: 'Status', get: (r) => (r.response === 'confirmado' ? 'Confirmado' : 'Recusado') }];
     const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [cols.map((c) => esc(c.header)).join(';')];
-    for (const r of rows) lines.push(cols.map((c) => esc(c.get(r))).join(';'));
+    const lines = [colsCsv.map((c) => esc(c.header)).join(';')];
+    for (const r of rows) lines.push(colsCsv.map((c) => esc(c.get(r))).join(';'));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="rsvp-${safeName}.csv"`);
     return res.send('\uFEFF' + lines.join('\r\n'));
   }
 
   if (format === 'pdf') {
-    const confirmed = rows.filter((r) => r.response === 'confirmado').length;
-    const declined = rows.length - confirmed;
     const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 40 });
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="rsvp-${safeName}.pdf"`);
     doc.pipe(res);
-
-    doc.fontSize(18).fillColor('#2C427E').text(e.name || 'Evento', { continued: false });
-    doc.moveDown(0.2);
-    const meta = [e.event_date ? `Data: ${fmtDate(e.event_date).split(' ')[0] || e.event_date}` : null,
-      e.location ? `Local: ${e.location}` : null].filter(Boolean).join('   ·   ');
-    if (meta) doc.fontSize(10).fillColor('#5b6472').text(meta);
-    doc.fontSize(10).fillColor('#28282A').text(
-      `Lista de presença · ${rows.length} resposta(s) · ${confirmed} confirmada(s) · ${declined} recusa(s)`);
-    doc.moveDown(0.6);
-
     const pageW = doc.page.width - doc.page.margins.left - doc.page.margins.right;
-    const totalW = cols.reduce((s, c) => s + c.width, 0);
-    const colX = []; let x = doc.page.margins.left;
-    for (const c of cols) { colX.push(x); x += (c.width / totalW) * pageW; }
-    const cellW = cols.map((c) => (c.width / totalW) * pageW - 6);
-    const rowH = 20;
+    const left = doc.page.margins.left;
 
-    function header(y) {
-      doc.rect(doc.page.margins.left, y, pageW, rowH).fill('#2C427E');
-      doc.fillColor('#FFFFFF').fontSize(9);
-      cols.forEach((c, i) => doc.text(c.header, colX[i] + 3, y + 6, { width: cellW[i], lineBreak: false }));
-      return y + rowH;
-    }
-    let y = header(doc.y);
-    rows.forEach((r, idx) => {
-      if (y + rowH > doc.page.height - doc.page.margins.bottom) { doc.addPage(); y = header(doc.page.margins.top); }
-      if (idx % 2 === 0) { doc.rect(doc.page.margins.left, y, pageW, rowH).fill('#F2F3F3'); }
-      doc.fillColor('#28282A').fontSize(8.5);
-      cols.forEach((c, i) => doc.text(String(c.get(r) || ''), colX[i] + 3, y + 6, { width: cellW[i], lineBreak: false, ellipsis: true }));
-      y += rowH;
+    // Cabeçalho: nome + subtítulo à esquerda, logo Moura no canto superior direito
+    try { doc.image(LOGO_PATH, doc.page.width - doc.page.margins.right - 110, 36, { width: 110 }); } catch { /* sem logo */ }
+    doc.fontSize(18).fillColor('#2C427E').text(e.name || 'Evento', left, 40, { width: pageW - 130 });
+    if (subtitulo) doc.moveDown(0.2).fontSize(10).fillColor('#5b6472').text(subtitulo, { width: pageW - 130 });
+
+    // Bloco RESUMO DO EVENTO
+    let y = 92;
+    doc.roundedRect(left, y, pageW, 58, 6).fill('#F2F3F3');
+    doc.fillColor('#2C427E').fontSize(10).text('RESUMO DO EVENTO', left + 14, y + 9);
+    doc.fontSize(11).fillColor('#28282A');
+    const sumItems = [
+      ['Respostas recebidas', String(rows.length)],
+      ['Confirmados', String(confirmados.length)],
+      ['Recusas', String(recusados.length)],
+      ['Emitido em', emitido],
+    ];
+    const colw = (pageW - 28) / 4;
+    sumItems.forEach(([k, v], i) => {
+      const cx = left + 14 + i * colw;
+      doc.fontSize(8).fillColor('#5b6472').text(k.toUpperCase(), cx, y + 26, { width: colw - 8 });
+      doc.fontSize(14).fillColor(i === 2 && recusados.length ? '#c0392b' : (i === 1 ? '#1f9d63' : '#2C427E'))
+        .text(v, cx, y + 36, { width: colw - 8 });
     });
+    y += 74;
+
+    const drawTable = (titulo, data, cor) => {
+      if (y + 60 > doc.page.height - doc.page.margins.bottom) { doc.addPage(); y = doc.page.margins.top; }
+      doc.fontSize(12).fillColor(cor).text(`${titulo} (${data.length})`, left, y);
+      y += 20;
+      const totalW = cols.reduce((s, c) => s + c.width, 0);
+      const colX = []; let x = left;
+      for (const c of cols) { colX.push(x); x += (c.width / totalW) * pageW; }
+      const cellW = cols.map((c) => (c.width / totalW) * pageW - 6);
+      const rowH = 18;
+      const headRow = (yy) => {
+        doc.rect(left, yy, pageW, rowH).fill(cor);
+        doc.fillColor('#FFFFFF').fontSize(8.5);
+        cols.forEach((c, i) => doc.text(c.header, colX[i] + 3, yy + 5, { width: cellW[i], lineBreak: false }));
+        return yy + rowH;
+      };
+      y = headRow(y);
+      if (!data.length) {
+        doc.fillColor('#5b6472').fontSize(9).text('Nenhum registro.', left + 3, y + 4); y += rowH; doc.moveDown(0.5); y += 8; return;
+      }
+      data.forEach((r, idx) => {
+        if (y + rowH > doc.page.height - doc.page.margins.bottom) { doc.addPage(); y = headRow(doc.page.margins.top); }
+        if (idx % 2 === 0) doc.rect(left, y, pageW, rowH).fill('#F7F8FA');
+        doc.fillColor('#28282A').fontSize(8.5);
+        cols.forEach((c, i) => doc.text(String(c.get(r) || ''), colX[i] + 3, y + 5, { width: cellW[i], lineBreak: false, ellipsis: true }));
+        y += rowH;
+      });
+      y += 14;
+    };
+
+    drawTable('Confirmados', confirmados, '#1f9d63');
+    drawTable('Recusados', recusados, '#c0392b');
+
+    // Rodapé institucional
+    const fy = doc.page.height - doc.page.margins.bottom + 6;
+    doc.fontSize(8).fillColor('#9aa3b2')
+      .text(`Moura RSVP · Plataforma de confirmação de presença · Relatório gerado em ${emitido} · Desenvolvido por Moura Agência de Relações Públicas`,
+        left, fy, { width: pageW, align: 'center' });
     doc.end();
     return;
   }
 
-  // XLSX (padrão)
+  // XLSX com 4 abas: Resumo, Todos, Confirmados, Recusados
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Participantes');
-  ws.columns = cols.map((c) => ({ header: c.header, key: c.key, width: c.width }));
-  ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-  ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF2C427E' } };
-  for (const r of rows) {
-    const obj = {};
-    cols.forEach((c) => { obj[c.key] = c.get(r); });
-    ws.addRow(obj);
-  }
+  wb.creator = 'Moura RSVP';
+
+  const resumo = wb.addWorksheet('Resumo');
+  resumo.columns = [{ width: 28 }, { width: 40 }];
+  resumo.addRow([e.name || 'Evento']); resumo.getRow(1).font = { bold: true, size: 16, color: { argb: 'FF2C427E' } };
+  if (subtitulo) { resumo.addRow([subtitulo]); resumo.getRow(2).font = { color: { argb: 'FF5B6472' } }; }
+  resumo.addRow([]);
+  const addKV = (k, v, color) => { const r = resumo.addRow([k, v]); r.getCell(1).font = { bold: true }; if (color) r.getCell(2).font = { bold: true, color: { argb: color } }; };
+  addKV('Respostas recebidas', rows.length);
+  addKV('Confirmados', confirmados.length, 'FF1F9D63');
+  addKV('Recusas', recusados.length, 'FFC0392B');
+  addKV('Emitido em', emitido);
+
+  const buildSheet = (name, data, headerColor) => {
+    const ws = wb.addWorksheet(name);
+    const allCols = [...cols.filter((c) => c.key !== 'date'),
+      { key: 'status', header: 'Status', width: 14, get: (r) => (r.response === 'confirmado' ? 'Confirmado' : 'Recusado') },
+      { key: 'date', header: 'Data da resposta', width: 20, get: (r) => fmtDateTime(r.updated_at) }];
+    ws.columns = allCols.map((c) => ({ header: c.header, key: c.key, width: c.width }));
+    ws.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+    ws.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: headerColor } };
+    data.forEach((r) => { const obj = {}; allCols.forEach((c) => { obj[c.key] = c.get(r); }); ws.addRow(obj); });
+  };
+  buildSheet('Todos', rows, 'FF2C427E');
+  buildSheet('Confirmados', confirmados, 'FF1F9D63');
+  buildSheet('Recusados', recusados, 'FFC0392B');
+
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
   res.setHeader('Content-Disposition', `attachment; filename="rsvp-${safeName}.xlsx"`);
   await wb.xlsx.write(res);
