@@ -87,29 +87,6 @@ db.exec(`
 // Novo modelo de perfis: 'editor' (antigo) passa a ser 'gestor'.
 try { db.exec("UPDATE admins SET role = 'gestor' WHERE role = 'editor'"); } catch { /* sem ação */ }
 
-// Controle de acesso por evento: cada linha libera um evento para um usuário,
-// com permissões granulares. Admin ignora esta tabela (vê tudo).
-db.exec(`
-  CREATE TABLE IF NOT EXISTS event_access (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    event_id INTEGER NOT NULL,
-    can_view INTEGER NOT NULL DEFAULT 1,
-    can_edit INTEGER NOT NULL DEFAULT 0,
-    can_participants INTEGER NOT NULL DEFAULT 0,
-    can_export INTEGER NOT NULL DEFAULT 0,
-    can_history INTEGER NOT NULL DEFAULT 0,
-    can_messages INTEGER NOT NULL DEFAULT 0,
-    can_duplicate INTEGER NOT NULL DEFAULT 0,
-    can_delete INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now')),
-    UNIQUE(user_id, event_id)
-  );
-`);
-
-// Novo modelo de perfis: 'editor' (antigo) passa a ser 'gestor'.
-try { db.exec("UPDATE admins SET role = 'gestor' WHERE role = 'editor'"); } catch { /* sem ação */ }
-
 // O primeiro administrador criado pelo seed deve ter acesso total.
 // Garante que qualquer conta pré-existente sem papel definido vire 'admin'
 // se for a única conta do sistema (evita travar o acesso após a migração).
