@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard — Moura RSVP</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Visão geral</div>
+          <h1>Dashboard</h1>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="refreshSlot"></span>
+          <a href="/admin/event-form.html" class="btn btn-primary">+ Novo evento</a>
+        </div>
+      </div>
+
+      <div class="search-global">
+        <input type="text" id="globalSearch" placeholder="Buscar eventos, participantes, e-mails ou telefones…" autocomplete="off" />
+        <div id="searchResults" class="search-results hidden"></div>
+      </div>
+
+      <div class="stat-grid" id="stats"></div>
+
+      <div class="page-head"><h2 style="font-size:18px">Eventos</h2></div>
+      <div class="event-list" id="events"><p class="muted">Carregando…</p></div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-dashboard.js"></script>
+</body>
+</html>

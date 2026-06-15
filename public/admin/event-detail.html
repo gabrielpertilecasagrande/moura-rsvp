@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evento — Moura RSVP</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow" id="eyebrow">Evento</div>
+          <h1 id="evName">…</h1>
+          <div class="meta muted" id="evMeta"></div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <span id="refreshSlot"></span>
+          <a class="btn btn-ghost btn-sm" id="editBtn">Editar</a>
+          <button class="btn btn-ghost btn-sm" id="dupBtn">Duplicar</button>
+          <a class="btn btn-ghost btn-sm" id="openPublic" target="_blank">Ver página pública</a>
+        </div>
+      </div>
+
+      <!-- Resumo rápido do evento (inclui link público + copiar + QR) -->
+      <div class="card" id="quickSummary" style="margin-bottom:18px"></div>
+
+      <!-- Aviso de reabertura (aparece quando encerrado pelo prazo) -->
+      <div id="reopenBanner"></div>
+
+      <!-- Métricas de respostas -->
+      <div class="stat-grid" id="pStats" style="grid-template-columns:repeat(4,1fr)"></div>
+
+      <!-- Barra de ações dos participantes -->
+      <div class="participants-bar">
+        <h2 style="font-size:18px;margin:0;flex:1">Participantes</h2>
+        <button class="btn btn-primary btn-sm" id="addOneBtn">+ Adicionar nome</button>
+        <button class="btn btn-ghost btn-sm" id="addBulkBtn">Incluir em lote</button>
+      </div>
+
+      <!-- Ferramentas -->
+      <div class="toolbar">
+        <div class="seg" id="seg">
+          <button data-f="" class="active">Todos</button>
+          <button data-f="confirmado">Confirmados</button>
+          <button data-f="recusado">Recusados</button>
+        </div>
+        <input class="search" type="text" id="search" placeholder="Pesquisar por nome…" />
+        <div class="spacer" style="flex:1"></div>
+        <span class="export-group">
+          <span class="muted" style="font-size:13px">Exportar:</span>
+          <button class="btn btn-ghost btn-sm" id="csvBtn">CSV</button>
+          <button class="btn btn-ghost btn-sm" id="xlsxBtn">Excel</button>
+          <button class="btn btn-ghost btn-sm" id="pdfBtn">PDF</button>
+        </span>
+      </div>
+
+      <!-- Barra de ações em massa (aparece ao selecionar) -->
+      <div id="bulkBar" class="bulk-bar hidden"></div>
+
+      <div class="table-wrap">
+        <table class="cards participants-table">
+          <thead><tr>
+            <th class="col-check"><input type="checkbox" id="checkAll" aria-label="Selecionar todos" /></th>
+            <th>Participante</th><th>Status</th><th>Resposta</th><th style="text-align:right">Ações</th>
+          </tr></thead>
+          <tbody id="rows"><tr><td colspan="5" class="muted" style="padding:24px">Carregando…</td></tr></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-event-detail.js"></script>
+</body>
+</html>
