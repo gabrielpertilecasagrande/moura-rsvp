@@ -638,3 +638,21 @@ tbody tr:hover { background: var(--off-white); }
   border-radius: 8px; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: center;
   transition: background .15s, border-color .15s; }
 .side-account:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.4); color: #fff; }
+
+/* ---- Matriz de acesso por evento (gestão de usuários) ---- */
+.access-modal { max-width: 760px; width: 96vw; text-align: left; }
+.access-table-wrap { max-height: 52vh; overflow: auto; border: 1px solid var(--gray-soft); border-radius: 10px; }
+.access-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.access-table th, .access-table td { padding: 8px 6px; border-bottom: 1px solid var(--gray-soft); text-align: center; }
+.access-table thead th { position: sticky; top: 0; background: var(--gray-soft); color: var(--navy);
+  font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .02em; white-space: nowrap; z-index: 1; }
+.access-table th.ac-name, .access-table td.ac-name { text-align: left; min-width: 180px; }
+.access-table .ac-cell input { width: 17px; height: 17px; accent-color: var(--navy); cursor: pointer; }
+.access-table tr.ac-off td.ac-name { opacity: .55; }
+.access-table tr.ac-off .ac-cell input:disabled { opacity: .3; cursor: not-allowed; }
+
+@media (max-width: 600px) {
+  .access-table { font-size: 12px; }
+  .access-table th, .access-table td { padding: 6px 3px; }
+  .access-table th.ac-name, .access-table td.ac-name { min-width: 120px; }
+}

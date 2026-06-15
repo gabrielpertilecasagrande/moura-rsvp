@@ -5,6 +5,22 @@ const ID = new URLSearchParams(location.search).get('id');
 let state = { filter: '', q: '' };
 let EVENT = null;
 
+// Permissão efetiva do usuário neste evento (admin recebe tudo do backend).
+function can(perm) { return !!(EVENT && EVENT._perms && EVENT._perms[perm]); }
+
+// Mostra/oculta um elemento por id conforme a permissão.
+function gate(id, allowed) { const el = document.getElementById(id); if (el) el.style.display = allowed ? '' : 'none'; }
+
+// Aplica as permissões aos botões fixos do cabeçalho e da barra de ferramentas.
+function applyPermissions() {
+  gate('editBtn', can('can_edit'));
+  gate('dupBtn', can('can_duplicate'));
+  gate('addOneBtn', can('can_participants'));
+  gate('addBulkBtn', can('can_participants'));
+  const exp = document.querySelector('.export-group');
+  if (exp) exp.style.display = can('can_export') ? '' : 'none';
+}
+
 async function loadEvent() {
   EVENT = await Api.get(`/api/events/${ID}`);
   document.getElementById('evName').textContent = EVENT.name;
@@ -13,6 +29,7 @@ async function loadEvent() {
     `${EVENT.event_date ? fmtDateBR(EVENT.event_date) : 'Data a definir'}${EVENT.event_time ? ' · ' + EVENT.event_time : ''}${EVENT.location ? ' · ' + EVENT.location : ''}`;
   document.getElementById('openPublic').href = EVENT.public_url;
   document.getElementById('editBtn').href = `/admin/event-form.html?id=${ID}`;
+  applyPermissions();
   renderReopenBanner();
 }
 
@@ -32,13 +49,13 @@ function renderReopenBanner() {
     wrap.innerHTML = `
       <div class="card" style="margin-bottom:18px;border-left:4px solid var(--cyan);display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between">
         <div><strong>Confirmações reabertas.</strong> <span class="muted">As pessoas podem responder mesmo com o prazo encerrado.</span></div>
-        <button class="btn btn-ghost btn-sm" onclick="setReopen(false)">Encerrar novamente</button>
+        ${can('can_edit') ? '<button class="btn btn-ghost btn-sm" onclick="setReopen(false)">Encerrar novamente</button>' : ''}
       </div>`;
   } else {
     wrap.innerHTML = `
       <div class="card" style="margin-bottom:18px;border-left:4px solid var(--danger);display:flex;gap:14px;flex-wrap:wrap;align-items:center;justify-content:space-between">
         <div><strong>Prazo encerrado.</strong> <span class="muted">A página pública não aceita novas respostas.</span></div>
-        <button class="btn btn-primary btn-sm" onclick="setReopen(true)">Reabrir confirmações</button>
+        ${can('can_edit') ? '<button class="btn btn-primary btn-sm" onclick="setReopen(true)">Reabrir confirmações</button>' : ''}
       </div>`;
   }
 }
@@ -146,6 +163,7 @@ function renderRows(list) {
     tb.innerHTML = `<tr><td colspan="4" class="muted center" style="padding:30px">Nenhuma resposta encontrada${state.q || state.filter ? ' com os filtros aplicados' : ' ainda'}.</td></tr>`;
     return;
   }
+  const selectable = can('can_participants') || can('can_export');
   tb.innerHTML = list.map((p) => {
     const wa = guestWa(p.phone);
     const ex = parseExtra(p.extra);
@@ -154,7 +172,7 @@ function renderRows(list) {
     const icon = (svg, label, attrs) => `<button class="icon-btn" title="${label}" aria-label="${label}" ${attrs}>${svg}</button>`;
     return `
     <tr data-pid="${p.id}">
-      <td class="col-check"><input type="checkbox" class="row-check" value="${p.id}" ${SELECTED.has(p.id) ? 'checked' : ''} aria-label="Selecionar ${esc(p.name)}" /></td>
+      <td class="col-check">${selectable ? `<input type="checkbox" class="row-check" value="${p.id}" ${SELECTED.has(p.id) ? 'checked' : ''} aria-label="Selecionar ${esc(p.name)}" />` : ''}</td>
       <td class="row-name" style="display:block">
         <div class="p-name">${esc(p.name)}</div>
         ${sub ? `<div class="p-sub muted break-anywhere">${sub}</div>` : ''}
@@ -162,13 +180,16 @@ function renderRows(list) {
       <td data-label="Status"><span class="pill ${p.response === 'confirmado' ? 'pill-ok' : 'pill-no'}">${p.response === 'confirmado' ? 'Confirmado' : 'Recusado'}</span></td>
       <td data-label="Resposta" style="white-space:nowrap;font-variant-numeric:tabular-nums">${fmtDateTimeBR(p.updated_at)}</td>
       <td class="cell-actions" style="text-align:right">
-        ${icon(IC.edit, 'Editar', `onclick="editParticipant(${p.id})"`)}
-        ${icon(IC.history, 'Histórico', `onclick="showAudit(${p.id})"`)}
-        ${wa ? `<a class="icon-btn icon-wa" title="WhatsApp" aria-label="WhatsApp" href="${wa}" target="_blank" rel="noopener"><img src="/assets/img/whatsapp.png" alt="WhatsApp" width="18" height="18" style="display:block" /></a>` : ''}
-        ${icon(IC.trash, 'Remover', `onclick="deleteParticipant(${p.id})"`)}
+        ${can('can_participants') ? icon(IC.edit, 'Editar', `onclick="editParticipant(${p.id})"`) : ''}
+        ${can('can_history') ? icon(IC.history, 'Histórico', `onclick="showAudit(${p.id})"`) : ''}
+        ${wa && can('can_messages') ? `<a class="icon-btn icon-wa" title="WhatsApp" aria-label="WhatsApp" href="${wa}" target="_blank" rel="noopener"><img src="/assets/img/whatsapp.png" alt="WhatsApp" width="18" height="18" style="display:block" /></a>` : ''}
+        ${can('can_participants') ? icon(IC.trash, 'Remover', `onclick="deleteParticipant(${p.id})"`) : ''}
       </td>
     </tr>`;
   }).join('');
+  // Esconde o "selecionar todos" quando não há ações em lote disponíveis.
+  const checkAll = document.getElementById('checkAll');
+  if (checkAll) checkAll.style.display = selectable ? '' : 'none';
   syncSelectionUI();
 }
 
@@ -292,16 +313,18 @@ function syncSelectionUI() {
   if (all) all.checked = LAST_LIST.length > 0 && LAST_LIST.every((p) => SELECTED.has(p.id));
   if (!SELECTED.size) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
   bar.classList.remove('hidden');
+  const actions = [];
+  if (can('can_participants')) {
+    actions.push('<button class="btn btn-sm bulk-confirm" onclick="bulkAction(\'confirmar\')">Marcar Confirmado</button>');
+    actions.push('<button class="btn btn-sm bulk-decline" onclick="bulkAction(\'recusar\')">Marcar Recusado</button>');
+  }
+  if (can('can_export')) actions.push('<button class="btn btn-sm btn-ghost" onclick="bulkExport()">Exportar selecionados</button>');
+  if (can('can_participants')) actions.push('<button class="btn btn-sm bulk-delete" onclick="bulkAction(\'excluir\')">Excluir</button>');
+  if (can('can_messages')) actions.push('<button class="btn btn-sm btn-ghost" disabled title="Em breve">WhatsApp (em breve)</button>');
+  actions.push('<button class="btn btn-sm btn-ghost" onclick="clearSelection()">Cancelar seleção</button>');
   bar.innerHTML = `
     <span class="bulk-count">Selecionados: <strong>${SELECTED.size}</strong> participante(s)</span>
-    <div class="bulk-actions">
-      <button class="btn btn-sm bulk-confirm" onclick="bulkAction('confirmar')">Marcar Confirmado</button>
-      <button class="btn btn-sm bulk-decline" onclick="bulkAction('recusar')">Marcar Recusado</button>
-      <button class="btn btn-sm btn-ghost" onclick="bulkExport()">Exportar selecionados</button>
-      <button class="btn btn-sm bulk-delete" onclick="bulkAction('excluir')">Excluir</button>
-      <button class="btn btn-sm btn-ghost" disabled title="Em breve">WhatsApp (em breve)</button>
-      <button class="btn btn-sm btn-ghost" onclick="clearSelection()">Cancelar seleção</button>
-    </div>`;
+    <div class="bulk-actions">${actions.join('')}</div>`;
 }
 function clearSelection() { SELECTED.clear(); document.querySelectorAll('.row-check').forEach((c) => { c.checked = false; }); syncSelectionUI(); }
 

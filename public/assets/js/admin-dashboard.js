@@ -1,6 +1,9 @@
 requireSession();
 mountShell('dashboard');
 
+// Operador não cria eventos: oculta o botão "Novo evento" do topo.
+if (!canCreateEvents()) document.getElementById('newEventBtn')?.remove();
+
 // Cor dinâmica para taxas: <50 vermelho, 50-79 laranja, 80+ verde.
 function rateTone(pct) { if (pct >= 80) return 'green'; if (pct >= 50) return 'amber'; return 'red'; }
 const ICO = {
@@ -60,9 +63,9 @@ function renderEvents() {
   if (!ALL_EVENTS.length) {
     box.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
       <div class="ico">📅</div>
-      <h3>Nenhum evento cadastrado ainda.</h3>
-      <p>Clique em "Novo evento" para começar.</p>
-      <a href="/admin/event-form.html" class="btn btn-primary" style="margin-top:14px">+ Novo evento</a>
+      <h3>${canCreateEvents() ? 'Nenhum evento cadastrado ainda.' : 'Você ainda não tem eventos liberados.'}</h3>
+      <p>${canCreateEvents() ? 'Clique em "Novo evento" para começar.' : 'Solicite a um administrador o acesso aos eventos.'}</p>
+      ${canCreateEvents() ? '<a href="/admin/event-form.html" class="btn btn-primary" style="margin-top:14px">+ Novo evento</a>' : ''}
     </div>`;
     return;
   }
@@ -109,7 +112,7 @@ function eventCard(e) {
     </a>
     <div class="event-card-actions">
       <a class="btn btn-primary btn-sm" href="/admin/event-detail.html?id=${e.id}">👁 Ver evento</a>
-      <button class="btn btn-ghost btn-sm" onclick="duplicateEvent(${e.id}, event)">Duplicar</button>
+      ${(e._perms && e._perms.can_duplicate) ? `<button class="btn btn-ghost btn-sm" onclick="duplicateEvent(${e.id}, event)">Duplicar</button>` : ''}
     </div>
   </div>`;
 }
