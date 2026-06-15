@@ -50,6 +50,22 @@ function fmtDateTimeBR(s) {
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+// ---- ENTER confirma/prossegue na janela modal aberta ----
+// Vale para qualquer popup (.modal dentro de .modal-bg). Em textareas, o Enter
+// continua quebrando linha normalmente. Aciona o botão de ação principal do modal
+// (btn-primary; senão, a ação destrutiva habilitada, como "Excluir definitivamente").
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter' || e.isComposing || e.shiftKey) return;
+  const modal = document.querySelector('.modal-bg .modal');
+  if (!modal) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'textarea' || tag === 'button' || tag === 'select') return;
+  const btn = modal.querySelector('[data-enter]:not([disabled])')
+    || modal.querySelector('.btn-primary:not([disabled])')
+    || modal.querySelector('.btn-danger:not([disabled])');
+  if (btn) { e.preventDefault(); btn.click(); }
+});
+
 // ---- ESC fecha qualquer janela modal aberta ----
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;

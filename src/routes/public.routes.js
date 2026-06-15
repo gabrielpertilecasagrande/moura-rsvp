@@ -2,25 +2,20 @@
 const express = require('express');
 const db = require('../db');
 const { normalizeName } = require('../utils/normalize');
+const { parseFormConfig, customFields } = require('../utils/formConfig');
 
 const router = express.Router();
 
-const DEFAULT_FORM_CONFIG = {
-  company: { enabled: false, required: false, label: 'Empresa' },
-  role: { enabled: false, required: false, label: 'Cargo' },
-  email: { enabled: false, required: false, label: 'E-mail' },
-  phone: { enabled: false, required: false, label: 'Telefone/WhatsApp' },
-};
-const parseFormConfig = (raw) => {
-  let parsed = {};
-  try { parsed = JSON.parse(raw || '{}') || {}; } catch { parsed = {}; }
+// Sanitiza as respostas dos campos personalizados, mantendo só os habilitados.
+function collectExtra(cfg, rawExtra) {
   const out = {};
-  for (const k of Object.keys(DEFAULT_FORM_CONFIG)) {
-    out[k] = { ...DEFAULT_FORM_CONFIG[k], ...(parsed[k] || {}) };
-    if (!out[k].label) out[k].label = DEFAULT_FORM_CONFIG[k].label;
+  const src = (rawExtra && typeof rawExtra === 'object') ? rawExtra : {};
+  for (const f of customFields(cfg)) {
+    const v = src[f.key];
+    if (v != null && String(v).trim()) out[f.key] = String(v).trim().slice(0, 500);
   }
   return out;
-};
+}
 
 function deadlinePassed(deadline) {
   if (!deadline) return false;
@@ -109,6 +104,17 @@ router.post('/events/:slug/rsvp', (req, res) => {
     return res.status(400).json({ error: 'Selecione uma opção de presença.' });
   }
 
+  // Valida campos obrigatórios (builtin + personalizados) conforme a configuração do evento.
+  const cfg = parseFormConfig(e.form_config);
+  const builtinVal = { company, role, email, phone };
+  const extra = collectExtra(cfg, req.body.extra);
+  for (const f of cfg.fields) {
+    if (!f.enabled || !f.required) continue;
+    const filled = f.builtin ? String(builtinVal[f.key] || '').trim() : String(extra[f.key] || '').trim();
+    if (!filled) return res.status(400).json({ error: `O campo "${f.label}" é obrigatório.` });
+  }
+  const extraJson = Object.keys(extra).length ? JSON.stringify(extra) : null;
+
   const normalized = normalizeName(name);
   const existing = findExisting(e.id, { email, phone, normalized });
 
@@ -116,7 +122,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
     // Atualiza registro existente (sem duplicar)
     db.prepare(`
       UPDATE participants SET name=?, company=?, role=?, email=?,
-        phone=?, response=?, name_normalized=?, updated_at=datetime('now')
+        phone=?, response=?, name_normalized=?, extra=?, updated_at=datetime('now')
       WHERE id=?
     `).run(
       String(name).trim(),
@@ -126,6 +132,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
       phone || null,
       response,
       normalized,
+      extraJson,
       existing.id
     );
     db.prepare(`
@@ -143,9 +150,9 @@ router.post('/events/:slug/rsvp', (req, res) => {
 
   // Cria novo registro
   const info = db.prepare(`
-    INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response)
-    VALUES (?,?,?,?,?,?,?,?)
-  `).run(e.id, String(name).trim(), normalized, company || null, role || null, email || null, phone || null, response);
+    INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra)
+    VALUES (?,?,?,?,?,?,?,?,?)
+  `).run(e.id, String(name).trim(), normalized, company || null, role || null, email || null, phone || null, response, extraJson);
 
   db.prepare(`
     INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)

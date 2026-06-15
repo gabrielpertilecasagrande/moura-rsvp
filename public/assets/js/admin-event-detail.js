@@ -148,7 +148,9 @@ function renderRows(list) {
   }
   tb.innerHTML = list.map((p) => {
     const wa = guestWa(p.phone);
-    const sub = [p.company, p.phone, p.email].filter(Boolean).map(esc).join(' · ');
+    const ex = parseExtra(p.extra);
+    const customVals = eventCustomFields().map((f) => ex[f.key]).filter(Boolean);
+    const sub = [p.company, p.phone, p.email, ...customVals].filter(Boolean).map(esc).join(' · ');
     const icon = (svg, label, attrs) => `<button class="icon-btn" title="${label}" aria-label="${label}" ${attrs}>${svg}</button>`;
     return `
     <tr data-pid="${p.id}">
@@ -181,6 +183,27 @@ const IC = {
 const fieldRow = (id, label, value, type = 'text') =>
   `<div class="field" style="text-align:left"><label>${label}</label><input type="${type}" id="${id}" value="${esc(value) || ''}" /></div>`;
 
+// ---- Campos personalizados ("outro") configurados no evento ----
+function eventCustomFields() {
+  return ((EVENT && EVENT.form_config && EVENT.form_config.fields) || []).filter((f) => f.enabled && !f.builtin);
+}
+function parseExtra(raw) {
+  try { return raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {}; } catch { return {}; }
+}
+function customFieldsHtml(extraRaw) {
+  const ex = parseExtra(extraRaw);
+  const fields = eventCustomFields();
+  if (!fields.length) return '';
+  return fields.map((f) =>
+    `<div class="field" style="text-align:left"><label>${esc(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>
+      <input type="${f.type || 'text'}" data-ckey="${esc(f.key)}" value="${esc(ex[f.key] || '')}" /></div>`).join('');
+}
+function collectCustom() {
+  const out = {};
+  document.querySelectorAll('.modal [data-ckey]').forEach((el) => { out[el.dataset.ckey] = el.value.trim(); });
+  return out;
+}
+
 function editParticipant(pid) {
   const p = LAST_LIST.find((x) => x.id === pid);
   if (!p) return;
@@ -197,6 +220,7 @@ function editParticipant(pid) {
       ${fieldRow('ed_email', 'E-mail', p.email, 'email')}
       ${fieldRow('ed_phone', 'Telefone', p.phone)}
     </div>
+    ${customFieldsHtml(p.extra)}
     <div class="field" style="text-align:left">
       <label>Presença</label>
       <div class="edit-presence">
@@ -226,7 +250,7 @@ async function saveParticipant(pid) {
   const newResp = document.querySelector('input[name="ed_resp"]:checked').value;
   const payload = {
     name: val('ed_name'), company: val('ed_company'), role: val('ed_role'),
-    email: val('ed_email'), phone: val('ed_phone'), response: newResp,
+    email: val('ed_email'), phone: val('ed_phone'), response: newResp, extra: collectCustom(),
   };
   try {
     await Api.put(`/api/events/${ID}/participants/${pid}`, payload);
@@ -271,10 +295,10 @@ function syncSelectionUI() {
   bar.innerHTML = `
     <span class="bulk-count"><strong>${SELECTED.size}</strong> selecionado(s)</span>
     <div class="bulk-actions">
-      <button class="btn btn-sm" style="background:#1f9d63;color:#fff" onclick="bulkAction('confirmar')">Marcar Confirmado</button>
-      <button class="btn btn-sm btn-danger" onclick="bulkAction('recusar')">Marcar Recusado</button>
+      <button class="btn btn-sm bulk-confirm" onclick="bulkAction('confirmar')">Marcar Confirmado</button>
+      <button class="btn btn-sm bulk-decline" onclick="bulkAction('recusar')">Marcar Recusado</button>
       <button class="btn btn-sm btn-ghost" onclick="bulkExport()">Exportar selecionados</button>
-      <button class="btn btn-sm btn-danger" onclick="bulkAction('excluir')">Excluir</button>
+      <button class="btn btn-sm bulk-delete" onclick="bulkAction('excluir')">Excluir</button>
       <button class="btn btn-sm btn-ghost" onclick="clearSelection()">Cancelar</button>
     </div>`;
 }
@@ -441,6 +465,7 @@ function addOne() {
       ${fieldRow('ao_email', 'E-mail', '', 'email')}
       ${fieldRow('ao_phone', 'Telefone', '')}
     </div>
+    ${customFieldsHtml(null)}
     <div class="field" style="text-align:left">
       <label>Presença</label>
       <div class="edit-presence">
@@ -459,11 +484,6 @@ function addOne() {
       lab.classList.add('on');
     });
   });
-  // Enter no campo de nome dá entrada no registro (atalho de produtividade).
-  ['ao_name', 'ao_company', 'ao_role', 'ao_email', 'ao_phone'].forEach((id) => {
-    const el = document.getElementById(id);
-    if (el) el.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); saveOne(); } });
-  });
   document.getElementById('ao_name').focus();
 }
 async function saveOne(force) {
@@ -474,6 +494,7 @@ async function saveOne(force) {
     name: v('ao_name'), company: v('ao_company'), role: v('ao_role'),
     email: v('ao_email'), phone: v('ao_phone'),
     response: document.querySelector('input[name="ao_resp"]:checked').value,
+    extra: collectCustom(),
   };
   if (force) payload.force_update = true;
   try {
@@ -530,5 +551,11 @@ async function saveBulk() {
   } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
 }
 
-(async () => { await loadEvent(); await loadParticipants(); })().catch((e) => toast(e.message));
-document.getElementById('refreshSlot').appendChild(refreshButton(loadParticipants, 'Atualizar lista'));
+// Leva o cursor para a busca rápida de participantes (sem rolar a página).
+function focusSearch() {
+  const el = document.getElementById('search');
+  if (el && !('ontouchstart' in window)) el.focus({ preventScroll: true });
+}
+
+(async () => { await loadEvent(); await loadParticipants(); focusSearch(); })().catch((e) => toast(e.message));
+document.getElementById('refreshSlot').appendChild(refreshButton(async () => { await loadParticipants(); focusSearch(); }, 'Atualizar lista'));

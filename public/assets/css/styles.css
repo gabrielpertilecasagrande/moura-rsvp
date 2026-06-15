@@ -555,3 +555,71 @@ tbody tr:hover { background: var(--off-white); }
   .bulk-actions { width: 100%; }
   .bulk-actions .btn { flex: 1; }
 }
+
+/* ============================================================
+   AJUSTES (revisão 2.1)
+   ============================================================ */
+
+/* ---- Barra de ações em massa: fundo claro e botões legíveis ---- */
+.bulk-bar { background: var(--white); color: var(--charcoal); border: 1px solid var(--gray);
+  box-shadow: var(--shadow); }
+.bulk-bar .bulk-count { color: var(--navy); }
+.bulk-bar .bulk-count strong { color: var(--navy-deep); }
+.bulk-confirm { background: #1f9d63; color: #fff; border-color: #1f9d63; }
+.bulk-confirm:hover { background: #1a8a56; }
+.bulk-decline { background: #fff; color: var(--danger); border-color: var(--danger); }
+.bulk-decline:hover { background: #faece8; }
+.bulk-delete { background: var(--danger); color: #fff; border-color: var(--danger); }
+.bulk-delete:hover { filter: brightness(.95); }
+
+/* ---- Abas de eventos (dashboard) ---- */
+.event-tabs { margin-bottom: 18px; max-width: 100%; flex-wrap: wrap; }
+.event-tabs button { white-space: nowrap; }
+
+/* ---- Construtor de campos do formulário (event-form) ---- */
+.fb-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--gray-soft); }
+.fb-move { display: flex; flex-direction: column; gap: 2px; }
+.fb-arrow { width: 26px; height: 20px; line-height: 1; border: 1px solid var(--gray); background: var(--white);
+  color: var(--navy); border-radius: 6px; cursor: pointer; font-size: 12px; padding: 0; }
+.fb-arrow:hover:not(:disabled) { border-color: var(--navy); background: var(--off-white); }
+.fb-arrow:disabled { opacity: .35; cursor: not-allowed; }
+.fb-enable input, .fb-req input { width: 18px; height: 18px; accent-color: var(--navy); cursor: pointer; }
+.fb-label { flex: 1; display: flex; align-items: center; gap: 8px; min-width: 0; }
+.fb-label input { flex: 1; min-width: 0; }
+.fb-tag { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+  color: var(--muted); background: var(--gray-soft); padding: 2px 7px; border-radius: 100px; white-space: nowrap; }
+.fb-tag-custom { color: #0f8a93; background: var(--cyan-soft); }
+.fb-req { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; color: var(--muted);
+  cursor: pointer; white-space: nowrap; }
+.fb-del { width: 30px; height: 30px; border: 1px solid var(--gray); background: var(--white); color: var(--danger);
+  border-radius: 8px; cursor: pointer; font-size: 13px; flex: none; }
+.fb-del:hover:not(:disabled) { border-color: var(--danger); background: #faece8; }
+.fb-del:disabled { opacity: .3; cursor: not-allowed; }
+
+@media (max-width: 767px) {
+  .fb-row { flex-wrap: wrap; gap: 8px; }
+  .fb-label { order: -1; flex-basis: 100%; }
+  .fb-req span { display: inline; }
+}
+
+/* ---- Detalhe de atividade clicável ---- */
+.act-detail-btn { background: none; border: none; padding: 0; margin: 0; font: inherit; color: var(--navy);
+  text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.act-detail-btn:hover { text-decoration: underline; }
+.act-detail-btn .act-more { font-size: 11px; font-weight: 600; color: var(--cyan); text-transform: uppercase;
+  letter-spacing: .04em; margin-left: 4px; }
+.act-detail-btn .act-more::before { content: '· '; color: var(--muted); }
+#modalSlot .audit-line { display: flex; gap: 12px; }
+#modalSlot .audit-line .d { min-width: 96px; flex: none; }
+
+/* ---- Mobile: cartões de participante mais legíveis ---- */
+@media (max-width: 767px) {
+  /* Nome alinhado à esquerda (estava herdando text-align:right do cartão) */
+  table.cards tbody td.row-name { text-align: left; }
+  .participants-table .p-name, .participants-table .p-sub { text-align: left; }
+  /* Checkbox de seleção com rótulo claro */
+  .participants-table tbody td.col-check { justify-content: flex-start; gap: 8px; }
+  .participants-table tbody td.col-check::before { content: 'Selecionar'; display: inline; }
+  /* Botões de ação ocupam a linha de forma equilibrada */
+  .participants-table tbody td.cell-actions .icon-btn { flex: 0 0 auto; }
+}

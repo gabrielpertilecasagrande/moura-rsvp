@@ -11,12 +11,11 @@ const ICO = {
   clock: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   rate: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
 };
+// Apenas indicadores de eventos no painel. As informações de confirmações/recusas
+// ficam exclusivamente na página de cada evento.
 const STAT_DEFS = [
   { k: 'totalEvents', l: 'Total de eventos', tone: 'navy', ico: ICO.cal },
   { k: 'activeEvents', l: 'Eventos ativos', tone: 'green', ico: ICO.bolt },
-  { k: 'confirmed', l: 'Confirmações', tone: 'green', ico: ICO.check },
-  { k: 'declined', l: 'Recusas', tone: 'red', ico: ICO.x },
-  { k: 'pending', l: 'Respostas pendentes', tone: 'amber', ico: ICO.clock },
 ];
 
 function statCard(d) {
@@ -27,20 +26,38 @@ function statCard(d) {
   </div>`;
 }
 
+let ALL_EVENTS = [];
+let eventsTab = 'current'; // 'current' | 'past'
+
+// Um evento é "passado/concluído" quando a data de realização já passou.
+function isPastEvent(e) {
+  if (!e.event_date) return false;
+  const end = new Date(`${e.event_date}T23:59:59`).getTime();
+  return Date.now() > end;
+}
+
 async function init() {
   const s = await Api.get('/api/dashboard');
   const cards = STAT_DEFS.map((d) => statCard({ ...d, n: s[d.k] ?? 0 }));
-  if (s.responseRate != null) {
-    cards.push(statCard({
-      n: s.responseRate + '%', l: 'Taxa de resposta', tone: rateTone(s.responseRate), ico: ICO.rate,
-      tip: `Proporção de quem já respondeu (confirmou ou recusou) entre os ${s.totalExpected} convidados esperados.`,
-    }));
-  }
   document.getElementById('stats').innerHTML = cards.join('');
 
-  const events = await Api.get('/api/events');
+  ALL_EVENTS = await Api.get('/api/events');
+  renderEvents();
+}
+
+function renderEvents() {
+  const current = ALL_EVENTS.filter((e) => !isPastEvent(e));
+  const past = ALL_EVENTS.filter(isPastEvent);
+  const list = eventsTab === 'past' ? past : current;
+
+  // Abas de eventos atuais x passados/concluídos.
+  const tabs = document.getElementById('eventTabs');
+  tabs.innerHTML = `
+    <button data-tab="current" class="${eventsTab === 'current' ? 'active' : ''}">Eventos atuais (${current.length})</button>
+    <button data-tab="past" class="${eventsTab === 'past' ? 'active' : ''}">Eventos passados/concluídos (${past.length})</button>`;
+
   const box = document.getElementById('events');
-  if (!events.length) {
+  if (!ALL_EVENTS.length) {
     box.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
       <div class="ico">📅</div>
       <h3>Nenhum evento cadastrado ainda.</h3>
@@ -49,7 +66,12 @@ async function init() {
     </div>`;
     return;
   }
-  box.innerHTML = events.map(eventCard).join('');
+  if (!list.length) {
+    box.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="ico">🗂️</div>
+      <h3>${eventsTab === 'past' ? 'Nenhum evento passado por aqui.' : 'Nenhum evento em andamento.'}</h3></div>`;
+    return;
+  }
+  box.innerHTML = list.map(eventCard).join('');
 }
 
 function deadlineTag(e) {
@@ -134,6 +156,12 @@ async function runSearch(q) {
     gr.classList.remove('hidden');
   } catch (e) { /* silencioso */ }
 }
+
+document.getElementById('eventTabs').addEventListener('click', (e) => {
+  const b = e.target.closest('button'); if (!b) return;
+  eventsTab = b.dataset.tab;
+  renderEvents();
+});
 
 init().catch((e) => toast(e.message));
 document.getElementById('refreshSlot').appendChild(refreshButton(init, 'Atualizar dashboard'));

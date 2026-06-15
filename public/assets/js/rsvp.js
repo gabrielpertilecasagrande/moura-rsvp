@@ -76,17 +76,26 @@ function render() {
   renderForm();
 }
 
-function optField(key, cfg) {
-  if (!cfg.enabled) return '';
-  const types = { email: 'email', phone: 'tel' };
+// Renderiza um campo configurável (builtin → name=chave; personalizado → data-ckey).
+function optField(f) {
+  if (!f.enabled) return '';
+  const builtinTypes = { email: 'email', phone: 'tel' };
+  const req = f.required ? '<span class="req">*</span>' : '';
+  if (f.builtin) {
+    return `<div class="field">
+      <label>${esc(f.label)} ${req}</label>
+      <input type="${builtinTypes[f.key] || 'text'}" name="${f.key}" ${f.required ? 'required' : ''} />
+    </div>`;
+  }
   return `<div class="field">
-    <label>${esc(cfg.label)} ${cfg.required ? '<span class="req">*</span>' : ''}</label>
-    <input type="${types[key] || 'text'}" name="${key}" ${cfg.required ? 'required' : ''} />
+    <label>${esc(f.label)} ${req}</label>
+    <input type="${f.type || 'text'}" data-ckey="${esc(f.key)}" ${f.required ? 'required' : ''} />
   </div>`;
 }
 
 function renderForm() {
-  const fc = EVENT.form_config || {};
+  const fc = EVENT.form_config || { fields: [] };
+  const fieldsHtml = (fc.fields || []).map(optField).join('');
   document.getElementById('form-slot').innerHTML = `
     <div class="divider"></div>
     <div class="field">
@@ -94,10 +103,7 @@ function renderForm() {
       <input type="text" name="name" required autocomplete="name" placeholder="Nome e sobrenome" />
     </div>
     <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
-    ${optField('company', fc.company)}
-    ${optField('role', fc.role)}
-    ${optField('email', fc.email)}
-    ${optField('phone', fc.phone)}
+    ${fieldsHtml}
 
     <div class="divider"></div>
     <p class="choice-q">Você participará deste evento?</p>
@@ -126,16 +132,24 @@ async function submit() {
   const err = document.getElementById('err');
   err.classList.add('hidden');
   const get = (n) => (document.querySelector(`[name="${n}"]`)?.value || '').trim();
+  const getCustom = (key) => (document.querySelector(`[data-ckey="${key}"]`)?.value || '').trim();
   const body = { name: get('name'), company: get('company'), role: get('role'), email: get('email'), phone: get('phone'), response: choice, website: get('website') };
+
+  // Respostas dos campos personalizados.
+  const fc = EVENT.form_config || { fields: [] };
+  const extra = {};
+  (fc.fields || []).forEach((f) => { if (f.enabled && !f.builtin) extra[f.key] = getCustom(f.key); });
+  body.extra = extra;
 
   if (!body.name) return showErr('Por favor, informe seu nome completo.');
   // Exige nome + sobrenome (ao menos duas palavras com 2+ letras).
   const nameParts = body.name.split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, '').length >= 2);
   if (nameParts.length < 2) return showErr('Por favor, informe seu nome completo (nome e sobrenome).');
   if (!body.response) return showErr('Selecione se você participará ou não do evento.');
-  const fc = EVENT.form_config || {};
-  for (const k of ['company', 'role', 'email', 'phone']) {
-    if (fc[k]?.enabled && fc[k]?.required && !body[k]) return showErr(`O campo "${fc[k].label}" é obrigatório.`);
+  for (const f of (fc.fields || [])) {
+    if (!f.enabled || !f.required) continue;
+    const val = f.builtin ? body[f.key] : extra[f.key];
+    if (!val) return showErr(`O campo "${f.label}" é obrigatório.`);
   }
 
   const btn = document.getElementById('submit');

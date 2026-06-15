@@ -61,6 +61,7 @@ addColumn('events', 'whatsapp_enabled', 'INTEGER DEFAULT 1');
 addColumn('events', 'city', 'TEXT');
 addColumn('events', 'address', 'TEXT');
 addColumn('audit_log', 'actor', 'TEXT');
+addColumn('participants', 'extra', 'TEXT'); // respostas dos campos personalizados (JSON)
 
 // O primeiro administrador criado pelo seed deve ter acesso total.
 // Garante que qualquer conta pré-existente sem papel definido vire 'admin'

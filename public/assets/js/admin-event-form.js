@@ -9,39 +9,86 @@ const SLUG_PREFIX = `${location.origin}/rsvp/`;
   if (sp) sp.textContent = SLUG_PREFIX;
 }
 let removeCover = false, removeLogo = false;
-const FIELDS = [
-  { key: 'company', label: 'Empresa' },
-  { key: 'role', label: 'Cargo' },
-  { key: 'email', label: 'E-mail' },
-  { key: 'phone', label: 'Telefone/WhatsApp' },
+
+// Configuração dos campos do formulário público — lista ordenada e editável.
+const BUILTIN_FIELDS = [
+  { key: 'company', label: 'Empresa', type: 'text' },
+  { key: 'role', label: 'Cargo', type: 'text' },
+  { key: 'email', label: 'E-mail', type: 'email' },
+  { key: 'phone', label: 'Telefone/WhatsApp', type: 'tel' },
 ];
-let formConfig = {};
+function defaultFields() {
+  return BUILTIN_FIELDS.map((b) => ({ ...b, enabled: false, required: false, builtin: true }));
+}
+let formConfig = { fields: defaultFields() };
+
+const ARROW_UP = '↑', ARROW_DOWN = '↓';
 
 function renderBuilder() {
-  document.getElementById('fieldBuilder').innerHTML = FIELDS.map((f) => {
-    const c = formConfig[f.key] || { enabled: false, required: false };
-    return `
-    <div style="display:flex;align-items:center;gap:16px;padding:10px 0;border-bottom:1px solid var(--gray-soft)">
-      <label style="display:flex;align-items:center;gap:8px;flex:1;margin:0;cursor:pointer">
-        <input type="checkbox" data-k="${f.key}" data-t="enabled" ${c.enabled ? 'checked' : ''} style="width:18px;height:18px;accent-color:var(--navy)" />
-        <span style="font-weight:600">${f.label}</span>
+  const fields = formConfig.fields || (formConfig.fields = defaultFields());
+  const wrap = document.getElementById('fieldBuilder');
+  wrap.innerHTML = fields.map((f, i) => `
+    <div class="fb-row" data-i="${i}">
+      <div class="fb-move">
+        <button type="button" class="fb-arrow" data-act="up" data-i="${i}" title="Mover para cima" ${i === 0 ? 'disabled' : ''}>${ARROW_UP}</button>
+        <button type="button" class="fb-arrow" data-act="down" data-i="${i}" title="Mover para baixo" ${i === fields.length - 1 ? 'disabled' : ''}>${ARROW_DOWN}</button>
+      </div>
+      <label class="fb-enable" title="Exibir este campo no formulário">
+        <input type="checkbox" data-act="enabled" data-i="${i}" ${f.enabled ? 'checked' : ''} />
       </label>
-      <label style="display:flex;align-items:center;gap:8px;margin:0;cursor:pointer;font-size:13px;color:var(--muted)">
-        <input type="checkbox" data-k="${f.key}" data-t="required" ${c.required ? 'checked' : ''} ${c.enabled ? '' : 'disabled'} style="width:16px;height:16px;accent-color:var(--cyan)" />
-        Obrigatório
+      <div class="fb-label">
+        <input type="text" data-act="label" data-i="${i}" value="${esc(f.label)}" placeholder="Nome do campo"
+          ${f.builtin ? 'title="Você pode renomear este campo"' : ''} />
+        ${f.builtin ? '<span class="fb-tag">padrão</span>' : '<span class="fb-tag fb-tag-custom">personalizado</span>'}
+      </div>
+      <label class="fb-req" title="Tornar obrigatório">
+        <input type="checkbox" data-act="required" data-i="${i}" ${f.required ? 'checked' : ''} ${f.enabled ? '' : 'disabled'} />
+        <span>Obrigatório</span>
       </label>
-    </div>`;
-  }).join('');
+      <button type="button" class="fb-del" data-act="remove" data-i="${i}" title="${f.builtin ? 'Campos padrão não podem ser excluídos (desative para ocultar)' : 'Excluir campo'}" ${f.builtin ? 'disabled' : ''}>✕</button>
+    </div>`).join('') + `
+    <button type="button" class="btn btn-ghost btn-sm fb-add" id="fbAddBtn" style="margin-top:14px">+ Adicionar outro campo</button>`;
 
-  document.querySelectorAll('#fieldBuilder input').forEach((inp) => {
-    inp.addEventListener('change', () => {
-      const k = inp.dataset.k, t = inp.dataset.t;
-      formConfig[k] = formConfig[k] || { enabled: false, required: false, label: FIELDS.find((f) => f.key === k).label };
-      formConfig[k][t] = inp.checked;
-      if (t === 'enabled' && !inp.checked) formConfig[k].required = false;
+  wrap.querySelectorAll('[data-act]').forEach((el) => {
+    const i = Number(el.dataset.i);
+    const act = el.dataset.act;
+    if (act === 'label') {
+      el.addEventListener('input', () => { fields[i].label = el.value; markDirty(); });
+      return;
+    }
+    el.addEventListener('click', (ev) => {
+      if (act === 'up' && i > 0) { [fields[i - 1], fields[i]] = [fields[i], fields[i - 1]]; }
+      else if (act === 'down' && i < fields.length - 1) { [fields[i + 1], fields[i]] = [fields[i], fields[i + 1]]; }
+      else if (act === 'remove') { fields.splice(i, 1); }
+      else if (act === 'enabled') { fields[i].enabled = el.checked; if (!el.checked) fields[i].required = false; }
+      else if (act === 'required') { fields[i].required = el.checked; }
+      else return;
+      if (act === 'enabled' || act === 'required') ev.stopPropagation();
+      markDirty();
       renderBuilder();
     });
   });
+  const addBtn = document.getElementById('fbAddBtn');
+  if (addBtn) addBtn.addEventListener('click', () => {
+    fields.push({ key: `c_${Date.now()}`, label: 'Novo campo', type: 'text', enabled: true, required: false, builtin: false });
+    markDirty();
+    renderBuilder();
+  });
+}
+
+// Garante o formato { fields:[...] } a partir do que vier do backend/rascunho.
+function normalizeConfig(raw) {
+  if (raw && Array.isArray(raw.fields) && raw.fields.length) {
+    const seen = new Set(raw.fields.map((f) => f.key));
+    const fields = raw.fields.map((f) => ({
+      key: f.key, label: f.label || '', type: f.type || 'text',
+      enabled: !!f.enabled, required: !!f.enabled && !!f.required,
+      builtin: BUILTIN_FIELDS.some((b) => b.key === f.key),
+    }));
+    for (const b of BUILTIN_FIELDS) if (!seen.has(b.key)) fields.push({ ...b, enabled: false, required: false, builtin: true });
+    return { fields };
+  }
+  return { fields: defaultFields() };
 }
 
 async function loadForEdit() {
@@ -57,7 +104,8 @@ async function loadForEdit() {
   set('whatsapp', e.whatsapp);
   document.getElementById('whatsapp_enabled').checked = e.whatsapp_enabled == null ? true : !!e.whatsapp_enabled;
   set('confirm_message', e.confirm_message); set('decline_message', e.decline_message);
-  formConfig = e.form_config || {};
+  formConfig = normalizeConfig(e.form_config);
+  renderBuilder();
   renderAttachment('coverCurrent', e.cover_image, 'cover');
   renderAttachment('logoCurrent', e.client_logo, 'logo');
 
@@ -158,7 +206,7 @@ function clearDraft() { try { localStorage.removeItem(DRAFT_KEY); } catch { /* i
 function applyDraft(d) {
   TEXT_IDS.forEach((id) => { if (d[id] != null) document.getElementById(id).value = d[id]; });
   if (d.wa_on != null) document.getElementById('whatsapp_enabled').checked = d.wa_on;
-  if (d.form_config) { formConfig = d.form_config; renderBuilder(); }
+  if (d.form_config) { formConfig = normalizeConfig(d.form_config); renderBuilder(); }
 }
 function maybeRestoreDraft() {
   let raw; try { raw = localStorage.getItem(DRAFT_KEY); } catch { return; }
