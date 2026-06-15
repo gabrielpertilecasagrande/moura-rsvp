@@ -22,70 +22,122 @@ function defaultFields() {
 }
 let formConfig = { fields: defaultFields() };
 
-const ARROW_UP = '↑', ARROW_DOWN = '↓';
+// Tipos de campos personalizados disponíveis.
+const TYPE_LABELS = {
+  text: 'Texto curto', textarea: 'Texto longo', number: 'Número', date: 'Data',
+  select: 'Lista suspensa', radio: 'Botões de opção (uma escolha)',
+  checkbox: 'Caixas de seleção (várias)', boolean: 'Sim / Não',
+};
+const OPTION_TYPES = ['select', 'radio', 'checkbox'];
+const DRAG = '⠿'; // alça de arrastar
+
+let dragFrom = null;
 
 function renderBuilder() {
   const fields = formConfig.fields || (formConfig.fields = defaultFields());
   const wrap = document.getElementById('fieldBuilder');
-  wrap.innerHTML = fields.map((f, i) => `
-    <div class="fb-row" data-i="${i}">
-      <div class="fb-move">
-        <button type="button" class="fb-arrow" data-act="up" data-i="${i}" title="Mover para cima" ${i === 0 ? 'disabled' : ''}>${ARROW_UP}</button>
-        <button type="button" class="fb-arrow" data-act="down" data-i="${i}" title="Mover para baixo" ${i === fields.length - 1 ? 'disabled' : ''}>${ARROW_DOWN}</button>
-      </div>
+  wrap.innerHTML = fields.map((f, i) => {
+    const typeCell = f.builtin
+      ? `<span class="fb-tag">padrão</span>`
+      : `<select class="fb-type" data-act="type" data-i="${i}" title="Tipo do campo">
+          ${Object.entries(TYPE_LABELS).map(([v, l]) => `<option value="${v}" ${f.type === v ? 'selected' : ''}>${l}</option>`).join('')}
+        </select>`;
+    const optionsCell = (!f.builtin && OPTION_TYPES.includes(f.type))
+      ? `<div class="fb-options">
+          <label>Opções (uma por linha)</label>
+          <textarea data-act="options" data-i="${i}" rows="3" placeholder="Opção 1&#10;Opção 2">${esc((f.options || []).join('\n'))}</textarea>
+        </div>` : '';
+    return `
+    <div class="fb-row" data-i="${i}" draggable="true">
+      <span class="fb-drag" title="Arraste para reordenar" aria-hidden="true">${DRAG}</span>
       <label class="fb-enable" title="Exibir este campo no formulário">
         <input type="checkbox" data-act="enabled" data-i="${i}" ${f.enabled ? 'checked' : ''} />
       </label>
       <div class="fb-label">
-        <input type="text" data-act="label" data-i="${i}" value="${esc(f.label)}" placeholder="Nome do campo"
-          ${f.builtin ? 'title="Você pode renomear este campo"' : ''} />
-        ${f.builtin ? '<span class="fb-tag">padrão</span>' : '<span class="fb-tag fb-tag-custom">personalizado</span>'}
+        <input type="text" data-act="label" data-i="${i}" value="${esc(f.label)}" placeholder="Nome do campo" />
+        ${typeCell}
       </div>
       <label class="fb-req" title="Tornar obrigatório">
         <input type="checkbox" data-act="required" data-i="${i}" ${f.required ? 'checked' : ''} ${f.enabled ? '' : 'disabled'} />
         <span>Obrigatório</span>
       </label>
-      <button type="button" class="fb-del" data-act="remove" data-i="${i}" title="${f.builtin ? 'Campos padrão não podem ser excluídos (desative para ocultar)' : 'Excluir campo'}" ${f.builtin ? 'disabled' : ''}>✕</button>
-    </div>`).join('') + `
+      <button type="button" class="fb-del" data-act="remove" data-i="${i}" title="Excluir campo">✕</button>
+      ${optionsCell}
+    </div>`;
+  }).join('') + `
     <button type="button" class="btn btn-ghost btn-sm fb-add" id="fbAddBtn" style="margin-top:14px">+ Adicionar outro campo</button>`;
 
-  wrap.querySelectorAll('[data-act]').forEach((el) => {
+  // Atualizações "silenciosas" (sem re-render) para não perder o foco ao digitar.
+  wrap.querySelectorAll('[data-act="label"]').forEach((el) => {
     const i = Number(el.dataset.i);
-    const act = el.dataset.act;
-    if (act === 'label') {
-      el.addEventListener('input', () => { fields[i].label = el.value; markDirty(); });
-      return;
-    }
-    el.addEventListener('click', (ev) => {
-      if (act === 'up' && i > 0) { [fields[i - 1], fields[i]] = [fields[i], fields[i - 1]]; }
-      else if (act === 'down' && i < fields.length - 1) { [fields[i + 1], fields[i]] = [fields[i], fields[i + 1]]; }
-      else if (act === 'remove') { fields.splice(i, 1); }
-      else if (act === 'enabled') { fields[i].enabled = el.checked; if (!el.checked) fields[i].required = false; }
-      else if (act === 'required') { fields[i].required = el.checked; }
-      else return;
-      if (act === 'enabled' || act === 'required') ev.stopPropagation();
+    el.addEventListener('input', () => { fields[i].label = el.value; markDirty(); });
+  });
+  wrap.querySelectorAll('[data-act="options"]').forEach((el) => {
+    const i = Number(el.dataset.i);
+    el.addEventListener('input', () => {
+      fields[i].options = el.value.split('\n').map((s) => s.trim()).filter(Boolean);
       markDirty();
-      renderBuilder();
     });
   });
+  // Trocar o tipo re-renderiza (mostra/oculta o editor de opções).
+  wrap.querySelectorAll('[data-act="type"]').forEach((el) => {
+    const i = Number(el.dataset.i);
+    el.addEventListener('change', () => {
+      fields[i].type = el.value;
+      if (OPTION_TYPES.includes(el.value) && !fields[i].options) fields[i].options = [];
+      markDirty(); renderBuilder();
+    });
+  });
+  // Demais ações (habilitar / obrigatório / excluir).
+  wrap.querySelectorAll('[data-act="enabled"],[data-act="required"],[data-act="remove"]').forEach((el) => {
+    const i = Number(el.dataset.i);
+    const act = el.dataset.act;
+    el.addEventListener('click', (ev) => {
+      if (act === 'remove') { fields.splice(i, 1); }
+      else if (act === 'enabled') { fields[i].enabled = el.checked; if (!el.checked) fields[i].required = false; }
+      else if (act === 'required') { fields[i].required = el.checked; }
+      if (act !== 'remove') ev.stopPropagation();
+      markDirty(); renderBuilder();
+    });
+  });
+
+  // ---- Reordenar arrastando (drag and drop) ----
+  wrap.querySelectorAll('.fb-row').forEach((row) => {
+    const i = Number(row.dataset.i);
+    row.addEventListener('dragstart', (e) => { dragFrom = i; row.classList.add('fb-dragging'); e.dataTransfer.effectAllowed = 'move'; });
+    row.addEventListener('dragend', () => { dragFrom = null; wrap.querySelectorAll('.fb-row').forEach((r) => r.classList.remove('fb-dragging', 'fb-over')); });
+    row.addEventListener('dragover', (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; row.classList.add('fb-over'); });
+    row.addEventListener('dragleave', () => row.classList.remove('fb-over'));
+    row.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const to = Number(row.dataset.i);
+      if (dragFrom == null || dragFrom === to) return;
+      const [moved] = fields.splice(dragFrom, 1);
+      fields.splice(to, 0, moved);
+      dragFrom = null; markDirty(); renderBuilder();
+    });
+  });
+
   const addBtn = document.getElementById('fbAddBtn');
   if (addBtn) addBtn.addEventListener('click', () => {
-    fields.push({ key: `c_${Date.now()}`, label: 'Novo campo', type: 'text', enabled: true, required: false, builtin: false });
-    markDirty();
-    renderBuilder();
+    fields.push({ key: `c_${Date.now()}`, label: 'Novo campo', type: 'text', enabled: true, required: false, builtin: false, options: [] });
+    markDirty(); renderBuilder();
   });
 }
 
 // Garante o formato { fields:[...] } a partir do que vier do backend/rascunho.
+// Respeita a configuração existente (inclusive remoções de campos padrão).
 function normalizeConfig(raw) {
   if (raw && Array.isArray(raw.fields) && raw.fields.length) {
-    const seen = new Set(raw.fields.map((f) => f.key));
-    const fields = raw.fields.map((f) => ({
-      key: f.key, label: f.label || '', type: f.type || 'text',
-      enabled: !!f.enabled, required: !!f.enabled && !!f.required,
-      builtin: BUILTIN_FIELDS.some((b) => b.key === f.key),
-    }));
-    for (const b of BUILTIN_FIELDS) if (!seen.has(b.key)) fields.push({ ...b, enabled: false, required: false, builtin: true });
+    const fields = raw.fields.map((f) => {
+      const builtin = BUILTIN_FIELDS.some((b) => b.key === f.key);
+      const field = {
+        key: f.key, label: f.label || '', type: f.type || 'text',
+        enabled: !!f.enabled, required: !!f.enabled && !!f.required, builtin,
+      };
+      if (!builtin && OPTION_TYPES.includes(field.type)) field.options = Array.isArray(f.options) ? f.options.slice() : [];
+      return field;
+    });
     return { fields };
   }
   return { fields: defaultFields() };

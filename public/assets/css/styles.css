@@ -656,3 +656,29 @@ tbody tr:hover { background: var(--off-white); }
   .access-table th, .access-table td { padding: 6px 3px; }
   .access-table th.ac-name, .access-table td.ac-name { min-width: 120px; }
 }
+
+/* ---- Resumo da seleção em massa (revisão 2.2) ---- */
+.bulk-summary { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.bulk-breakdown { font-size: 12.5px; color: var(--muted); }
+.bulk-selectall { background: none; border: none; padding: 0; font: inherit; font-size: 12.5px;
+  font-weight: 600; color: var(--navy); text-decoration: underline; cursor: pointer; }
+.bulk-selectall:hover { color: var(--navy-deep); }
+
+/* ---- Construtor de campos: arrastar, tipo e opções (revisão 2.2) ---- */
+.fb-row { flex-wrap: wrap; }
+.fb-drag { cursor: grab; color: var(--muted); font-size: 18px; line-height: 1; padding: 0 4px; user-select: none; flex: none; align-self: center; }
+.fb-row.fb-dragging { opacity: .5; }
+.fb-row.fb-over { box-shadow: inset 0 2px 0 var(--cyan); }
+.fb-type { flex: none; max-width: 220px; font-size: 13px; padding: 7px 9px; }
+.fb-options { flex-basis: 100%; margin-top: 8px; padding-left: 30px; }
+.fb-options label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 4px; }
+.fb-options textarea { min-height: 56px; font-size: 13px; }
+
+/* ---- Grupos de opção (rádio/checkbox) no formulário público e nos modais ---- */
+.opt-group { display: flex; flex-direction: column; gap: 8px; }
+.opt { display: flex; align-items: center; gap: 9px; font-weight: 400; font-size: 14.5px; cursor: pointer; margin: 0; }
+.opt input { width: 17px; height: 17px; accent-color: var(--navy); flex: none; }
+
+/* ---- Observação interna na lista de participantes ---- */
+.p-note { font-size: 12.5px; color: #8a6d00; background: #fdf6e3; border-radius: 6px;
+  padding: 3px 8px; margin-top: 4px; display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
