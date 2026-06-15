@@ -316,6 +316,115 @@ async function saveAccess(id) {
   } catch (e) { toast(e.message); }
 }
 
+// ---- Controle de acesso por evento (matriz de permissões) ----
+function wideModal(html) {
+  document.getElementById('modalSlot').innerHTML =
+    `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal access-modal">${html}</div></div>`;
+}
+
+let ACCESS = null; // { userId, defaults, events: [...] }
+
+async function manageAccess(id) {
+  const u = USERS.find((x) => x.id === id);
+  try {
+    const data = await Api.get(`/api/users/${id}/access`);
+    ACCESS = { userId: id, defaults: data.defaults, events: data.events };
+    renderAccessModal(u, data);
+  } catch (e) { toast(e.message); }
+}
+
+function accessRow(ev) {
+  const checks = PERM_COLS.map((c) =>
+    `<td class="ac-cell"><input type="checkbox" data-event="${ev.id}" data-perm="${c.key}" ${ev.perms[c.key] ? 'checked' : ''} ${c.key === 'can_view' ? 'class="ac-view"' : ''} aria-label="${c.label}" /></td>`
+  ).join('');
+  const date = ev.event_date ? fmtDateBR(ev.event_date) : 'Data a definir';
+  return `<tr data-event-row="${ev.id}" class="${ev.perms.can_view ? '' : 'ac-off'}">
+    <td class="ac-name"><div style="font-weight:600">${esc(ev.name)}</div><div class="muted" style="font-size:12px">${date}</div></td>
+    ${checks}</tr>`;
+}
+
+function renderAccessModal(u, data) {
+  const head = PERM_COLS.map((c) => `<th title="${c.label}">${c.short}</th>`).join('');
+  const rows = data.events.length
+    ? data.events.map(accessRow).join('')
+    : '<tr><td colspan="9" class="muted center" style="padding:24px">Nenhum evento cadastrado ainda.</td></tr>';
+  wideModal(`
+    <h3 style="font-size:17px;margin-bottom:2px">Acessos de ${esc(u ? u.name : '')}</h3>
+    <p class="muted" style="font-size:13px;margin:0 0 14px;text-align:left">
+      Perfil <strong>${ROLE_LABEL[data.role] || data.role}</strong>. Marque os eventos liberados e ajuste as permissões.
+      Sem "Ver", o evento não fica visível para o usuário.
+    </p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+      <button class="btn btn-ghost btn-sm" type="button" onclick="accessSelectAllView(true)">Liberar todos</button>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="accessSelectAllView(false)">Remover todos</button>
+      <button class="btn btn-ghost btn-sm" type="button" onclick="accessApplyDefaults()">Aplicar permissões padrão do perfil</button>
+    </div>
+    <div class="access-table-wrap">
+      <table class="access-table">
+        <thead><tr><th class="ac-name">Evento</th>${head}</tr></thead>
+        <tbody id="accessBody">${rows}</tbody>
+      </table>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveAccess(${u.id})">Salvar acessos</button>
+    </div>`);
+
+  // Ao desmarcar "Ver", limpa e desabilita as demais permissões da linha.
+  document.getElementById('accessBody').addEventListener('change', (e) => {
+    const cb = e.target.closest('input[type=checkbox]'); if (!cb) return;
+    if (cb.dataset.perm === 'can_view') syncAccessRow(cb.dataset.event);
+  });
+  data.events.forEach((ev) => syncAccessRow(ev.id));
+}
+
+function syncAccessRow(eventId) {
+  const tr = document.querySelector(`tr[data-event-row="${eventId}"]`);
+  if (!tr) return;
+  const view = tr.querySelector('input[data-perm="can_view"]');
+  const on = view && view.checked;
+  tr.classList.toggle('ac-off', !on);
+  tr.querySelectorAll('input[data-perm]').forEach((inp) => {
+    if (inp.dataset.perm === 'can_view') return;
+    inp.disabled = !on;
+    if (!on) inp.checked = false;
+  });
+}
+
+function accessSelectAllView(on) {
+  document.querySelectorAll('#accessBody input[data-perm="can_view"]').forEach((cb) => {
+    cb.checked = on; syncAccessRow(cb.dataset.event);
+  });
+}
+
+// Aplica as permissões padrão do perfil aos eventos atualmente liberados (com "Ver").
+function accessApplyDefaults() {
+  const d = (ACCESS && ACCESS.defaults) || {};
+  document.querySelectorAll('#accessBody tr[data-event-row]').forEach((tr) => {
+    const view = tr.querySelector('input[data-perm="can_view"]');
+    if (!view || !view.checked) return;
+    tr.querySelectorAll('input[data-perm]').forEach((inp) => {
+      if (inp.dataset.perm === 'can_view') return;
+      inp.checked = !!d[inp.dataset.perm];
+    });
+  });
+}
+
+async function saveAccess(id) {
+  const map = {};
+  document.querySelectorAll('#accessBody input[data-perm]').forEach((cb) => {
+    const eid = cb.dataset.event;
+    if (!map[eid]) map[eid] = { event_id: Number(eid) };
+    map[eid][cb.dataset.perm] = cb.checked ? 1 : 0;
+  });
+  const items = Object.values(map).filter((it) => it.can_view);
+  try {
+    const r = await Api.put(`/api/users/${id}/access`, { items });
+    closeModal();
+    toast(`Acessos salvos: ${r.count} evento(s) liberado(s).`);
+  } catch (e) { toast(e.message); }
+}
+
 document.getElementById('newUserBtn').addEventListener('click', newUser);
 document.getElementById('refreshSlot').appendChild(refreshButton(refresh, 'Atualizar usuários'));
 (async () => { await refresh(); })().catch((e) => toast(e.message));
