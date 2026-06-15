@@ -293,13 +293,14 @@ function syncSelectionUI() {
   if (!SELECTED.size) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
   bar.classList.remove('hidden');
   bar.innerHTML = `
-    <span class="bulk-count"><strong>${SELECTED.size}</strong> selecionado(s)</span>
+    <span class="bulk-count">Selecionados: <strong>${SELECTED.size}</strong> participante(s)</span>
     <div class="bulk-actions">
       <button class="btn btn-sm bulk-confirm" onclick="bulkAction('confirmar')">Marcar Confirmado</button>
       <button class="btn btn-sm bulk-decline" onclick="bulkAction('recusar')">Marcar Recusado</button>
       <button class="btn btn-sm btn-ghost" onclick="bulkExport()">Exportar selecionados</button>
       <button class="btn btn-sm bulk-delete" onclick="bulkAction('excluir')">Excluir</button>
-      <button class="btn btn-sm btn-ghost" onclick="clearSelection()">Cancelar</button>
+      <button class="btn btn-sm btn-ghost" disabled title="Em breve">WhatsApp (em breve)</button>
+      <button class="btn btn-sm btn-ghost" onclick="clearSelection()">Cancelar seleção</button>
     </div>`;
 }
 function clearSelection() { SELECTED.clear(); document.querySelectorAll('.row-check').forEach((c) => { c.checked = false; }); syncSelectionUI(); }

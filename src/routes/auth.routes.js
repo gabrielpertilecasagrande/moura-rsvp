@@ -60,4 +60,27 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ admin: req.admin });
 });
 
+// POST /api/auth/password — o próprio usuário troca a senha (precisa da senha atual)
+router.post('/password', requireAuth, (req, res) => {
+  const { current_password, new_password } = req.body || {};
+  if (!current_password || !new_password) {
+    return res.status(400).json({ error: 'Informe a senha atual e a nova senha.' });
+  }
+  if (String(new_password).length < 8) {
+    return res.status(400).json({ error: 'A nova senha deve ter ao menos 8 caracteres.' });
+  }
+  const admin = db.prepare('SELECT * FROM admins WHERE id = ?').get(req.admin.id);
+  if (!admin) return res.status(404).json({ error: 'Conta não encontrada.' });
+  if (!bcrypt.compareSync(String(current_password), admin.password_hash)) {
+    return res.status(401).json({ error: 'A senha atual está incorreta.' });
+  }
+  if (bcrypt.compareSync(String(new_password), admin.password_hash)) {
+    return res.status(400).json({ error: 'A nova senha deve ser diferente da atual.' });
+  }
+  const hash = bcrypt.hashSync(String(new_password), 10);
+  db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, admin.id);
+  logActivity(admin.name || admin.email, 'alterou a própria senha', null);
+  res.json({ ok: true, message: 'Senha alterada com sucesso.' });
+});
+
 module.exports = router;
