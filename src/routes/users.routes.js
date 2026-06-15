@@ -28,6 +28,12 @@ function countActiveAdmins() {
     .get().n;
 }
 
+// GET /api/users/pending-count — quantas solicitações de acesso aguardam aprovação
+router.get('/pending-count', (_req, res) => {
+  const count = db.prepare("SELECT COUNT(*) AS n FROM admins WHERE status = 'pendente'").get().n;
+  res.json({ count });
+});
+
 // GET /api/users — lista todos os usuários
 router.get('/', (_req, res) => {
   const rows = db.prepare(
