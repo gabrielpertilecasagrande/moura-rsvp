@@ -91,7 +91,7 @@ function newUser() {
     <p class="muted" style="font-size:13px;margin:0 0 16px">A conta já é criada ativa, pronta para usar.</p>
     ${inputRow('nu_name', 'Nome completo', '')}
     ${inputRow('nu_email', 'E-mail', '', 'email')}
-    ${inputRow('nu_pass', 'Senha', '', 'password')}
+    ${inputRow('nu_pass', 'Senha (mínimo 8 caracteres)', '', 'password')}
     ${inputRow('nu_pass2', 'Repita a senha', '', 'password')}
     ${roleSelect('nu_role', 'editor')}
     <p class="error-msg hidden" id="nu_err" style="text-align:left"></p>
@@ -143,7 +143,7 @@ function resetPass(id) {
   modal(`
     <h3 style="font-size:17px;margin-bottom:4px">Redefinir senha</h3>
     <p class="muted" style="font-size:13px;margin:0 0 16px">${esc(u ? u.name : '')}</p>
-    ${inputRow('rp_pass', 'Nova senha', '', 'password')}
+    ${inputRow('rp_pass', 'Nova senha (mínimo 8 caracteres)', '', 'password')}
     ${inputRow('rp_pass2', 'Repita a nova senha', '', 'password')}
     <p class="error-msg hidden" id="rp_err" style="text-align:left"></p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">

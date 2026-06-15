@@ -93,6 +93,7 @@ function renderForm() {
       <label>Nome completo <span class="req">*</span></label>
       <input type="text" name="name" required autocomplete="name" placeholder="Nome e sobrenome" />
     </div>
+    <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
     ${optField('company', fc.company)}
     ${optField('role', fc.role)}
     ${optField('email', fc.email)}
@@ -125,7 +126,7 @@ async function submit() {
   const err = document.getElementById('err');
   err.classList.add('hidden');
   const get = (n) => (document.querySelector(`[name="${n}"]`)?.value || '').trim();
-  const body = { name: get('name'), company: get('company'), role: get('role'), email: get('email'), phone: get('phone'), response: choice };
+  const body = { name: get('name'), company: get('company'), role: get('role'), email: get('email'), phone: get('phone'), response: choice, website: get('website') };
 
   if (!body.name) return showErr('Por favor, informe seu nome completo.');
   // Exige nome + sobrenome (ao menos duas palavras com 2+ letras).

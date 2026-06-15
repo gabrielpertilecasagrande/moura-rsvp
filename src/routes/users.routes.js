@@ -47,6 +47,9 @@ router.post('/', (req, res) => {
   if (db.prepare('SELECT id FROM admins WHERE email = ?').get(mail)) {
     return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
   }
+  if (String(password).length < 8) {
+    return res.status(400).json({ error: 'A senha deve ter ao menos 8 caracteres.' });
+  }
   const hash = bcrypt.hashSync(String(password), 10);
   const info = db
     .prepare(`INSERT INTO admins (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, 'ativo')`)
@@ -108,8 +111,8 @@ router.post('/:id/reject', (req, res) => {
 router.post('/:id/password', (req, res) => {
   const id = Number(req.params.id);
   const { password } = req.body || {};
-  if (!password) {
-    return res.status(400).json({ error: 'Informe a nova senha.' });
+  if (!password || String(password).length < 8) {
+    return res.status(400).json({ error: 'A nova senha deve ter ao menos 8 caracteres.' });
   }
   const hash = bcrypt.hashSync(String(password), 10);
   const info = db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, id);

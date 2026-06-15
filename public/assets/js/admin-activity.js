@@ -26,3 +26,21 @@ document.getElementById('search').addEventListener('input', (e) => {
 });
 load().catch((e) => toast(e.message));
 document.getElementById('refreshSlot').appendChild(refreshButton(() => load(document.getElementById('search').value.trim()), 'Atualizar'));
+
+// Baixa um backup completo do banco (snapshot consistente).
+document.getElementById('backupBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('backupBtn');
+  btn.disabled = true; const txt = btn.textContent; btn.textContent = 'Gerando…';
+  try {
+    const res = await fetch('/api/backup', { headers: { Authorization: `Bearer ${Api.token()}` } });
+    if (!res.ok) throw new Error('Não foi possível gerar o backup.');
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const d = new Date().toISOString().slice(0, 10);
+    a.download = `moura-rsvp-backup-${d}.db`;
+    a.click(); URL.revokeObjectURL(a.href);
+    toast('Backup baixado. Guarde o arquivo em local seguro.');
+  } catch (e) { toast(e.message); }
+  finally { btn.disabled = false; btn.textContent = txt; }
+});

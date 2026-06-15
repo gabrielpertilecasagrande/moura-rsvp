@@ -30,8 +30,22 @@ try {
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Atrás do proxy do Railway: permite ler o IP real do visitante (X-Forwarded-For).
+app.set('trust proxy', 1);
+app.disable('x-powered-by');
+
+// Cabeçalhos de segurança (não quebram o app; reforçam a proteção do navegador).
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  next();
+});
+
+// Limita o tamanho do corpo das requisições (evita payloads gigantes).
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
 // Arquivos estáticos (frontend + imagens enviadas)
 // Serve uploads do volume persistente (se DATA_DIR definido) ou da pasta local.
@@ -42,15 +56,24 @@ app.use('/uploads', express.static(UPLOADS_PATH));
 app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'assets', 'img', 'favicon.ico')));
 
+// ---- Limitadores de taxa ----
+const { rateLimit } = require('./src/middleware/rateLimit');
+// Login/cadastro: protege contra tentativas de adivinhar senha (força bruta).
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, message: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' });
+// Formulário público: generoso (vários convidados no mesmo wi-fi do evento),
+// mas suficiente para barrar automação em massa.
+const publicLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 60, message: 'Muitas respostas em sequência. Aguarde um instante e tente novamente.' });
+
 // ---- API ----
-app.use('/api/auth', require('./src/routes/auth.routes'));
+app.use('/api/auth', authLimiter, require('./src/routes/auth.routes'));
 app.use('/api/users', require('./src/routes/users.routes'));
 app.use('/api/dashboard', require('./src/routes/dashboard.routes'));
 app.use('/api/activity', require('./src/routes/activity.routes'));
 app.use('/api/search', require('./src/routes/search.routes'));
+app.use('/api/backup', require('./src/routes/backup.routes'));
 app.use('/api/events', require('./src/routes/events.routes'));
 app.use('/api/events/:id/participants', require('./src/routes/participants.routes'));
-app.use('/api/public', require('./src/routes/public.routes'));
+app.use('/api/public', publicLimiter, require('./src/routes/public.routes'));
 
 // ---- Páginas ----
 const page = (file) => (_req, res) => res.sendFile(path.join(__dirname, 'public', file));
@@ -61,6 +84,23 @@ app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 
 // Link público de cada evento: /rsvp/:slug  (o slug é lido pelo JS da página)
 app.get('/rsvp/:slug', page('rsvp/index.html'));
+
+// Tratador global de erros: evita que uma falha derrube o servidor.
+// eslint-disable-next-line no-unused-vars
+app.use((err, _req, res, _next) => {
+  const status = err && (err.status || err.statusCode);
+  if (status && status < 500) {
+    if (!res.headersSent) res.status(status).json({ error: 'Requisição inválida.' });
+    return;
+  }
+  console.error('[erro]', err && err.message ? err.message : err);
+  if (res.headersSent) return;
+  res.status(500).json({ error: 'Ocorreu um erro inesperado. Tente novamente.' });
+});
+
+// Em caso de exceção não capturada, registra mas não encerra o processo.
+process.on('uncaughtException', (e) => console.error('[uncaughtException]', e.message));
+process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
 
 app.listen(PORT, () => {
   console.log(`\n  Moura RSVP rodando em ${process.env.BASE_URL || `http://localhost:${PORT}`}`);

@@ -88,6 +88,12 @@ router.post('/events/:slug/rsvp', (req, res) => {
     return res.status(403).json({ error: 'As confirmações para este evento estão encerradas.' });
   }
 
+  // Armadilha anti-bot (honeypot): o campo "website" é invisível para humanos.
+  // Se vier preenchido, é um robô — fingimos sucesso e não gravamos nada.
+  if (req.body && req.body.website) {
+    return res.status(201).json({ updated: false, message: 'Resposta registrada.', response: req.body.response || 'confirmado' });
+  }
+
   const { name, company, role, email, phone, response } = req.body || {};
   if (!name || !String(name).trim()) {
     return res.status(400).json({ error: 'Informe seu nome completo.' });
