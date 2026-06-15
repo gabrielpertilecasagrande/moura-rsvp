@@ -167,8 +167,9 @@ function renderRows(list) {
   tb.innerHTML = list.map((p) => {
     const wa = guestWa(p.phone);
     const ex = parseExtra(p.extra);
-    const customVals = eventCustomFields().map((f) => ex[f.key]).filter(Boolean);
+    const customVals = eventCustomFields().map((f) => fmtExtraVal(f, ex[f.key])).filter(Boolean);
     const sub = [p.company, p.phone, p.email, ...customVals].filter(Boolean).map(esc).join(' · ');
+    const noteLine = (p.notes && can('can_participants')) ? `<div class="p-note">📝 ${esc(p.notes)}</div>` : '';
     const icon = (svg, label, attrs) => `<button class="icon-btn" title="${label}" aria-label="${label}" ${attrs}>${svg}</button>`;
     return `
     <tr data-pid="${p.id}">
@@ -176,6 +177,7 @@ function renderRows(list) {
       <td class="row-name" style="display:block">
         <div class="p-name">${esc(p.name)}</div>
         ${sub ? `<div class="p-sub muted break-anywhere">${sub}</div>` : ''}
+        ${noteLine}
       </td>
       <td data-label="Status"><span class="pill ${p.response === 'confirmado' ? 'pill-ok' : 'pill-no'}">${p.response === 'confirmado' ? 'Confirmado' : 'Recusado'}</span></td>
       <td data-label="Resposta" style="white-space:nowrap;font-variant-numeric:tabular-nums">${fmtDateTimeBR(p.updated_at)}</td>
@@ -211,18 +213,71 @@ function eventCustomFields() {
 function parseExtra(raw) {
   try { return raw ? (typeof raw === 'string' ? JSON.parse(raw) : raw) : {}; } catch { return {}; }
 }
+// Texto legível de um valor de campo personalizado (arrays viram "a, b").
+function fmtExtraVal(f, val) {
+  if (val == null) return '';
+  if (Array.isArray(val)) return val.join(', ');
+  return String(val);
+}
+// Controle de edição de um campo personalizado conforme o tipo, já preenchido.
+function customFieldControl(f, ex) {
+  const v = ex[f.key];
+  const req = f.required ? ' <span class="req">*</span>' : '';
+  const key = esc(f.key);
+  const opts = f.options || [];
+  let control;
+  switch (f.type) {
+    case 'textarea':
+      control = `<textarea data-ckey="${key}">${esc(v || '')}</textarea>`; break;
+    case 'number':
+      control = `<input type="number" data-ckey="${key}" value="${esc(v || '')}" />`; break;
+    case 'date':
+      control = `<input type="date" data-ckey="${key}" value="${esc(v || '')}" />`; break;
+    case 'select':
+      control = `<select data-ckey="${key}"><option value="">—</option>${opts.map((o) => `<option value="${esc(o)}" ${o === v ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`; break;
+    case 'radio':
+      control = `<div class="opt-group">${opts.map((o) => `<label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="${esc(o)}" ${o === v ? 'checked' : ''} /> ${esc(o)}</label>`).join('')}</div>`; break;
+    case 'boolean':
+      control = `<div class="opt-group">
+        <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="Sim" ${v === 'Sim' ? 'checked' : ''} /> Sim</label>
+        <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="Não" ${v === 'Não' ? 'checked' : ''} /> Não</label>
+      </div>`; break;
+    case 'checkbox': {
+      const arr = Array.isArray(v) ? v : [];
+      control = `<div class="opt-group">${opts.map((o) => `<label class="opt"><input type="checkbox" data-ckeymulti="${key}" value="${esc(o)}" ${arr.includes(o) ? 'checked' : ''} /> ${esc(o)}</label>`).join('')}</div>`; break;
+    }
+    default:
+      control = `<input type="text" data-ckey="${key}" value="${esc(v || '')}" />`;
+  }
+  return `<div class="field" style="text-align:left"><label>${esc(f.label)}${req}</label>${control}</div>`;
+}
 function customFieldsHtml(extraRaw) {
   const ex = parseExtra(extraRaw);
   const fields = eventCustomFields();
   if (!fields.length) return '';
-  return fields.map((f) =>
-    `<div class="field" style="text-align:left"><label>${esc(f.label)}${f.required ? ' <span class="req">*</span>' : ''}</label>
-      <input type="${f.type || 'text'}" data-ckey="${esc(f.key)}" value="${esc(ex[f.key] || '')}" /></div>`).join('');
+  return fields.map((f) => customFieldControl(f, ex)).join('');
 }
 function collectCustom() {
   const out = {};
-  document.querySelectorAll('.modal [data-ckey]').forEach((el) => { out[el.dataset.ckey] = el.value.trim(); });
+  eventCustomFields().forEach((f) => {
+    if (f.type === 'checkbox') {
+      out[f.key] = [...document.querySelectorAll(`.modal [data-ckeymulti="${CSS.escape(f.key)}"]:checked`)].map((x) => x.value);
+    } else if (f.type === 'radio' || f.type === 'boolean') {
+      const el = document.querySelector(`.modal [data-ckeyradio="${CSS.escape(f.key)}"]:checked`);
+      out[f.key] = el ? el.value : '';
+    } else {
+      const el = document.querySelector(`.modal [data-ckey="${CSS.escape(f.key)}"]`);
+      out[f.key] = el ? el.value.trim() : '';
+    }
+  });
   return out;
+}
+// Campo de observações internas (uso administrativo) para os modais.
+function notesField(id, value) {
+  return `<div class="field" style="text-align:left">
+    <label>Observações internas <span class="muted" style="font-weight:400">(só admin)</span></label>
+    <textarea id="${id}" rows="2" placeholder="Ex.: levar acompanhante, mesa próxima ao palco, confirmado por telefone…">${esc(value || '')}</textarea>
+  </div>`;
 }
 
 function editParticipant(pid) {
@@ -249,6 +304,7 @@ function editParticipant(pid) {
         <label class="ep ep-no ${!yes ? 'on' : ''}"><input type="radio" name="ed_resp" value="recusado" ${!yes ? 'checked' : ''}/> Recusado</label>
       </div>
     </div>
+    ${notesField('ed_notes', p.notes)}
     <p class="error-msg hidden" id="ed_err" style="text-align:left"></p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
@@ -272,6 +328,7 @@ async function saveParticipant(pid) {
   const payload = {
     name: val('ed_name'), company: val('ed_company'), role: val('ed_role'),
     email: val('ed_email'), phone: val('ed_phone'), response: newResp, extra: collectCustom(),
+    notes: document.getElementById('ed_notes').value,
   };
   try {
     await Api.put(`/api/events/${ID}/participants/${pid}`, payload);
@@ -313,6 +370,12 @@ function syncSelectionUI() {
   if (all) all.checked = LAST_LIST.length > 0 && LAST_LIST.every((p) => SELECTED.has(p.id));
   if (!SELECTED.size) { bar.classList.add('hidden'); bar.innerHTML = ''; return; }
   bar.classList.remove('hidden');
+  // Resumo dos selecionados por status (reduz erros em ações em massa).
+  const sel = LAST_LIST.filter((p) => SELECTED.has(p.id));
+  const nConf = sel.filter((p) => p.response === 'confirmado').length;
+  const nRec = sel.filter((p) => p.response === 'recusado').length;
+  const allSelected = LAST_LIST.length > 0 && SELECTED.size >= LAST_LIST.length;
+
   const actions = [];
   if (can('can_participants')) {
     actions.push('<button class="btn btn-sm bulk-confirm" onclick="bulkAction(\'confirmar\')">Marcar Confirmado</button>');
@@ -322,11 +385,27 @@ function syncSelectionUI() {
   if (can('can_participants')) actions.push('<button class="btn btn-sm bulk-delete" onclick="bulkAction(\'excluir\')">Excluir</button>');
   if (can('can_messages')) actions.push('<button class="btn btn-sm btn-ghost" disabled title="Em breve">WhatsApp (em breve)</button>');
   actions.push('<button class="btn btn-sm btn-ghost" onclick="clearSelection()">Cancelar seleção</button>');
+
+  // "Selecionar todos os N resultados" do filtro atual (quando ainda não estão todos).
+  const selectAllLine = (!allSelected && LAST_LIST.length > SELECTED.size)
+    ? `<button type="button" class="bulk-selectall" onclick="selectAllFiltered()">Selecionar todos os ${LAST_LIST.length} resultados</button>`
+    : '';
+
   bar.innerHTML = `
-    <span class="bulk-count">Selecionados: <strong>${SELECTED.size}</strong> participante(s)</span>
+    <div class="bulk-summary">
+      <span class="bulk-count">Selecionados: <strong>${SELECTED.size}</strong> participante(s)</span>
+      <span class="bulk-breakdown">${nConf} confirmado(s) · ${nRec} recusado(s)</span>
+      ${selectAllLine}
+    </div>
     <div class="bulk-actions">${actions.join('')}</div>`;
 }
 function clearSelection() { SELECTED.clear(); document.querySelectorAll('.row-check').forEach((c) => { c.checked = false; }); syncSelectionUI(); }
+// Seleciona todos os resultados do filtro atual (a lista já vem completa do backend).
+function selectAllFiltered() {
+  LAST_LIST.forEach((p) => SELECTED.add(p.id));
+  document.querySelectorAll('.row-check').forEach((c) => { c.checked = true; });
+  syncSelectionUI();
+}
 
 document.getElementById('rows').addEventListener('change', (e) => {
   const cb = e.target.closest('.row-check'); if (!cb) return;
@@ -344,8 +423,12 @@ document.getElementById('checkAll').addEventListener('change', (e) => {
 async function bulkAction(action) {
   const ids = [...SELECTED];
   if (!ids.length) return;
-  const labels = { confirmar: 'marcar como Confirmado', recusar: 'marcar como Recusado', excluir: 'EXCLUIR' };
-  if (!confirm(`Deseja ${labels[action]} ${ids.length} participante(s)?`)) return;
+  if (action === 'excluir') {
+    if (!confirm(`Tem certeza que deseja excluir ${ids.length} participante(s)? Esta ação não poderá ser desfeita.`)) return;
+  } else {
+    const labels = { confirmar: 'marcar como Confirmado', recusar: 'marcar como Recusado' };
+    if (!confirm(`Deseja ${labels[action]} ${ids.length} participante(s)?`)) return;
+  }
   try {
     const r = await Api.post(`/api/events/${ID}/participants/mass`, { action, ids });
     toast(`${r.affected} participante(s) atualizados.`);
@@ -497,6 +580,7 @@ function addOne() {
         <label class="ep ep-no"><input type="radio" name="ao_resp" value="recusado"/> Recusado</label>
       </div>
     </div>
+    ${notesField('ao_notes', '')}
     <p class="error-msg hidden" id="ao_err" style="text-align:left"></p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
@@ -518,7 +602,7 @@ async function saveOne(force) {
     name: v('ao_name'), company: v('ao_company'), role: v('ao_role'),
     email: v('ao_email'), phone: v('ao_phone'),
     response: document.querySelector('input[name="ao_resp"]:checked').value,
-    extra: collectCustom(),
+    extra: collectCustom(), notes: document.getElementById('ao_notes').value,
   };
   if (force) payload.force_update = true;
   try {

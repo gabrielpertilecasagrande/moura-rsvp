@@ -5,7 +5,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { normalizeName } = require('../utils/normalize');
 const { logActivity } = require('../utils/activity');
-const { parseFormConfig, customFields } = require('../utils/formConfig');
+const { parseFormConfig, customFields, sanitizeAnswer, extraValueToText } = require('../utils/formConfig');
 const { requirePerm } = require('../utils/permissions');
 
 // Mescla as respostas de campos personalizados recebidas no corpo com as já salvas.
@@ -16,12 +16,18 @@ function mergeExtra(prevRaw, eventCfg, bodyExtra) {
   const out = { ...prev };
   for (const f of customFields(eventCfg)) {
     if (Object.prototype.hasOwnProperty.call(bodyExtra, f.key)) {
-      const v = bodyExtra[f.key];
-      if (v != null && String(v).trim()) out[f.key] = String(v).trim().slice(0, 500);
-      else delete out[f.key];
+      const v = sanitizeAnswer(f, bodyExtra[f.key]);
+      if (v != null) out[f.key] = v; else delete out[f.key];
     }
   }
   return Object.keys(out).length ? JSON.stringify(out) : null;
+}
+
+// Normaliza o campo de observações internas (texto simples, limite generoso).
+function sanitizeNotes(v) {
+  if (v == null) return undefined; // undefined = não alterar
+  const s = String(v).trim().slice(0, 2000);
+  return s || null;
 }
 
 // Localiza participante existente por prioridade: e-mail > telefone > nome.
@@ -177,6 +183,11 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   const extraJson = mergeExtra(p.extra, cfg, b.extra);
   if ((extraJson || '') !== (p.extra || '')) changes.push('campos personalizados');
 
+  // Observações internas (não alterar quando o campo não vier no corpo).
+  const notesNew = sanitizeNotes(b.notes);
+  const notes = notesNew === undefined ? (p.notes || null) : notesNew;
+  if (notesNew !== undefined && (notes || '') !== (p.notes || '')) changes.push('observações internas');
+
   if (!changes.length) {
     return res.json({ ok: true, unchanged: true, participant: p });
   }
@@ -184,9 +195,9 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   db.prepare(
     `UPDATE participants
        SET name = ?, name_normalized = ?, company = ?, role = ?, email = ?, phone = ?, response = ?,
-           extra = ?, updated_at = datetime('now')
+           extra = ?, notes = ?, updated_at = datetime('now')
      WHERE id = ?`
-  ).run(name, normalized, company, role, email, phone, response, extraJson, pid);
+  ).run(name, normalized, company, role, email, phone, response, extraJson, notes, pid);
 
   db.prepare(
     `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
@@ -236,10 +247,11 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
     return res.json({ ok: true, updated: true, participant: db.prepare('SELECT * FROM participants WHERE id=?').get(existing.id) });
   }
 
+  const newNotes = sanitizeNotes(b.notes);
   const info = db.prepare(
-    `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra)
-     VALUES (?,?,?,?,?,?,?,?,?)`
-  ).run(eventId, name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, newExtra);
+    `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra, notes)
+     VALUES (?,?,?,?,?,?,?,?,?,?)`
+  ).run(eventId, name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, newExtra, newNotes === undefined ? null : newNotes);
 
   db.prepare(
     `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
@@ -301,7 +313,7 @@ router.get('/export', requirePerm('can_export'), async (req, res) => {
   const cfg = parseFormConfig(e.form_config);
   const fmtDateTime = (s) => (s ? new Date(s.replace(' ', 'T') + 'Z').toLocaleString('pt-BR') : '');
   const fmtDateOnly = (s) => (s ? new Date(`${s}T12:00:00`).toLocaleDateString('pt-BR') : '');
-  const getExtra = (r, key) => { try { return (JSON.parse(r.extra || '{}') || {})[key] || ''; } catch { return ''; } };
+  const getExtra = (r, f) => { try { return extraValueToText(f, (JSON.parse(r.extra || '{}') || {})[f.key]); } catch { return ''; } };
 
   // Colunas de dados (sem status — status vira seção/aba separada), na ordem configurada.
   const cols = [{ key: 'name', header: 'Nome', width: 30, get: (r) => r.name }];
@@ -311,10 +323,13 @@ router.get('/export', requirePerm('can_export'), async (req, res) => {
       const widths = { company: 24, role: 20, email: 28, phone: 18 };
       cols.push({ key: f.key, header: f.label, width: widths[f.key] || 20, get: (r) => r[f.key] || '' });
     } else {
-      cols.push({ key: f.key, header: f.label, width: 22, get: (r) => getExtra(r, f.key) });
+      cols.push({ key: f.key, header: f.label, width: 22, get: (r) => getExtra(r, f) });
     }
   }
   cols.push({ key: 'date', header: 'Data da resposta', width: 20, get: (r) => fmtDateTime(r.updated_at) });
+  // Observações internas (uso administrativo): só entram se houver alguma preenchida.
+  const hasNotes = db.prepare("SELECT COUNT(*) c FROM participants WHERE event_id = ? AND notes IS NOT NULL AND notes <> ''").get(eventId).c > 0;
+  if (hasNotes) cols.push({ key: 'notes', header: 'Observações internas', width: 30, get: (r) => r.notes || '' });
 
   const rows = queryParticipants(eventId, req.query);
   const confirmados = rows.filter((r) => r.response === 'confirmado');

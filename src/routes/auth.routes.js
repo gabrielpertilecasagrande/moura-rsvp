@@ -63,6 +63,27 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ admin: req.admin });
 });
 
+// PUT /api/auth/profile — o próprio usuário edita nome e e-mail
+router.put('/profile', requireAuth, (req, res) => {
+  const admin = db.prepare('SELECT * FROM admins WHERE id = ?').get(req.admin.id);
+  if (!admin) return res.status(404).json({ error: 'Conta não encontrada.' });
+  const b = req.body || {};
+  const name = b.name != null ? String(b.name).trim() : admin.name;
+  const email = b.email != null ? String(b.email).toLowerCase().trim() : admin.email;
+  if (!name) return res.status(400).json({ error: 'Informe seu nome.' });
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    return res.status(400).json({ error: 'Informe um e-mail válido.' });
+  }
+  if (email !== admin.email && db.prepare('SELECT id FROM admins WHERE email = ? AND id <> ?').get(email, admin.id)) {
+    return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
+  }
+  db.prepare('UPDATE admins SET name = ?, email = ? WHERE id = ?').run(name, email, admin.id);
+  logActivity(name || email, 'atualizou o próprio perfil', null);
+  // Reemite o token para refletir nome/e-mail/perfil atualizados imediatamente.
+  const fresh = db.prepare('SELECT * FROM admins WHERE id = ?').get(admin.id);
+  res.json({ ok: true, token: sign(fresh), admin: { id: fresh.id, name: fresh.name, email: fresh.email, role: fresh.role } });
+});
+
 // POST /api/auth/password — o próprio usuário troca a senha (precisa da senha atual)
 router.post('/password', requireAuth, (req, res) => {
   const { current_password, new_password } = req.body || {};

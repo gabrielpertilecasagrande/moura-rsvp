@@ -183,11 +183,28 @@ async function doReset(id) {
   catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
 }
 
-async function removeUser(id) {
+function removeUser(id) {
   const u = USERS.find((x) => x.id === id);
-  if (!confirm(`Excluir a conta de ${u ? u.name : 'este usuário'}? Esta ação não pode ser desfeita.`)) return;
-  try { await Api.del(`/api/users/${id}`); toast('Usuário excluído.'); refresh(); }
-  catch (e) { toast(e.message); }
+  const nome = u ? u.name : 'este usuário';
+  // Dupla verificação: exige digitar EXCLUIR antes de habilitar o botão.
+  modal(`
+    <h3 style="font-size:17px;margin-bottom:6px;color:var(--danger)">Excluir usuário</h3>
+    <p style="font-size:14px;margin:0 0 12px;text-align:left">Você vai excluir a conta de <strong>${esc(nome)}</strong>${u ? ` (${esc(u.email)})` : ''} e todos os seus acessos. Esta ação é permanente e não pode ser desfeita.</p>
+    <p class="muted" style="font-size:13px;margin:0 0 8px;text-align:left">Para confirmar, digite <strong>EXCLUIR</strong>:</p>
+    <input type="text" id="du_confirm" placeholder="EXCLUIR" autocomplete="off" />
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-danger btn-sm" id="du_go" disabled>Excluir definitivamente</button>
+    </div>`);
+  const input = document.getElementById('du_confirm');
+  const go = document.getElementById('du_go');
+  input.addEventListener('input', () => { go.disabled = input.value.trim().toUpperCase() !== 'EXCLUIR'; });
+  setTimeout(() => input.focus(), 30);
+  go.addEventListener('click', async () => {
+    go.disabled = true; go.textContent = 'Excluindo…';
+    try { await Api.del(`/api/users/${id}`); closeModal(); toast('Usuário excluído.'); refresh(); }
+    catch (e) { toast(e.message); go.disabled = false; go.textContent = 'Excluir definitivamente'; }
+  });
 }
 
 // ---- Controle de acesso por evento (matriz de permissões) ----

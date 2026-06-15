@@ -32,17 +32,14 @@ function normalizeRole(role) {
   return ROLES.includes(role) ? role : 'operador';
 }
 
-// Permissões padrão sugeridas ao liberar um evento para um usuário, conforme o perfil.
+// Permissões padrão sugeridas ao liberar um evento para um usuário ("aplicar padrão").
+// Regra: marca todas as permissões, EXCETO duplicar e excluir evento (ações sensíveis).
 function defaultPermsForRole(role) {
-  const r = normalizeRole(role);
-  const all = {};
-  for (const k of PERM_KEYS) all[k] = 1;
-  if (r === 'gestor') return all; // gestor: controle total dos eventos autorizados
-  // operador: consulta + participantes + exportação + histórico (sem editar/duplicar/excluir)
-  return {
-    can_view: 1, can_edit: 0, can_participants: 1, can_export: 1,
-    can_history: 1, can_messages: 0, can_duplicate: 0, can_delete: 0,
-  };
+  const out = {};
+  for (const k of PERM_KEYS) out[k] = 1;
+  out.can_duplicate = 0;
+  out.can_delete = 0;
+  return out;
 }
 
 function getAccess(userId, eventId) {

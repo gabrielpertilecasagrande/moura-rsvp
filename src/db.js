@@ -62,6 +62,7 @@ addColumn('events', 'city', 'TEXT');
 addColumn('events', 'address', 'TEXT');
 addColumn('audit_log', 'actor', 'TEXT');
 addColumn('participants', 'extra', 'TEXT'); // respostas dos campos personalizados (JSON)
+addColumn('participants', 'notes', 'TEXT'); // observações internas (somente administrativo)
 
 // Controle de acesso por evento: cada linha libera um evento para um usuário,
 // com permissões granulares. Admin ignora esta tabela (vê tudo).

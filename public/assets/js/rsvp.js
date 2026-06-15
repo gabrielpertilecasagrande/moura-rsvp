@@ -76,21 +76,60 @@ function render() {
   renderForm();
 }
 
-// Renderiza um campo configurável (builtin → name=chave; personalizado → data-ckey).
+// Renderiza um campo configurável (builtin → name=chave; personalizado → data-ckey*).
 function optField(f) {
   if (!f.enabled) return '';
   const builtinTypes = { email: 'email', phone: 'tel' };
   const req = f.required ? '<span class="req">*</span>' : '';
+  const label = `<label>${esc(f.label)} ${req}</label>`;
   if (f.builtin) {
-    return `<div class="field">
-      <label>${esc(f.label)} ${req}</label>
+    return `<div class="field">${label}
       <input type="${builtinTypes[f.key] || 'text'}" name="${f.key}" ${f.required ? 'required' : ''} />
     </div>`;
   }
-  return `<div class="field">
-    <label>${esc(f.label)} ${req}</label>
-    <input type="${f.type || 'text'}" data-ckey="${esc(f.key)}" ${f.required ? 'required' : ''} />
-  </div>`;
+  const key = esc(f.key);
+  const opts = f.options || [];
+  let control;
+  switch (f.type) {
+    case 'textarea':
+      control = `<textarea data-ckey="${key}" ${f.required ? 'required' : ''}></textarea>`; break;
+    case 'number':
+      control = `<input type="number" data-ckey="${key}" ${f.required ? 'required' : ''} />`; break;
+    case 'date':
+      control = `<input type="date" data-ckey="${key}" ${f.required ? 'required' : ''} />`; break;
+    case 'select':
+      control = `<select data-ckey="${key}" ${f.required ? 'required' : ''}>
+        <option value="">Selecione…</option>
+        ${opts.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}
+      </select>`; break;
+    case 'radio':
+      control = `<div class="opt-group">${opts.map((o, k) => `
+        <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="${esc(o)}" ${f.required && k === 0 ? '' : ''} /> ${esc(o)}</label>`).join('')}</div>`; break;
+    case 'boolean':
+      control = `<div class="opt-group">
+        <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="Sim" /> Sim</label>
+        <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="Não" /> Não</label>
+      </div>`; break;
+    case 'checkbox':
+      control = `<div class="opt-group">${opts.map((o) => `
+        <label class="opt"><input type="checkbox" data-ckeymulti="${key}" value="${esc(o)}" /> ${esc(o)}</label>`).join('')}</div>`; break;
+    default:
+      control = `<input type="text" data-ckey="${key}" ${f.required ? 'required' : ''} />`;
+  }
+  return `<div class="field">${label}${control}</div>`;
+}
+
+// Lê o valor de um campo personalizado conforme o tipo (string ou array).
+function getCustomValue(f) {
+  if (f.type === 'checkbox') {
+    return [...document.querySelectorAll(`[data-ckeymulti="${CSS.escape(f.key)}"]:checked`)].map((x) => x.value);
+  }
+  if (f.type === 'radio' || f.type === 'boolean') {
+    const el = document.querySelector(`[data-ckeyradio="${CSS.escape(f.key)}"]:checked`);
+    return el ? el.value : '';
+  }
+  const el = document.querySelector(`[data-ckey="${CSS.escape(f.key)}"]`);
+  return el ? el.value.trim() : '';
 }
 
 function renderForm() {
@@ -132,15 +171,15 @@ async function submit() {
   const err = document.getElementById('err');
   err.classList.add('hidden');
   const get = (n) => (document.querySelector(`[name="${n}"]`)?.value || '').trim();
-  const getCustom = (key) => (document.querySelector(`[data-ckey="${key}"]`)?.value || '').trim();
   const body = { name: get('name'), company: get('company'), role: get('role'), email: get('email'), phone: get('phone'), response: choice, website: get('website') };
 
   // Respostas dos campos personalizados.
   const fc = EVENT.form_config || { fields: [] };
   const extra = {};
-  (fc.fields || []).forEach((f) => { if (f.enabled && !f.builtin) extra[f.key] = getCustom(f.key); });
+  (fc.fields || []).forEach((f) => { if (f.enabled && !f.builtin) extra[f.key] = getCustomValue(f); });
   body.extra = extra;
 
+  const filled = (v) => (Array.isArray(v) ? v.length > 0 : !!String(v || '').trim());
   if (!body.name) return showErr('Por favor, informe seu nome completo.');
   // Exige nome + sobrenome (ao menos duas palavras com 2+ letras).
   const nameParts = body.name.split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, '').length >= 2);
@@ -149,7 +188,7 @@ async function submit() {
   for (const f of (fc.fields || [])) {
     if (!f.enabled || !f.required) continue;
     const val = f.builtin ? body[f.key] : extra[f.key];
-    if (!val) return showErr(`O campo "${f.label}" é obrigatório.`);
+    if (!filled(val)) return showErr(`O campo "${f.label}" é obrigatório.`);
   }
 
   const btn = document.getElementById('submit');

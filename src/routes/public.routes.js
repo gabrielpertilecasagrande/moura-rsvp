@@ -2,7 +2,7 @@
 const express = require('express');
 const db = require('../db');
 const { normalizeName } = require('../utils/normalize');
-const { parseFormConfig, customFields } = require('../utils/formConfig');
+const { parseFormConfig, customFields, sanitizeAnswer, isFilled } = require('../utils/formConfig');
 
 const router = express.Router();
 
@@ -11,8 +11,8 @@ function collectExtra(cfg, rawExtra) {
   const out = {};
   const src = (rawExtra && typeof rawExtra === 'object') ? rawExtra : {};
   for (const f of customFields(cfg)) {
-    const v = src[f.key];
-    if (v != null && String(v).trim()) out[f.key] = String(v).trim().slice(0, 500);
+    const val = sanitizeAnswer(f, src[f.key]);
+    if (val != null) out[f.key] = val;
   }
   return out;
 }
@@ -110,7 +110,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
   const extra = collectExtra(cfg, req.body.extra);
   for (const f of cfg.fields) {
     if (!f.enabled || !f.required) continue;
-    const filled = f.builtin ? String(builtinVal[f.key] || '').trim() : String(extra[f.key] || '').trim();
+    const filled = f.builtin ? isFilled(builtinVal[f.key]) : isFilled(extra[f.key]);
     if (!filled) return res.status(400).json({ error: `O campo "${f.label}" é obrigatório.` });
   }
   const extraJson = Object.keys(extra).length ? JSON.stringify(extra) : null;
