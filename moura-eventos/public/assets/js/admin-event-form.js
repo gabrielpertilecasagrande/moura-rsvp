@@ -53,6 +53,59 @@ document.getElementById('event_type').addEventListener('change', function() {
   if (!isEdit) loadTemplatePreview(this.value);
 });
 
+// ── Bloco de integração: mostra checkboxes (novo) ou IDs readonly (edição) ──
+function initIntegrationBlock(event) {
+  const newBlock  = document.getElementById('integrNewBlock');
+  const editBlock = document.getElementById('integrEditBlock');
+  if (isEdit) {
+    newBlock.style.display  = 'none';
+    editBlock.style.display = '';
+    document.getElementById('rsvp_event_id').value    = event?.rsvp_event_id    || '';
+    document.getElementById('checkin_event_id').value = event?.checkin_event_id || '';
+    const hasRsvp    = !!event?.rsvp_event_id;
+    const hasCheckin = !!event?.checkin_event_id;
+    if (!hasRsvp || !hasCheckin) {
+      document.getElementById('integrProvisionRow').style.display = '';
+      if (!hasRsvp)    document.getElementById('provisionRsvpLabel').style.display    = 'flex';
+      if (!hasCheckin) document.getElementById('provisionCheckinLabel').style.display = 'flex';
+    }
+    if (hasRsvp || hasCheckin) {
+      document.getElementById('integrationSection').open = true;
+    }
+  } else {
+    editBlock.style.display = 'none';
+    newBlock.style.display  = '';
+  }
+}
+
+// Botão "Provisionar agora" (modo edição)
+document.getElementById('provisionNowBtn')?.addEventListener('click', async () => {
+  const createRsvp    = document.getElementById('provisionRsvp')?.checked;
+  const createCheckin = document.getElementById('provisionCheckin')?.checked;
+  if (!createRsvp && !createCheckin) {
+    toast('Selecione ao menos um sistema para provisionar.');
+    return;
+  }
+  const btn = document.getElementById('provisionNowBtn');
+  btn.disabled = true; btn.textContent = 'Provisionando…';
+  try {
+    const prov = await Api.post(`/api/integrations/provision-event/${editId}`, {
+      create_rsvp:    createRsvp,
+      create_checkin: createCheckin,
+    });
+    if (prov.errors?.length) {
+      toast(`Erro: ${prov.errors.join('; ')}`);
+    } else {
+      toast('Provisionado com sucesso!');
+      setTimeout(() => location.reload(), 800);
+    }
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Provisionar agora';
+  }
+});
+
 async function init() {
   if (isEdit) {
     document.getElementById('formEyebrow').textContent = 'Editar';
@@ -65,14 +118,12 @@ async function init() {
     document.getElementById('location').value    = event.location    || '';
     document.getElementById('city').value        = event.city        || '';
     document.getElementById('responsible').value = event.responsible || '';
-    document.getElementById('status').value           = event.status           || 'Planejamento';
-    document.getElementById('event_type').value        = event.event_type        || '';
-    document.getElementById('rsvp_event_id').value     = event.rsvp_event_id     || '';
-    document.getElementById('checkin_event_id').value  = event.checkin_event_id  || '';
-    if (event.rsvp_event_id || event.checkin_event_id) {
-      document.getElementById('integrationSection').open = true;
-    }
+    document.getElementById('status').value      = event.status      || 'Planejamento';
+    document.getElementById('event_type').value  = event.event_type  || '';
+    initIntegrationBlock(event);
     updateWeekday();
+  } else {
+    initIntegrationBlock(null);
   }
 }
 
@@ -88,10 +139,8 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     location:    document.getElementById('location').value.trim()    || null,
     city:        document.getElementById('city').value.trim()        || null,
     responsible: document.getElementById('responsible').value.trim() || null,
-    status:           document.getElementById('status').value,
-    event_type:       document.getElementById('event_type').value          || null,
-    rsvp_event_id:    document.getElementById('rsvp_event_id').value.trim()    || null,
-    checkin_event_id: document.getElementById('checkin_event_id').value.trim()  || null,
+    status:      document.getElementById('status').value,
+    event_type:  document.getElementById('event_type').value         || null,
   };
 
   const btn = document.getElementById('saveBtn');
@@ -103,6 +152,23 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
       event = await Api.put(`/api/events/${editId}`, body);
     } else {
       event = await Api.post('/api/events', body);
+      // Provisionamento automático nos sistemas integrados
+      const createRsvp    = document.getElementById('createRsvp')?.checked;
+      const createCheckin = document.getElementById('createCheckin')?.checked;
+      if (createRsvp || createCheckin) {
+        btn.textContent = 'Provisionando…';
+        try {
+          const prov = await Api.post(`/api/integrations/provision-event/${event.id}`, {
+            create_rsvp:    createRsvp,
+            create_checkin: createCheckin,
+          });
+          if (prov.errors?.length) {
+            toast(`Evento criado. Aviso: ${prov.errors.join('; ')}`);
+          }
+        } catch (e) {
+          console.error('[provision]', e.message);
+        }
+      }
     }
     toast('Evento salvo.');
     setTimeout(() => location.href = `/admin/event-detail.html?id=${event.id}`, 600);

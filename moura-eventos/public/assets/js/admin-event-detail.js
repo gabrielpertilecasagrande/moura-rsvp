@@ -1437,7 +1437,7 @@ function showIntegrationsTab(ev) {
     loadRsvpMetrics(ev.rsvp_event_id);
   } else {
     const card = document.getElementById('rsvpCard');
-    if (card) card.innerHTML = '<p class="muted" style="font-size:13px">Nenhum evento RSVP vinculado. Edite o evento para adicionar o ID.</p>';
+    if (card) card.innerHTML = '<p class="muted" style="font-size:13px">Evento não provisionado no RSVP. Acesse "Editar evento" para provisionar.</p>';
   }
 
   if (hasCheckin) {
@@ -1446,7 +1446,7 @@ function showIntegrationsTab(ev) {
     loadCheckinMetrics(ev.checkin_event_id);
   } else {
     const card = document.getElementById('checkinCard');
-    if (card) card.innerHTML = '<p class="muted" style="font-size:13px">Nenhum evento de Check-in vinculado. Edite o evento para adicionar o ID.</p>';
+    if (card) card.innerHTML = '<p class="muted" style="font-size:13px">Evento não provisionado no Check-in. Acesse "Editar evento" para provisionar.</p>';
   }
 
   // Botão Abrir RSVP

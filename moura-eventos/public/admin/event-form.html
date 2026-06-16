@@ -74,15 +74,45 @@
             <span class="muted" style="font-size:12px;font-weight:400">— opcional</span>
           </summary>
           <div style="padding:16px;border-top:1px solid var(--gray-soft)">
-            <div style="color:var(--muted);font-size:13px;margin-bottom:14px">Vincule este evento aos outros sistemas. Esses IDs são fornecidos por cada plataforma ao criar o evento lá.</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-              <div class="field">
-                <label>ID do evento no RSVP</label>
-                <input type="text" id="rsvp_event_id" placeholder="ex: evt_abc123" />
+            <!-- Bloco novo evento: checkboxes de provisionamento automático -->
+            <div id="integrNewBlock">
+              <div style="color:var(--muted);font-size:13px;margin-bottom:14px">Crie este evento automaticamente nos outros sistemas ao salvar:</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+                  <input type="checkbox" id="createRsvp" style="width:16px;height:16px;accent-color:var(--cyan)">
+                  <span><strong>Criar no RSVP</strong> <span class="muted" style="font-size:12px">— convites e confirmação de presença</span></span>
+                </label>
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+                  <input type="checkbox" id="createCheckin" style="width:16px;height:16px;accent-color:var(--cyan)">
+                  <span><strong>Criar no Check-in</strong> <span class="muted" style="font-size:12px">— credenciamento no dia do evento</span></span>
+                </label>
               </div>
-              <div class="field">
-                <label>ID do evento no Check-in</label>
-                <input type="text" id="checkin_event_id" placeholder="UUID do evento" />
+            </div>
+            <!-- Bloco edição: IDs atuais (somente leitura) + opção de provisionar faltantes -->
+            <div id="integrEditBlock" style="display:none">
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:10px">
+                <div class="field">
+                  <label>ID no RSVP</label>
+                  <input type="text" id="rsvp_event_id" placeholder="não provisionado" readonly style="background:var(--off-white);cursor:default" />
+                </div>
+                <div class="field">
+                  <label>ID no Check-in</label>
+                  <input type="text" id="checkin_event_id" placeholder="não provisionado" readonly style="background:var(--off-white);cursor:default" />
+                </div>
+              </div>
+              <div id="integrProvisionRow" style="display:none;border-top:1px solid var(--gray-soft);padding-top:12px;margin-top:4px">
+                <div style="font-size:13px;color:var(--muted);margin-bottom:10px">Sistemas ainda não provisionados — selecione e clique em Provisionar:</div>
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+                  <label id="provisionRsvpLabel" style="display:none;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+                    <input type="checkbox" id="provisionRsvp" style="width:16px;height:16px;accent-color:var(--cyan)">
+                    <span>Criar no RSVP</span>
+                  </label>
+                  <label id="provisionCheckinLabel" style="display:none;align-items:center;gap:10px;cursor:pointer;font-size:14px">
+                    <input type="checkbox" id="provisionCheckin" style="width:16px;height:16px;accent-color:var(--cyan)">
+                    <span>Criar no Check-in</span>
+                  </label>
+                </div>
+                <button type="button" class="btn btn-ghost" id="provisionNowBtn" style="font-size:13px">Provisionar agora</button>
               </div>
             </div>
           </div>

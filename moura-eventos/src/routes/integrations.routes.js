@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
+const { requireRole } = require('../utils/permissions');
 const { logActivity } = require('../utils/activity');
 
 const router = express.Router();
@@ -13,6 +14,111 @@ const CHECKIN_URL    = () => (process.env.CHECKIN_URL     || '').replace(/\/$/, 
 const RSVP_SECRET    = () => process.env.RSVP_JWT_SECRET;
 const SUPABASE_URL   = () => (process.env.SUPABASE_URL    || '').replace(/\/$/, '');
 const SUPABASE_KEY   = () => process.env.SUPABASE_SERVICE_KEY;
+
+// ── POST /api/integrations/provision-event/:eventId ──────────────────────────
+// Cria o evento no RSVP e/ou Check-in e grava os IDs retornados no evento.
+// Body: { create_rsvp: bool, create_checkin: bool }
+// Idempotente: sistemas já provisionados são ignorados.
+router.post('/provision-event/:eventId', requireRole('admin', 'gestor'), async (req, res) => {
+  const eventId = Number(req.params.eventId);
+  const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+
+  const { create_rsvp = false, create_checkin = false } = req.body || {};
+  const result = {};
+  const errors = [];
+
+  // ── Provisiona no RSVP ──────────────────────────────────────────────────
+  if (create_rsvp) {
+    if (ev.rsvp_event_id) {
+      result.rsvp = { id: ev.rsvp_event_id, skipped: 'already_provisioned' };
+    } else {
+      const rsvpUrl = RSVP_API_URL();
+      const secret  = RSVP_SECRET();
+      if (!rsvpUrl || !secret) {
+        errors.push('RSVP não configurado (RSVP_API_URL ou RSVP_JWT_SECRET ausente).');
+      } else {
+        try {
+          const resp = await fetch(`${rsvpUrl}/api/auth/provision-event`, {
+            method: 'POST',
+            headers: {
+              'Content-Type':  'application/json',
+              'Authorization': `Bearer ${secret}`,
+            },
+            body: JSON.stringify({
+              name:       ev.name,
+              event_date: ev.event_date || null,
+              event_time: ev.event_time || null,
+              location:   ev.location   || null,
+              city:       ev.city       || null,
+              expected_guests: 0,
+            }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            db.prepare('UPDATE events SET rsvp_event_id = ? WHERE id = ?').run(String(data.id), eventId);
+            result.rsvp = data;
+          } else {
+            const err = await resp.json().catch(() => ({}));
+            errors.push(`RSVP: ${err.error || resp.statusText}`);
+          }
+        } catch (e) {
+          errors.push(`RSVP: ${e.message}`);
+        }
+      }
+    }
+  }
+
+  // ── Provisiona no Check-in (Supabase) ───────────────────────────────────
+  if (create_checkin) {
+    if (ev.checkin_event_id) {
+      result.checkin = { id: ev.checkin_event_id, skipped: 'already_provisioned' };
+    } else {
+      const supUrl = SUPABASE_URL();
+      const supKey = SUPABASE_KEY();
+      if (!supUrl || !supKey) {
+        errors.push('Check-in não configurado (SUPABASE_URL ou SUPABASE_SERVICE_KEY ausente).');
+      } else {
+        try {
+          const resp = await fetch(`${supUrl}/rest/v1/events`, {
+            method: 'POST',
+            headers: {
+              'apikey':        supKey,
+              'Authorization': `Bearer ${supKey}`,
+              'Content-Type':  'application/json',
+              'Prefer':        'return=representation',
+            },
+            body: JSON.stringify({
+              name:           ev.name,
+              date:           ev.event_date || null,
+              location:       ev.location || ev.city || null,
+              has_tables:     false,
+              use_categories: false,
+            }),
+          });
+          if (resp.ok) {
+            const [data] = await resp.json();
+            db.prepare('UPDATE events SET checkin_event_id = ? WHERE id = ?').run(data.id, eventId);
+            result.checkin = data;
+          } else {
+            const txt = await resp.text().catch(() => '');
+            errors.push(`Check-in: ${txt || resp.statusText}`);
+          }
+        } catch (e) {
+          errors.push(`Check-in: ${e.message}`);
+        }
+      }
+    }
+  }
+
+  const updated = db.prepare('SELECT rsvp_event_id, checkin_event_id FROM events WHERE id = ?').get(eventId);
+  logActivity(req.admin.name || req.admin.email, 'provisionou evento nos sistemas integrados', ev.name);
+
+  if (errors.length) {
+    return res.status(207).json({ ok: false, result, errors, event: updated });
+  }
+  res.json({ ok: true, result, event: updated });
+});
 
 // ── POST /api/integrations/sso-token ────────────────────────────────────────
 // Gera um JWT temporário para login automático no RSVP.
@@ -126,9 +232,9 @@ router.get('/checkin-metrics/:checkinEventId', async (req, res) => {
 
   const eid = req.params.checkinEventId;
   try {
-    // Conta check-ins confirmados na tabela `checkins` do Supabase.
+    // Conta check-ins confirmados (action='checkin') na tabela checkin_log.
     const resp = await fetch(
-      `${supUrl}/rest/v1/checkins?event_id=eq.${encodeURIComponent(eid)}&select=id`,
+      `${supUrl}/rest/v1/checkin_log?event_id=eq.${encodeURIComponent(eid)}&action=eq.checkin&select=id`,
       {
         headers: {
           'apikey':        supKey,
