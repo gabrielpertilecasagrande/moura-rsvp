@@ -42,7 +42,9 @@ app.use('/api/events/:id/diary',      require('./src/routes/diary.routes'));
 app.use('/api/events/:id/approvals',  require('./src/routes/approvals.routes'));
 app.use('/api/events/:id/risks',      require('./src/routes/risks.routes'));
 app.use('/api/events/:id/decisions',  require('./src/routes/decisions.routes'));
-app.use('/api/events/:id/crises',     require('./src/routes/crises.routes'));
+app.use('/api/events/:id/crises',      require('./src/routes/crises.routes'));
+app.use('/api/events/:id/post-report', require('./src/routes/post-report.routes'));
+app.use('/api/knowledge',              require('./src/routes/knowledge.routes'));
 
 // Páginas admin
 const adminDir = path.join(__dirname, 'public', 'admin');
@@ -60,6 +62,7 @@ app.get('/admin/team.html',           (_req, res) => res.sendFile(path.join(admi
 app.get('/admin/supplier-form.html', (_req, res) => res.sendFile(path.join(adminDir, 'supplier-form.html')));
 app.get('/admin/users.html',         (_req, res) => res.sendFile(path.join(adminDir, 'users.html')));
 app.get('/admin/activity.html',      (_req, res) => res.sendFile(path.join(adminDir, 'activity.html')));
+app.get('/admin/knowledge.html',     (_req, res) => res.sendFile(path.join(adminDir, 'knowledge.html')));
 app.get('/admin/account.html',       (_req, res) => res.sendFile(path.join(adminDir, 'account.html')));
 app.get('/', (_req, res) => res.redirect('/admin/dashboard.html'));
 

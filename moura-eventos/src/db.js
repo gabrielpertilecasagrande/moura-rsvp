@@ -120,6 +120,35 @@ db.exec(`
   );
 `);
 
+// Lote C — Relatório Pós-Evento + Base de Conhecimento
+db.exec(`
+  CREATE TABLE IF NOT EXISTS event_post_reports (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id       INTEGER NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+    summary        TEXT,
+    audience_count INTEGER,
+    what_worked    TEXT,
+    what_improve   TEXT,
+    lessons        TEXT,
+    rating         INTEGER,
+    status         TEXT NOT NULL DEFAULT 'Rascunho',
+    updated_by     TEXT,
+    created_at     TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS knowledge_articles (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    title      TEXT NOT NULL,
+    category   TEXT NOT NULL DEFAULT 'Outros',
+    content    TEXT NOT NULL,
+    tags       TEXT,
+    author     TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge_articles(category);
+`);
+
 // Tabela de modelos de checklist por tipo de evento
 db.exec(`
   CREATE TABLE IF NOT EXISTS event_type_templates (

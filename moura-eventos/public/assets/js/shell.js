@@ -28,6 +28,7 @@ function renderShell(active) {
     item('/admin/calendar.html', 'calendar', 'Calendário'),
     item('/admin/team.html', 'team', 'Equipe'),
     item('/admin/clients.html', 'clients', 'Clientes'),
+    item('/admin/knowledge.html', 'knowledge', 'Base de Conhecimento'),
     item('/admin/suppliers.html', 'suppliers', 'Fornecedores'),
     usersItem,
     isAdmin ? item('/admin/activity.html', 'activity', 'Atividades') : '',

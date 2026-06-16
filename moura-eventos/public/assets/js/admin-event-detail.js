@@ -1215,18 +1215,141 @@ async function deleteCrisis(id) {
   await loadOperational();
 }
 
+// ── Relatório Pós-Evento ─────────────────────────────────────────────────────
+let postReportData = null;
+
+function renderPostReport(data) {
+  postReportData = data?.report || null;
+  const r = postReportData;
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  set('prAudience', r?.audience_count ?? '');
+  set('prRating',   r?.rating ?? '');
+  set('prSummary',  r?.summary);
+  set('prWorked',   r?.what_worked);
+  set('prImprove',  r?.what_improve);
+  set('prLessons',  r?.lessons);
+  const statusEl = document.getElementById('prStatus');
+  if (statusEl) statusEl.value = r?.status || 'Rascunho';
+  const meta = document.getElementById('prMeta');
+  if (meta && r) meta.textContent = `Atualizado por ${r.updated_by || '—'} em ${fmtDateTimeBR(r.updated_at)}`;
+  else if (meta) meta.textContent = 'Nenhum dado salvo ainda.';
+}
+
+async function savePostReport() {
+  const body = {
+    summary:        document.getElementById('prSummary').value.trim() || null,
+    audience_count: document.getElementById('prAudience').value ? Number(document.getElementById('prAudience').value) : null,
+    what_worked:    document.getElementById('prWorked').value.trim() || null,
+    what_improve:   document.getElementById('prImprove').value.trim() || null,
+    lessons:        document.getElementById('prLessons').value.trim() || null,
+    rating:         document.getElementById('prRating').value ? Number(document.getElementById('prRating').value) : null,
+    status:         document.getElementById('prStatus').value,
+  };
+  try {
+    const data = await Api.put(`/api/events/${eventId}/post-report`, body);
+    renderPostReport(data);
+    toast('Relatório salvo.');
+  } catch (e) { toast(e.message); }
+}
+
+function exportPostReportPdf() {
+  const ev = eventData?.event;
+  const contracts = eventData?.contracts || [];
+  const checklist = eventData?.checklist || [];
+  const r = postReportData;
+
+  const total  = contracts.reduce((s, c) => s + (c.value || 0), 0);
+  const pago   = contracts.filter((c) => c.payment_status === 'Pago').reduce((s, c) => s + (c.value || 0), 0);
+  const pend   = total - pago;
+  const done   = checklist.filter((t) => t.status === 'Concluído').length;
+  const actRisks = risksData.filter((x) => x.status === 'Ativo').length;
+  const openCrises = crisesData.filter((x) => x.status !== 'Resolvida').length;
+
+  const STARS = ['', '⭐', '⭐⭐', '⭐⭐⭐', '⭐⭐⭐⭐', '⭐⭐⭐⭐⭐'];
+  const sectionHtml = (label, text) => text
+    ? `<h2>${label}</h2><p style="white-space:pre-wrap;font-size:13px">${esc(text)}</p>`
+    : '';
+
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Pós-Evento — ${esc(ev?.name || '')}</title>
+  <style>
+    *{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#1A1F2B;max-width:820px;margin:32px auto;padding:0 20px}
+    .brand{font-size:24px;font-weight:800;letter-spacing:-.02em;color:#0E1B3D}.brand i{color:#00C2B8;font-style:normal}
+    .tag{color:#64748B;font-size:12px;margin-bottom:18px}
+    h1{font-size:22px;margin:14px 0 2px;color:#152C6B}
+    h2{font-size:15px;margin:26px 0 8px;color:#152C6B;border-bottom:2px solid #00C2B8;padding-bottom:4px}
+    .meta{font-size:13px;color:#64748B;margin-bottom:24px}
+    .stats{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}
+    .stat{flex:1;min-width:110px;background:#F1F5F9;border-radius:8px;padding:10px 12px}
+    .stat .n{font-size:17px;font-weight:700;color:#152C6B}.stat .l{font-size:11px;color:#64748B}
+    table{width:100%;border-collapse:collapse;font-size:13px}
+    td,th{padding:7px 9px;border-bottom:1px solid #E2E8F0;text-align:left}
+    th{font-size:11px;text-transform:uppercase;color:#64748B}
+    @media print{body{margin:12px auto}}
+  </style></head><body>
+  <div class="brand">moura <i>one</i></div>
+  <div class="tag">Relatório Pós-Evento</div>
+  <h1>${esc(ev?.name || '')}</h1>
+  <div class="meta">
+    ${ev?.client ? esc(ev.client) + ' · ' : ''}${ev?.event_date ? fmtDateBR(ev.event_date) : ''}
+    ${ev?.location ? ' · ' + esc(ev.location) : ''}${r?.rating ? ' · ' + (STARS[r.rating] || '') : ''}
+    <br>Status do relatório: <strong>${r?.status || 'Rascunho'}</strong>
+    ${r?.audience_count ? ' · Público: <strong>' + r.audience_count + ' pessoas</strong>' : ''}
+  </div>
+
+  <h2>Resumo Operacional</h2>
+  <div class="stats">
+    <div class="stat"><div class="n">${fmtMoney(total)}</div><div class="l">Total contratado</div></div>
+    <div class="stat"><div class="n">${fmtMoney(pago)}</div><div class="l">Pago</div></div>
+    <div class="stat"><div class="n">${fmtMoney(pend)}</div><div class="l">Pendente</div></div>
+    <div class="stat"><div class="n">${done}/${checklist.length}</div><div class="l">Tarefas concluídas</div></div>
+    <div class="stat"><div class="n">${actRisks}</div><div class="l">Riscos ativos</div></div>
+    <div class="stat"><div class="n">${openCrises}</div><div class="l">Crises em aberto</div></div>
+    <div class="stat"><div class="n">${decisionsData.length}</div><div class="l">Decisões registradas</div></div>
+  </div>
+
+  ${sectionHtml('Resumo Geral', r?.summary)}
+  ${sectionHtml('O que funcionou bem', r?.what_worked)}
+  ${sectionHtml('O que melhorar', r?.what_improve)}
+  ${sectionHtml('Lições aprendidas', r?.lessons)}
+
+  ${contracts.length ? `
+  <h2>Contratações</h2>
+  <table><thead><tr><th>Fornecedor</th><th>Valor</th><th>Status</th><th>Pagamento</th></tr></thead><tbody>
+    ${contracts.map((c) => `<tr><td>${esc(c.company)}</td><td>${fmtMoney(c.value)}</td><td>${esc(c.status)}</td><td>${esc(c.payment_status)}</td></tr>`).join('')}
+  </tbody></table>` : ''}
+
+  <p style="margin-top:36px;color:#94A3B8;font-size:11px">Gerado em ${new Date().toLocaleString('pt-BR')} · Moura One</p>
+  </body></html>`;
+
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  w.print();
+}
+
+// Barras de formatação do pós-evento
+['prSummaryFmt', 'prWorkedFmt', 'prImproveFmt', 'prLessonsFmt'].forEach((fmtId) => {
+  const el = document.getElementById(fmtId);
+  if (el) el.innerHTML = formatToolbar(fmtId.replace('Fmt', ''));
+});
+
+document.getElementById('savePostReportBtn')?.addEventListener('click', savePostReport);
+document.getElementById('exportPostReportPdfBtn')?.addEventListener('click', exportPostReportPdf);
+
 // ── Carregar dados operacionais do Lote B ────────────────────────────────────
 async function loadOperational() {
-  const [approvals, risks, decisions, crises] = await Promise.all([
+  const [approvals, risks, decisions, crises, prData] = await Promise.all([
     Api.get(`/api/events/${eventId}/approvals`),
     Api.get(`/api/events/${eventId}/risks`),
     Api.get(`/api/events/${eventId}/decisions`),
     Api.get(`/api/events/${eventId}/crises`),
+    Api.get(`/api/events/${eventId}/post-report`),
   ]);
   renderApprovals(approvals);
   renderRisks(risks);
   renderDecisions(decisions);
   renderCrises(crises);
+  renderPostReport(prData);
 }
 
 // Botões do Lote B
