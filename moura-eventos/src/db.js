@@ -78,6 +78,16 @@ if (templateCount === 0) {
     'INSERT INTO event_type_templates (event_type, title, priority, sort_order) VALUES (?, ?, ?, ?)'
   );
   const templates = [
+    ['Social', 'Definir buffet e cardápio', 'Alta', 1],
+    ['Social', 'Contratar decoração', 'Alta', 2],
+    ['Social', 'Contratar música ao vivo ou DJ', 'Média', 3],
+    ['Social', 'Definir fotografia e filmagem', 'Média', 4],
+    ['Social', 'Confirmar lista de convidados', 'Alta', 5],
+    ['Social corporativo', 'Definir pauta e programação', 'Alta', 1],
+    ['Social corporativo', 'Reservar espaço do evento', 'Crítica', 2],
+    ['Social corporativo', 'Contratar buffet corporativo', 'Alta', 3],
+    ['Social corporativo', 'Contratar audiovisual e projeção', 'Alta', 4],
+    ['Social corporativo', 'Enviar convites e confirmar presença', 'Média', 5],
     ['Fórum', 'Definir tema e palestrantes', 'Alta', 1],
     ['Fórum', 'Reservar auditório', 'Crítica', 2],
     ['Fórum', 'Divulgação nas redes sociais', 'Média', 3],

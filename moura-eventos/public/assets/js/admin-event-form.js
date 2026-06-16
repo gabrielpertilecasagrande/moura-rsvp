@@ -12,6 +12,20 @@ if (!canCreateEvents()) {
 }
 
 const PRIORITY_COLORS = { 'Crítica': '#e63946', 'Alta': '#f4a261', 'Média': '#2BC2CE', 'Baixa': '#8b9099' };
+const WEEKDAYS = ['Domingo','Segunda-feira','Terça-feira','Quarta-feira','Quinta-feira','Sexta-feira','Sábado'];
+const MONTHS   = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+
+function updateWeekday() {
+  const val = document.getElementById('event_date').value;
+  const el  = document.getElementById('weekdayLabel');
+  if (!el) return;
+  if (!val) { el.textContent = ''; return; }
+  const [y, m, d] = val.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  el.textContent = `${WEEKDAYS[dt.getDay()]}, ${d} de ${MONTHS[m - 1]} de ${y}`;
+}
+
+document.getElementById('event_date').addEventListener('change', updateWeekday);
 
 async function loadTemplatePreview(type) {
   const preview = document.getElementById('templatePreview');
@@ -52,6 +66,7 @@ async function init() {
     document.getElementById('responsible').value = event.responsible || '';
     document.getElementById('status').value      = event.status      || 'Planejamento';
     document.getElementById('event_type').value  = event.event_type  || '';
+    updateWeekday();
   }
 }
 

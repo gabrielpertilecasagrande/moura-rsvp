@@ -58,7 +58,7 @@ async function load() {
   eventData = d;
 
   const ev = d.event;
-  document.title = `${ev.name} — Moura Eventos`;
+  document.title = `${ev.name} — Moura One`;
   document.getElementById('eventName').textContent    = ev.name;
   document.getElementById('eventClient').textContent  = ev.client || 'Evento';
   document.getElementById('eventStatusPill').innerHTML = statusPill(ev.status);
@@ -146,7 +146,9 @@ function renderContracts(contracts, total) {
 }
 
 // ── Checklist ─────────────────────────────────────────────────────────────────
-let checklistFilters = { status: '', priority: '', responsible: '' };
+let checklistFilters = { status: '', priority: '', responsible: '', search: '', sort: '' };
+
+const PRIORITY_ORDER = { 'Crítica': 0, 'Alta': 1, 'Média': 2, 'Baixa': 3 };
 
 function renderChecklist(tasks) {
   const open = tasks?.filter((t) => t.status !== 'Concluído').length || 0;
@@ -158,6 +160,18 @@ function renderChecklist(tasks) {
   if (checklistFilters.status)      filtered = filtered.filter((t) => t.status === checklistFilters.status);
   if (checklistFilters.priority)    filtered = filtered.filter((t) => (t.priority || 'Média') === checklistFilters.priority);
   if (checklistFilters.responsible) filtered = filtered.filter((t) => (t.responsible || '').toLowerCase().includes(checklistFilters.responsible.toLowerCase()));
+  if (checklistFilters.search)      filtered = filtered.filter((t) => (t.title + ' ' + (t.responsible || '') + ' ' + (t.priority || '')).toLowerCase().includes(checklistFilters.search.toLowerCase()));
+
+  if (checklistFilters.sort === 'priority') {
+    filtered = [...filtered].sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 2) - (PRIORITY_ORDER[b.priority] ?? 2));
+  } else if (checklistFilters.sort === 'due_date') {
+    filtered = [...filtered].sort((a, b) => (a.due_date || '9999') < (b.due_date || '9999') ? -1 : 1);
+  } else if (checklistFilters.sort === 'status') {
+    const SO = { 'Pendente': 0, 'Em andamento': 1, 'Concluído': 2 };
+    filtered = [...filtered].sort((a, b) => (SO[a.status] ?? 0) - (SO[b.status] ?? 0));
+  } else if (checklistFilters.sort === 'responsible') {
+    filtered = [...filtered].sort((a, b) => (a.responsible || '').localeCompare(b.responsible || '', 'pt-BR'));
+  }
 
   const el = document.getElementById('checklistList');
   if (!filtered.length) {
@@ -237,13 +251,14 @@ async function toggleTask(tid, checked) {
 }
 
 // ── Arquivos ──────────────────────────────────────────────────────────────────
-const FILE_CATEGORIES = ['Contratos', 'Orçamentos', 'Plantas', 'Artes', 'Cronogramas', 'Documentos do cliente', 'Documentos de fornecedores', 'Outros'];
 let fileFilter = '';
+let fileSearchQuery = '';
 
 function renderFiles(files) {
   const el = document.getElementById('fileList');
   let filtered = files || [];
-  if (fileFilter) filtered = filtered.filter((f) => (f.category || 'Outros') === fileFilter);
+  if (fileFilter)      filtered = filtered.filter((f) => (f.category || 'Outros') === fileFilter);
+  if (fileSearchQuery) filtered = filtered.filter((f) => (f.filename || '').toLowerCase().includes(fileSearchQuery.toLowerCase()));
   if (!filtered.length) { el.innerHTML = '<p class="muted">Nenhum arquivo encontrado.</p>'; return; }
   el.innerHTML = filtered.map((f) => `
     <div class="file-row">
@@ -255,7 +270,7 @@ function renderFiles(files) {
           ${fmtSize(f.size)} · ${esc(f.uploaded_by || '?')} · ${fmtDateTimeBR(f.created_at)}
         </div>
       </div>
-      <a href="/api/events/${eventId}/files/${f.id}/download" class="btn btn-ghost btn-sm">Baixar</a>
+      <button class="btn btn-ghost btn-sm" onclick="downloadFile(${f.id}, '${esc(f.filename).replace(/'/g,"\\'")}')">Baixar</button>
       <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteFile(${f.id})">✕</button>
     </div>
   `).join('');
@@ -304,6 +319,20 @@ async function uploadFiles(files) {
   }
   fileInput.value = '';
   await load();
+}
+
+async function downloadFile(fid, filename) {
+  try {
+    const res = await fetch(`/api/events/${eventId}/files/${fid}/download`, {
+      headers: { Authorization: `Bearer ${Api.token()}` },
+    });
+    if (!res.ok) { toast('Erro ao baixar arquivo.'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch { toast('Erro ao baixar arquivo.'); }
 }
 
 async function deleteFile(fid) {

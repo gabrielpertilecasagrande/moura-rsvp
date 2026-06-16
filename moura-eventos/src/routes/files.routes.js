@@ -30,7 +30,7 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-const FILE_CATEGORIES = ['Contratos', 'Orçamentos', 'Plantas', 'Artes', 'Cronogramas', 'Documentos do cliente', 'Documentos de fornecedores', 'Outros'];
+const FILE_CATEGORIES = ['Contratos', 'Orçamentos', 'Plantas', 'Artes', 'Cronogramas', 'Notas fiscais', 'Fotos', 'Documentos do cliente', 'Documentos de fornecedores', 'Outros'];
 
 // GET /api/events/:id/files
 router.get('/', requirePerm('can_view'), (req, res) => {

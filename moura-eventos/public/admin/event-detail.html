@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Evento — Moura Eventos</title>
+  <title>Evento — Moura One</title>
   <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
   <link rel="stylesheet" href="/assets/css/styles.css" />
   <style>
@@ -91,7 +91,8 @@
       <!-- Aba: Checklist -->
       <div class="tab-pane" id="tab-checklist">
         <div class="page-head" style="margin-bottom:16px">
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input type="text" id="checklistSearch" placeholder="Buscar tarefa…" style="padding:6px 10px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px;min-width:160px" oninput="checklistFilters.search=this.value;renderChecklist(eventData?.checklist)" />
             <select id="checklistFilter" class="btn btn-ghost btn-sm">
               <option value="">Todos os status</option>
               <option value="Pendente">Pendente</option>
@@ -105,7 +106,14 @@
               <option value="Média">Média</option>
               <option value="Baixa">Baixa</option>
             </select>
-            <input type="text" id="checklistRespFilter" placeholder="Filtrar por responsável" style="padding:6px 10px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px" oninput="checklistFilters.responsible=this.value;renderChecklist(eventData?.checklist)" />
+            <input type="text" id="checklistRespFilter" placeholder="Responsável" style="padding:6px 10px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px;min-width:120px" oninput="checklistFilters.responsible=this.value;renderChecklist(eventData?.checklist)" />
+            <select id="checklistSort" class="btn btn-ghost btn-sm" onchange="checklistFilters.sort=this.value;renderChecklist(eventData?.checklist)">
+              <option value="">Ordenar por…</option>
+              <option value="priority">Prioridade</option>
+              <option value="due_date">Prazo</option>
+              <option value="status">Status</option>
+              <option value="responsible">Responsável</option>
+            </select>
           </div>
           <button class="btn btn-primary btn-sm" id="addTaskBtn">+ Nova tarefa</button>
         </div>
@@ -115,13 +123,16 @@
       <!-- Aba: Arquivos -->
       <div class="tab-pane" id="tab-files">
         <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+          <input type="text" id="fileSearch" placeholder="Buscar arquivo…" style="padding:6px 10px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px;min-width:160px" oninput="fileSearchQuery=this.value;renderFiles(eventData?.files)" />
           <select id="fileCategory" style="padding:6px 10px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px">
-            <option value="Outros">Categoria do arquivo</option>
+            <option value="Outros">Categoria para upload</option>
             <option value="Contratos">Contratos</option>
             <option value="Orçamentos">Orçamentos</option>
             <option value="Plantas">Plantas</option>
             <option value="Artes">Artes</option>
             <option value="Cronogramas">Cronogramas</option>
+            <option value="Notas fiscais">Notas fiscais</option>
+            <option value="Fotos">Fotos</option>
             <option value="Documentos do cliente">Documentos do cliente</option>
             <option value="Documentos de fornecedores">Documentos de fornecedores</option>
             <option value="Outros">Outros</option>
@@ -133,6 +144,8 @@
             <option value="Plantas">Plantas</option>
             <option value="Artes">Artes</option>
             <option value="Cronogramas">Cronogramas</option>
+            <option value="Notas fiscais">Notas fiscais</option>
+            <option value="Fotos">Fotos</option>
             <option value="Documentos do cliente">Documentos do cliente</option>
             <option value="Documentos de fornecedores">Documentos de fornecedores</option>
             <option value="Outros">Outros</option>

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Evento — Moura Eventos</title>
+  <title>Evento — Moura One</title>
   <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
   <link rel="stylesheet" href="/assets/css/styles.css" />
 </head>
@@ -23,7 +23,11 @@
         <div class="field"><label>Nome do evento *</label><input type="text" id="name" /></div>
         <div class="field"><label>Cliente / Organização</label><input type="text" id="client" /></div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div class="field"><label>Data</label><input type="date" id="event_date" /></div>
+          <div class="field">
+            <label>Data</label>
+            <input type="date" id="event_date" />
+            <div id="weekdayLabel" style="font-size:12px;color:var(--cyan);margin-top:4px;font-weight:500;min-height:16px"></div>
+          </div>
           <div class="field"><label>Horário</label><input type="time" id="event_time" /></div>
         </div>
         <div class="field"><label>Local / Espaço</label><input type="text" id="location" /></div>
@@ -36,11 +40,13 @@
             <label>Tipo de evento</label>
             <select id="event_type">
               <option value="">Selecione um tipo</option>
+              <option>Social</option>
+              <option>Social corporativo</option>
               <option>Fórum</option>
               <option>Congresso</option>
               <option>Convenção</option>
-              <option>Seminário</option>
               <option>Feira</option>
+              <option>Seminário</option>
               <option>Jantar</option>
               <option>Lançamento</option>
               <option>Reunião</option>

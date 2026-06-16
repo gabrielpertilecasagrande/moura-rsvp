@@ -8,7 +8,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 const EVENT_STATUS = ['Planejamento', 'Contratação', 'Produção', 'Evento realizado', 'Encerrado'];
-const EVENT_TYPES  = ['Fórum', 'Congresso', 'Convenção', 'Seminário', 'Feira', 'Jantar', 'Lançamento', 'Reunião'];
+const EVENT_TYPES  = ['Social', 'Social corporativo', 'Fórum', 'Congresso', 'Convenção', 'Feira', 'Seminário', 'Jantar', 'Lançamento', 'Reunião'];
 
 // GET /api/events
 router.get('/', (req, res) => {

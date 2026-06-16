@@ -48,7 +48,7 @@ function renderShell(active) {
       </div>
       <a class="side-account" href="/admin/account.html" id="accountBtn">Minha conta</a>
       <button class="logout" id="logoutBtn">Sair</button>
-      <div class="side-version">Moura Eventos · Produção de Eventos</div>
+      <div class="side-version">Moura One · Plataforma de Gestão de Eventos</div>
     </div>
   </aside>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>`;
