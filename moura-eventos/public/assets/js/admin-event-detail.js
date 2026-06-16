@@ -236,21 +236,34 @@ async function toggleTask(tid, checked) {
 }
 
 // ── Arquivos ──────────────────────────────────────────────────────────────────
+const FILE_CATEGORIES = ['Contratos', 'Orçamentos', 'Plantas', 'Artes', 'Cronogramas', 'Documentos do cliente', 'Documentos de fornecedores', 'Outros'];
+let fileFilter = '';
+
 function renderFiles(files) {
   const el = document.getElementById('fileList');
-  if (!files?.length) { el.innerHTML = '<p class="muted">Nenhum arquivo enviado.</p>'; return; }
-  el.innerHTML = files.map((f) => `
+  let filtered = files || [];
+  if (fileFilter) filtered = filtered.filter((f) => (f.category || 'Outros') === fileFilter);
+  if (!filtered.length) { el.innerHTML = '<p class="muted">Nenhum arquivo encontrado.</p>'; return; }
+  el.innerHTML = filtered.map((f) => `
     <div class="file-row">
       <div class="file-icon">${fileIcon(f.mime_type)}</div>
       <div class="file-info">
         <div class="file-name">${esc(f.filename)}</div>
-        <div class="file-meta">${fmtSize(f.size)} · por ${esc(f.uploaded_by || '?')} · ${fmtDateTimeBR(f.created_at)}</div>
+        <div class="file-meta">
+          <span class="pill" style="font-size:11px">${esc(f.category || 'Outros')}</span>
+          ${fmtSize(f.size)} · ${esc(f.uploaded_by || '?')} · ${fmtDateTimeBR(f.created_at)}
+        </div>
       </div>
       <a href="/api/events/${eventId}/files/${f.id}/download" class="btn btn-ghost btn-sm">Baixar</a>
       <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteFile(${f.id})">✕</button>
     </div>
   `).join('');
 }
+
+document.getElementById('fileFilter')?.addEventListener('change', (e) => {
+  fileFilter = e.target.value;
+  renderFiles(eventData?.files);
+});
 
 function fileIcon(mime) {
   if (!mime) return '📄';
@@ -276,9 +289,11 @@ dropZone.addEventListener('drop', (e) => {
 });
 
 async function uploadFiles(files) {
+  const cat = document.getElementById('fileCategory')?.value || 'Outros';
   for (const file of Array.from(files)) {
     const fd = new FormData();
     fd.append('file', file);
+    fd.append('category', cat);
     try {
       await Api.postForm(`/api/events/${eventId}/files`, fd);
       toast(`${file.name} enviado.`);
@@ -297,17 +312,42 @@ async function deleteFile(fid) {
 }
 
 // ── Diário ────────────────────────────────────────────────────────────────────
+let diarySearch = '';
+
 function renderDiary(entries) {
   const el = document.getElementById('diaryList');
-  if (!entries?.length) { el.innerHTML = '<p class="muted">Nenhum registro ainda.</p>'; return; }
-  el.innerHTML = entries.map((e) => `
+  let filtered = entries || [];
+  if (diarySearch) filtered = filtered.filter((e) => e.entry.toLowerCase().includes(diarySearch) || (e.author || '').toLowerCase().includes(diarySearch));
+  if (!filtered.length) { el.innerHTML = '<p class="muted">Nenhum registro encontrado.</p>'; return; }
+  el.innerHTML = filtered.map((e) => `
     <div class="diary-entry">
-      <div class="diary-meta">${fmtDateTimeBR(e.created_at)} · ${esc(e.author || '?')}</div>
-      <div class="diary-text">${esc(e.entry)}</div>
+      <div class="diary-meta">${fmtDateTimeBR(e.created_at)} · <strong>${esc(e.author || '?')}</strong></div>
+      <div class="diary-text" style="margin-top:6px;white-space:pre-wrap">${esc(e.entry)}</div>
       <button class="btn btn-ghost btn-sm" style="color:var(--danger);margin-top:6px" onclick="deleteDiary(${e.id})">Remover</button>
     </div>
   `).join('');
 }
+
+document.getElementById('diarySearchInput')?.addEventListener('input', (e) => {
+  diarySearch = e.target.value.toLowerCase().trim();
+  renderDiary(eventData?.diary);
+});
+
+document.getElementById('exportDiaryBtn')?.addEventListener('click', () => {
+  const ev = eventData?.event;
+  const entries = eventData?.diary || [];
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Diário — ${esc(ev?.name || '')}</title>
+  <style>body{font-family:sans-serif;max-width:800px;margin:40px auto;color:#222}h1{font-size:22px;margin-bottom:4px}p.sub{color:#666;font-size:13px;margin-bottom:32px}.entry{border-bottom:1px solid #eee;padding:16px 0}.meta{font-size:12px;color:#888;margin-bottom:6px}.text{font-size:15px;white-space:pre-wrap}@media print{body{margin:20px}}</style>
+  </head><body>
+  <h1>Diário do Evento — ${esc(ev?.name || '')}</h1>
+  <p class="sub">${ev?.client || ''} · Exportado em ${new Date().toLocaleDateString('pt-BR')}</p>
+  ${entries.map((e) => `<div class="entry"><div class="meta">${fmtDateTimeBR(e.created_at)} · ${esc(e.author || '?')}</div><div class="text">${esc(e.entry)}</div></div>`).join('')}
+  </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html);
+  w.document.close();
+  w.print();
+});
 
 document.getElementById('saveDiaryBtn').addEventListener('click', async () => {
   const entry = document.getElementById('diaryEntry').value.trim();

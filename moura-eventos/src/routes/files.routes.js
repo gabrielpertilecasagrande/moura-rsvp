@@ -30,10 +30,12 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+const FILE_CATEGORIES = ['Contratos', 'Orçamentos', 'Plantas', 'Artes', 'Cronogramas', 'Documentos do cliente', 'Documentos de fornecedores', 'Outros'];
+
 // GET /api/events/:id/files
 router.get('/', requirePerm('can_view'), (req, res) => {
   const rows = db.prepare(
-    'SELECT id, filename, mime_type, size, uploaded_by, created_at FROM event_files WHERE event_id = ? ORDER BY created_at DESC'
+    'SELECT id, filename, mime_type, size, uploaded_by, category, created_at FROM event_files WHERE event_id = ? ORDER BY created_at DESC'
   ).all(Number(req.params.id));
   res.json(rows);
 });
@@ -49,21 +51,24 @@ router.post('/', requirePerm('can_files'), upload.single('file'), (req, res) => 
     return res.status(404).json({ error: 'Evento não encontrado.' });
   }
 
+  const category = FILE_CATEGORIES.includes(req.body?.category) ? req.body.category : 'Outros';
+
   const info = db.prepare(
-    `INSERT INTO event_files (event_id, filename, stored_name, mime_type, size, uploaded_by)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO event_files (event_id, filename, stored_name, mime_type, size, uploaded_by, category)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).run(
     eventId,
     req.file.originalname,
     req.file.filename,
     req.file.mimetype,
     req.file.size,
-    req.admin.name || req.admin.email
+    req.admin.name || req.admin.email,
+    category
   );
 
   logActivity(req.admin.name || req.admin.email, 'enviou arquivo', req.file.originalname);
   res.status(201).json(
-    db.prepare('SELECT id, filename, mime_type, size, uploaded_by, created_at FROM event_files WHERE id = ?').get(info.lastInsertRowid)
+    db.prepare('SELECT id, filename, mime_type, size, uploaded_by, category, created_at FROM event_files WHERE id = ?').get(info.lastInsertRowid)
   );
 });
 

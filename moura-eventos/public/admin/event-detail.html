@@ -78,6 +78,7 @@
                 <th>Valor</th>
                 <th>Status</th>
                 <th>Pagamento</th>
+                <th>Prev. Pagto</th>
                 <th>Observações</th>
                 <th></th>
               </tr>
@@ -90,13 +91,21 @@
       <!-- Aba: Checklist -->
       <div class="tab-pane" id="tab-checklist">
         <div class="page-head" style="margin-bottom:16px">
-          <div style="display:flex;gap:8px">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
             <select id="checklistFilter" class="btn btn-ghost btn-sm">
-              <option value="">Todas</option>
+              <option value="">Todos os status</option>
               <option value="Pendente">Pendente</option>
               <option value="Em andamento">Em andamento</option>
               <option value="Concluído">Concluído</option>
             </select>
+            <select id="checklistPriorityFilter" class="btn btn-ghost btn-sm" onchange="checklistFilters.priority=this.value;renderChecklist(eventData?.checklist)">
+              <option value="">Todas as prioridades</option>
+              <option value="Crítica">Crítica</option>
+              <option value="Alta">Alta</option>
+              <option value="Média">Média</option>
+              <option value="Baixa">Baixa</option>
+            </select>
+            <input type="text" id="checklistRespFilter" placeholder="Filtrar por responsável" style="padding:6px 10px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px" oninput="checklistFilters.responsible=this.value;renderChecklist(eventData?.checklist)" />
           </div>
           <button class="btn btn-primary btn-sm" id="addTaskBtn">+ Nova tarefa</button>
         </div>
@@ -105,6 +114,30 @@
 
       <!-- Aba: Arquivos -->
       <div class="tab-pane" id="tab-files">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;flex-wrap:wrap">
+          <select id="fileCategory" style="padding:6px 10px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px">
+            <option value="Outros">Categoria do arquivo</option>
+            <option value="Contratos">Contratos</option>
+            <option value="Orçamentos">Orçamentos</option>
+            <option value="Plantas">Plantas</option>
+            <option value="Artes">Artes</option>
+            <option value="Cronogramas">Cronogramas</option>
+            <option value="Documentos do cliente">Documentos do cliente</option>
+            <option value="Documentos de fornecedores">Documentos de fornecedores</option>
+            <option value="Outros">Outros</option>
+          </select>
+          <select id="fileFilter" style="padding:6px 10px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px">
+            <option value="">Filtrar por categoria</option>
+            <option value="Contratos">Contratos</option>
+            <option value="Orçamentos">Orçamentos</option>
+            <option value="Plantas">Plantas</option>
+            <option value="Artes">Artes</option>
+            <option value="Cronogramas">Cronogramas</option>
+            <option value="Documentos do cliente">Documentos do cliente</option>
+            <option value="Documentos de fornecedores">Documentos de fornecedores</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
         <div class="drop-zone" id="dropZone">
           <div style="font-size:32px;margin-bottom:8px">📎</div>
           <div style="font-weight:600;margin-bottom:4px">Arraste arquivos aqui</div>
@@ -123,7 +156,11 @@
           </div>
           <button class="btn btn-primary btn-sm" id="saveDiaryBtn">Registrar</button>
         </div>
-        <div id="diaryList"></div>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px;max-width:680px">
+          <input type="text" id="diarySearchInput" placeholder="Buscar no diário…" style="flex:1;padding:7px 12px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px" />
+          <button class="btn btn-ghost btn-sm" id="exportDiaryBtn">⬇ Exportar PDF</button>
+        </div>
+        <div id="diaryList" style="max-width:680px"></div>
       </div>
     </main>
   </div>

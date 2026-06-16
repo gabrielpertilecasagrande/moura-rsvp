@@ -40,6 +40,7 @@ addColumn('checklist', 'priority', "TEXT NOT NULL DEFAULT 'Média'");
 addColumn('contracts', 'contract_date', 'TEXT');
 addColumn('contracts', 'payment_due_date', 'TEXT');
 addColumn('contracts', 'payment_date', 'TEXT');
+addColumn('event_files', 'category', "TEXT NOT NULL DEFAULT 'Outros'");
 
 // Tabela de comentários do checklist
 db.exec(`
