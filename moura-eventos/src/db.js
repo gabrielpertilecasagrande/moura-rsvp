@@ -74,6 +74,52 @@ db.exec(`
 addColumn('checklist_comments', 'parent_id', 'INTEGER');
 addColumn('checklist_comments', 'updated_at', 'TEXT');
 
+// Lote B — Aprovações, Riscos, Decisões, Crises
+db.exec(`
+  CREATE TABLE IF NOT EXISTS event_approvals (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    title       TEXT NOT NULL,
+    type        TEXT NOT NULL DEFAULT 'Outro',
+    status      TEXT NOT NULL DEFAULT 'Pendente',
+    description TEXT,
+    approved_by TEXT,
+    approved_at TEXT,
+    observation TEXT,
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS event_risks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id    INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    impact      TEXT NOT NULL DEFAULT 'Médio',
+    probability TEXT NOT NULL DEFAULT 'Média',
+    action_plan TEXT,
+    status      TEXT NOT NULL DEFAULT 'Ativo',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS event_decisions (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id      INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    decision_date TEXT,
+    decision      TEXT NOT NULL,
+    reason        TEXT,
+    approver      TEXT,
+    created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS event_crises (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id     INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    occurred_at  TEXT,
+    description  TEXT NOT NULL,
+    impact       TEXT NOT NULL DEFAULT 'Médio',
+    action_taken TEXT,
+    responsible  TEXT,
+    status       TEXT NOT NULL DEFAULT 'Aberta',
+    created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // Tabela de modelos de checklist por tipo de evento
 db.exec(`
   CREATE TABLE IF NOT EXISTS event_type_templates (

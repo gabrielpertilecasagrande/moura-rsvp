@@ -38,7 +38,11 @@ app.use('/api/events',   require('./src/routes/events.routes'));
 app.use('/api/events/:id/contracts', require('./src/routes/contracts.routes'));
 app.use('/api/events/:id/checklist', require('./src/routes/checklist.routes'));
 app.use('/api/events/:id/files',     require('./src/routes/files.routes'));
-app.use('/api/events/:id/diary',     require('./src/routes/diary.routes'));
+app.use('/api/events/:id/diary',      require('./src/routes/diary.routes'));
+app.use('/api/events/:id/approvals',  require('./src/routes/approvals.routes'));
+app.use('/api/events/:id/risks',      require('./src/routes/risks.routes'));
+app.use('/api/events/:id/decisions',  require('./src/routes/decisions.routes'));
+app.use('/api/events/:id/crises',     require('./src/routes/crises.routes'));
 
 // Páginas admin
 const adminDir = path.join(__dirname, 'public', 'admin');

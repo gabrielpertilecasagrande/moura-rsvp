@@ -850,4 +850,390 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
 const diaryFmt = document.getElementById('diaryFmtBar');
 if (diaryFmt) diaryFmt.innerHTML = formatToolbar('diaryEntry');
 
+// ── Lote B: dados operacionais (carregados juntos com load) ──────────────────
+let approvalsData = [];
+let risksData     = [];
+let decisionsData = [];
+let crisesData    = [];
+
+// ── Centro de Aprovações ─────────────────────────────────────────────────────
+function approvalStatusPill(s) {
+  const m = { 'Pendente': 'pill-no', 'Aprovado': 'pill-ok', 'Rejeitado': '' };
+  return `<span class="pill ${m[s] || ''}">${esc(s)}</span>`;
+}
+function approvalTypePill(t) {
+  return `<span class="pill pill-active">${esc(t)}</span>`;
+}
+
+function renderApprovals(rows) {
+  approvalsData = rows || [];
+  const pending = approvalsData.filter((a) => a.status === 'Pendente').length;
+  const badge   = document.getElementById('approvalsCount');
+  if (pending > 0) { badge.textContent = pending; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+  document.getElementById('approvalsTotal').textContent = `${approvalsData.length} aprovação(ões)`;
+
+  const el = document.getElementById('approvalsList');
+  if (!approvalsData.length) {
+    el.innerHTML = '<p class="muted">Nenhuma aprovação registrada.</p>';
+    return;
+  }
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Título</th><th>Tipo</th><th>Descrição</th><th>Status</th><th>Aprovado por</th><th>Data</th><th>Observação</th><th></th></tr></thead>
+    <tbody>${approvalsData.map((a) => `<tr>
+      <td><strong>${esc(a.title)}</strong></td>
+      <td>${approvalTypePill(a.type)}</td>
+      <td class="muted" style="font-size:13px;max-width:200px">${esc(a.description || '—')}</td>
+      <td>${approvalStatusPill(a.status)}</td>
+      <td>${esc(a.approved_by || '—')}</td>
+      <td class="muted" style="font-size:12px">${a.approved_at ? fmtDateBR(a.approved_at) : '—'}</td>
+      <td class="muted" style="font-size:13px">${esc(a.observation || '—')}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="openEditApproval(${a.id})">Editar</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteApproval(${a.id})">Remover</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function openAddApproval() { showApprovalModal(null); }
+function openEditApproval(id) { showApprovalModal(approvalsData.find((a) => a.id === id)); }
+
+function showApprovalModal(a) {
+  const isEdit = !!a;
+  const TYPES    = ['Fornecedor', 'Orçamento', 'Mudança', 'Outro'];
+  const STATUSES = ['Pendente', 'Aprovado', 'Rejeitado'];
+  document.getElementById('modalSlot').innerHTML = `
+    <div class="modal-bg">
+      <div class="modal">
+        <h2>${isEdit ? 'Editar aprovação' : 'Nova aprovação'}</h2>
+        <div class="field"><label>Título *</label><input type="text" id="apTitle" value="${esc(a?.title || '')}" /></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field"><label>Tipo</label>
+            <select id="apType">${TYPES.map((t) => `<option ${(a?.type||'Outro')===t?'selected':''}>${t}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Status</label>
+            <select id="apStatus">${STATUSES.map((s) => `<option ${(a?.status||'Pendente')===s?'selected':''}>${s}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div class="field"><label>Descrição</label><textarea id="apDesc" rows="2">${esc(a?.description || '')}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field"><label>Aprovado por</label><input type="text" id="apBy" value="${esc(a?.approved_by || '')}" /></div>
+          <div class="field"><label>Data de aprovação</label><input type="date" id="apAt" value="${a?.approved_at || ''}" /></div>
+        </div>
+        <div class="field"><label>Observação</label><input type="text" id="apObs" value="${esc(a?.observation || '')}" /></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" id="apSaveBtn">Salvar</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('apSaveBtn').addEventListener('click', async () => {
+    const title = document.getElementById('apTitle').value.trim();
+    if (!title) { toast('Informe o título.'); return; }
+    const body = {
+      title,
+      type:        document.getElementById('apType').value,
+      status:      document.getElementById('apStatus').value,
+      description: document.getElementById('apDesc').value.trim() || null,
+      approved_by: document.getElementById('apBy').value.trim() || null,
+      approved_at: document.getElementById('apAt').value || null,
+      observation: document.getElementById('apObs').value.trim() || null,
+    };
+    try {
+      if (isEdit) await Api.put(`/api/events/${eventId}/approvals/${a.id}`, body);
+      else        await Api.post(`/api/events/${eventId}/approvals`, body);
+      closeModal();
+      toast('Aprovação salva.');
+      await loadOperational();
+    } catch (e) { toast(e.message); }
+  });
+}
+
+async function deleteApproval(id) {
+  if (!confirm('Remover esta aprovação?')) return;
+  await Api.del(`/api/events/${eventId}/approvals/${id}`);
+  await loadOperational();
+}
+
+// ── Riscos do Evento ─────────────────────────────────────────────────────────
+function riskImpactPill(i) {
+  const m = { 'Alto': 'pill-no', 'Médio': 'pill-active', 'Baixo': '' };
+  return `<span class="pill ${m[i] || ''}">${esc(i)}</span>`;
+}
+function riskStatusPill(s) {
+  const m = { 'Ativo': 'pill-no', 'Mitigado': 'pill-active', 'Encerrado': 'pill-ok' };
+  return `<span class="pill ${m[s] || ''}">${esc(s)}</span>`;
+}
+
+function renderRisks(rows) {
+  risksData = rows || [];
+  const active   = risksData.filter((r) => r.status === 'Ativo').length;
+  const critical = risksData.filter((r) => r.status === 'Ativo' && r.impact === 'Alto').length;
+  const badge    = document.getElementById('risksCount');
+  if (active > 0) { badge.textContent = active; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+
+  const totalEl = document.getElementById('risksTotal');
+  totalEl.innerHTML = `${risksData.length} risco(s) · <span style="color:var(--danger)">${active} ativo(s)</span>${critical ? ` · <strong style="color:var(--danger)">${critical} crítico(s)</strong>` : ''}`;
+
+  const el = document.getElementById('risksList');
+  if (!risksData.length) { el.innerHTML = '<p class="muted">Nenhum risco registrado.</p>'; return; }
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Descrição</th><th>Impacto</th><th>Probabilidade</th><th>Status</th><th>Plano de ação</th><th></th></tr></thead>
+    <tbody>${risksData.map((r) => `<tr>
+      <td><strong>${esc(r.description)}</strong></td>
+      <td>${riskImpactPill(r.impact)}</td>
+      <td><span class="pill">${esc(r.probability)}</span></td>
+      <td>${riskStatusPill(r.status)}</td>
+      <td class="muted" style="font-size:13px;max-width:220px">${esc(r.action_plan || '—')}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="openEditRisk(${r.id})">Editar</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteRisk(${r.id})">Remover</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function openAddRisk() { showRiskModal(null); }
+function openEditRisk(id) { showRiskModal(risksData.find((r) => r.id === id)); }
+
+function showRiskModal(r) {
+  const isEdit = !!r;
+  const IMPACTS = ['Alto', 'Médio', 'Baixo'];
+  const PROBS   = ['Alta', 'Média', 'Baixa'];
+  const STATS   = ['Ativo', 'Mitigado', 'Encerrado'];
+  document.getElementById('modalSlot').innerHTML = `
+    <div class="modal-bg">
+      <div class="modal">
+        <h2>${isEdit ? 'Editar risco' : 'Novo risco'}</h2>
+        <div class="field"><label>Descrição *</label><textarea id="rDesc" rows="2">${esc(r?.description || '')}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+          <div class="field"><label>Impacto</label>
+            <select id="rImpact">${IMPACTS.map((i) => `<option ${(r?.impact||'Médio')===i?'selected':''}>${i}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Probabilidade</label>
+            <select id="rProb">${PROBS.map((p) => `<option ${(r?.probability||'Média')===p?'selected':''}>${p}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Status</label>
+            <select id="rStatus">${STATS.map((s) => `<option ${(r?.status||'Ativo')===s?'selected':''}>${s}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div class="field"><label>Plano de ação</label><textarea id="rPlan" rows="2">${esc(r?.action_plan || '')}</textarea></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" id="rSaveBtn">Salvar</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('rSaveBtn').addEventListener('click', async () => {
+    const description = document.getElementById('rDesc').value.trim();
+    if (!description) { toast('Informe a descrição.'); return; }
+    const body = {
+      description,
+      impact:      document.getElementById('rImpact').value,
+      probability: document.getElementById('rProb').value,
+      status:      document.getElementById('rStatus').value,
+      action_plan: document.getElementById('rPlan').value.trim() || null,
+    };
+    try {
+      if (isEdit) await Api.put(`/api/events/${eventId}/risks/${r.id}`, body);
+      else        await Api.post(`/api/events/${eventId}/risks`, body);
+      closeModal();
+      toast('Risco salvo.');
+      await loadOperational();
+    } catch (e) { toast(e.message); }
+  });
+}
+
+async function deleteRisk(id) {
+  if (!confirm('Remover este risco?')) return;
+  await Api.del(`/api/events/${eventId}/risks/${id}`);
+  await loadOperational();
+}
+
+// ── Centro de Decisões ───────────────────────────────────────────────────────
+function renderDecisions(rows) {
+  decisionsData = rows || [];
+  document.getElementById('decisionsTotal').textContent = `${decisionsData.length} decisão(ões)`;
+
+  const el = document.getElementById('decisionsList');
+  if (!decisionsData.length) { el.innerHTML = '<p class="muted">Nenhuma decisão registrada.</p>'; return; }
+  el.innerHTML = decisionsData.map((d) => `
+    <div class="diary-entry" style="padding:16px 0">
+      <div class="diary-meta">
+        ${d.decision_date ? `<strong>${fmtDateBR(d.decision_date)}</strong> · ` : ''}
+        ${d.approver ? `Aprovado por <strong>${esc(d.approver)}</strong> · ` : ''}
+        Registrado em ${fmtDateTimeBR(d.created_at)}
+      </div>
+      <div style="margin:8px 0;font-size:15px;font-weight:500">${esc(d.decision)}</div>
+      ${d.reason ? `<div style="font-size:13px;color:var(--muted)">Justificativa: ${esc(d.reason)}</div>` : ''}
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="openEditDecision(${d.id})">Editar</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteDecision(${d.id})">Remover</button>
+      </div>
+    </div>`).join('');
+}
+
+function openAddDecision() { showDecisionModal(null); }
+function openEditDecision(id) { showDecisionModal(decisionsData.find((d) => d.id === id)); }
+
+function showDecisionModal(dec) {
+  const isEdit = !!dec;
+  document.getElementById('modalSlot').innerHTML = `
+    <div class="modal-bg">
+      <div class="modal">
+        <h2>${isEdit ? 'Editar decisão' : 'Nova decisão'}</h2>
+        <div class="field"><label>Data da decisão</label><input type="date" id="dDate" value="${dec?.decision_date || ''}" /></div>
+        <div class="field"><label>Decisão *</label><textarea id="dDecision" rows="3">${esc(dec?.decision || '')}</textarea></div>
+        <div class="field"><label>Justificativa</label><textarea id="dReason" rows="2">${esc(dec?.reason || '')}</textarea></div>
+        <div class="field"><label>Aprovado por</label><input type="text" id="dApprover" value="${esc(dec?.approver || '')}" /></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" id="dSaveBtn">Salvar</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('dSaveBtn').addEventListener('click', async () => {
+    const decision = document.getElementById('dDecision').value.trim();
+    if (!decision) { toast('Informe a decisão.'); return; }
+    const body = {
+      decision_date: document.getElementById('dDate').value || null,
+      decision,
+      reason:   document.getElementById('dReason').value.trim() || null,
+      approver: document.getElementById('dApprover').value.trim() || null,
+    };
+    try {
+      if (isEdit) await Api.put(`/api/events/${eventId}/decisions/${dec.id}`, body);
+      else        await Api.post(`/api/events/${eventId}/decisions`, body);
+      closeModal();
+      toast('Decisão salva.');
+      await loadOperational();
+    } catch (e) { toast(e.message); }
+  });
+}
+
+async function deleteDecision(id) {
+  if (!confirm('Remover esta decisão?')) return;
+  await Api.del(`/api/events/${eventId}/decisions/${id}`);
+  await loadOperational();
+}
+
+// ── Centro de Crises ─────────────────────────────────────────────────────────
+function crisisImpactPill(i) {
+  const m = { 'Alto': 'pill-no', 'Médio': 'pill-active', 'Baixo': '' };
+  return `<span class="pill ${m[i] || ''}">${esc(i)}</span>`;
+}
+function crisisStatusPill(s) {
+  const m = { 'Aberta': 'pill-no', 'Em tratamento': 'pill-active', 'Resolvida': 'pill-ok' };
+  return `<span class="pill ${m[s] || ''}">${esc(s)}</span>`;
+}
+
+function renderCrises(rows) {
+  crisesData = rows || [];
+  const open  = crisesData.filter((c) => c.status !== 'Resolvida').length;
+  const badge = document.getElementById('crisesCount');
+  if (open > 0) { badge.textContent = open; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+  document.getElementById('crisesTotal').innerHTML = `${crisesData.length} ocorrência(s)${open ? ` · <span style="color:var(--danger)">${open} em aberto</span>` : ''}`;
+
+  const el = document.getElementById('crisesList');
+  if (!crisesData.length) { el.innerHTML = '<p class="muted">Nenhuma ocorrência registrada.</p>'; return; }
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr><th>Data/Hora</th><th>Descrição</th><th>Impacto</th><th>Ação tomada</th><th>Responsável</th><th>Status</th><th></th></tr></thead>
+    <tbody>${crisesData.map((c) => `<tr>
+      <td class="muted" style="font-size:12px;white-space:nowrap">${c.occurred_at ? fmtDateTimeBR(c.occurred_at) : '—'}</td>
+      <td><strong>${esc(c.description)}</strong></td>
+      <td>${crisisImpactPill(c.impact)}</td>
+      <td class="muted" style="font-size:13px;max-width:200px">${esc(c.action_taken || '—')}</td>
+      <td>${esc(c.responsible || '—')}</td>
+      <td>${crisisStatusPill(c.status)}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-ghost btn-sm" onclick="openEditCrisis(${c.id})">Editar</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteCrisis(${c.id})">Remover</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function openAddCrisis() { showCrisisModal(null); }
+function openEditCrisis(id) { showCrisisModal(crisesData.find((c) => c.id === id)); }
+
+function showCrisisModal(cr) {
+  const isEdit = !!cr;
+  const IMPACTS  = ['Alto', 'Médio', 'Baixo'];
+  const STATUSES = ['Aberta', 'Em tratamento', 'Resolvida'];
+  // Datetime local for input[type=datetime-local]
+  const dtVal = cr?.occurred_at ? cr.occurred_at.replace(' ', 'T').slice(0, 16) : '';
+  document.getElementById('modalSlot').innerHTML = `
+    <div class="modal-bg">
+      <div class="modal">
+        <h2>${isEdit ? 'Editar ocorrência' : 'Nova ocorrência'}</h2>
+        <div class="field"><label>Data/Hora da ocorrência</label><input type="datetime-local" id="crAt" value="${dtVal}" /></div>
+        <div class="field"><label>Descrição *</label><textarea id="crDesc" rows="2">${esc(cr?.description || '')}</textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field"><label>Impacto</label>
+            <select id="crImpact">${IMPACTS.map((i) => `<option ${(cr?.impact||'Médio')===i?'selected':''}>${i}</option>`).join('')}</select>
+          </div>
+          <div class="field"><label>Status</label>
+            <select id="crStatus">${STATUSES.map((s) => `<option ${(cr?.status||'Aberta')===s?'selected':''}>${s}</option>`).join('')}</select>
+          </div>
+        </div>
+        <div class="field"><label>Ação tomada</label><textarea id="crAction" rows="2">${esc(cr?.action_taken || '')}</textarea></div>
+        <div class="field"><label>Responsável</label><input type="text" id="crResp" value="${esc(cr?.responsible || '')}" /></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" id="crSaveBtn">Salvar</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('crSaveBtn').addEventListener('click', async () => {
+    const description = document.getElementById('crDesc').value.trim();
+    if (!description) { toast('Informe a descrição.'); return; }
+    const rawDt = document.getElementById('crAt').value;
+    const body = {
+      occurred_at:  rawDt ? rawDt.replace('T', ' ') : null,
+      description,
+      impact:       document.getElementById('crImpact').value,
+      action_taken: document.getElementById('crAction').value.trim() || null,
+      responsible:  document.getElementById('crResp').value.trim() || null,
+      status:       document.getElementById('crStatus').value,
+    };
+    try {
+      if (isEdit) await Api.put(`/api/events/${eventId}/crises/${cr.id}`, body);
+      else        await Api.post(`/api/events/${eventId}/crises`, body);
+      closeModal();
+      toast('Ocorrência salva.');
+      await loadOperational();
+    } catch (e) { toast(e.message); }
+  });
+}
+
+async function deleteCrisis(id) {
+  if (!confirm('Remover esta ocorrência?')) return;
+  await Api.del(`/api/events/${eventId}/crises/${id}`);
+  await loadOperational();
+}
+
+// ── Carregar dados operacionais do Lote B ────────────────────────────────────
+async function loadOperational() {
+  const [approvals, risks, decisions, crises] = await Promise.all([
+    Api.get(`/api/events/${eventId}/approvals`),
+    Api.get(`/api/events/${eventId}/risks`),
+    Api.get(`/api/events/${eventId}/decisions`),
+    Api.get(`/api/events/${eventId}/crises`),
+  ]);
+  renderApprovals(approvals);
+  renderRisks(risks);
+  renderDecisions(decisions);
+  renderCrises(crises);
+}
+
+// Botões do Lote B
+document.getElementById('addApprovalBtn').addEventListener('click', openAddApproval);
+document.getElementById('addRiskBtn').addEventListener('click', openAddRisk);
+document.getElementById('addDecisionBtn').addEventListener('click', openAddDecision);
+document.getElementById('addCrisisBtn').addEventListener('click', openAddCrisis);
+
 load().catch(console.error);
+loadOperational().catch(console.error);

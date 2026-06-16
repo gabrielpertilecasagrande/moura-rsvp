@@ -59,6 +59,10 @@
         <button class="active" data-tab="overview">Visão Geral</button>
         <button data-tab="contracts">Contratações <span id="contractsCount" class="nav-badge hidden"></span></button>
         <button data-tab="checklist">Checklist <span id="checklistCount" class="nav-badge hidden"></span></button>
+        <button data-tab="approvals">Aprovações <span id="approvalsCount" class="nav-badge hidden"></span></button>
+        <button data-tab="risks">Riscos <span id="risksCount" class="nav-badge hidden"></span></button>
+        <button data-tab="decisions">Decisões</button>
+        <button data-tab="crises">Crises <span id="crisesCount" class="nav-badge hidden"></span></button>
         <button data-tab="files">Arquivos</button>
         <button data-tab="diary">Diário</button>
         <button data-tab="timeline">Linha do tempo</button>
@@ -127,6 +131,42 @@
           </div>
         </div>
         <div id="checklistList"></div>
+      </div>
+
+      <!-- Aba: Aprovações -->
+      <div class="tab-pane" id="tab-approvals">
+        <div class="page-head" style="margin-bottom:16px">
+          <div id="approvalsTotal" class="muted" style="font-size:14px"></div>
+          <button class="btn btn-primary btn-sm" id="addApprovalBtn">+ Nova aprovação</button>
+        </div>
+        <div id="approvalsList"></div>
+      </div>
+
+      <!-- Aba: Riscos -->
+      <div class="tab-pane" id="tab-risks">
+        <div class="page-head" style="margin-bottom:16px">
+          <div id="risksTotal" class="muted" style="font-size:14px"></div>
+          <button class="btn btn-primary btn-sm" id="addRiskBtn">+ Novo risco</button>
+        </div>
+        <div id="risksList"></div>
+      </div>
+
+      <!-- Aba: Decisões -->
+      <div class="tab-pane" id="tab-decisions">
+        <div class="page-head" style="margin-bottom:16px">
+          <div id="decisionsTotal" class="muted" style="font-size:14px"></div>
+          <button class="btn btn-primary btn-sm" id="addDecisionBtn">+ Nova decisão</button>
+        </div>
+        <div id="decisionsList"></div>
+      </div>
+
+      <!-- Aba: Crises -->
+      <div class="tab-pane" id="tab-crises">
+        <div class="page-head" style="margin-bottom:16px">
+          <div id="crisesTotal" class="muted" style="font-size:14px"></div>
+          <button class="btn btn-primary btn-sm" id="addCrisisBtn">+ Nova ocorrência</button>
+        </div>
+        <div id="crisesList"></div>
       </div>
 
       <!-- Aba: Arquivos -->
