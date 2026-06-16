@@ -24,8 +24,13 @@ function statusPill(s) {
   return `<span class="pill ${map[s] || ''}">${esc(s)}</span>`;
 }
 function contractStatusPill(s) {
-  const map = { 'Em negociação': '', 'Aprovado': 'pill-ok', 'Recusado': 'pill-no', 'Cancelado': '' };
+  const map = { 'Em negociação': '', 'Aguardando aprovação': 'pill-active', 'Aprovado': 'pill-ok', 'Contratado': 'pill-ok', 'Recusado': 'pill-no', 'Cancelado': '' };
   return `<span class="pill ${map[s] || ''}">${esc(s)}</span>`;
+}
+function priorityPill(p) {
+  const map = { 'Baixa': '', 'Média': 'pill-active', 'Alta': '', 'Crítica': 'pill-no' };
+  const colors = { 'Alta': 'background:#f97316;color:#fff', 'Baixa': '' };
+  return `<span class="pill ${map[p] || ''}" style="${colors[p] || ''}">${esc(p || 'Média')}</span>`;
 }
 function paymentPill(s) {
   const map = { 'Pendente': 'pill-no', 'Parcial': '', 'Pago': 'pill-ok' };
@@ -121,7 +126,7 @@ function renderContracts(contracts, total) {
 
   const body = document.getElementById('contractsBody');
   if (!count) {
-    body.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Nenhuma contratação ainda.</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma contratação ainda.</td></tr>';
     return;
   }
   body.innerHTML = contracts.map((c) => `<tr class="contract-row">
@@ -130,6 +135,7 @@ function renderContracts(contracts, total) {
     <td style="white-space:nowrap">${fmtMoney(c.value)}</td>
     <td>${contractStatusPill(c.status)}</td>
     <td>${paymentPill(c.payment_status)}</td>
+    <td class="muted" style="font-size:12px">${c.payment_due_date ? '📅 ' + fmtDateBR(c.payment_due_date) : '—'}</td>
     <td class="muted" style="font-size:13px">${esc(c.notes || '—')}</td>
     <td style="white-space:nowrap">
       <button class="btn btn-ghost btn-sm" onclick="openEditContract(${c.id})">Editar</button>
@@ -139,40 +145,89 @@ function renderContracts(contracts, total) {
 }
 
 // ── Checklist ─────────────────────────────────────────────────────────────────
-function renderChecklist(tasks, filter) {
+let checklistFilters = { status: '', priority: '', responsible: '' };
+
+function renderChecklist(tasks) {
   const open = tasks?.filter((t) => t.status !== 'Concluído').length || 0;
   const badge = document.getElementById('checklistCount');
   if (open > 0) { badge.textContent = open; badge.classList.remove('hidden'); }
   else badge.classList.add('hidden');
 
-  const filtered = filter ? tasks?.filter((t) => t.status === filter) : tasks;
+  let filtered = tasks || [];
+  if (checklistFilters.status)      filtered = filtered.filter((t) => t.status === checklistFilters.status);
+  if (checklistFilters.priority)    filtered = filtered.filter((t) => (t.priority || 'Média') === checklistFilters.priority);
+  if (checklistFilters.responsible) filtered = filtered.filter((t) => (t.responsible || '').toLowerCase().includes(checklistFilters.responsible.toLowerCase()));
+
   const el = document.getElementById('checklistList');
-  if (!filtered?.length) {
+  if (!filtered.length) {
     el.innerHTML = '<p class="muted">Nenhuma tarefa encontrada.</p>';
     return;
   }
-  el.innerHTML = filtered.map((t) => `
+  const today = new Date().toISOString().slice(0, 10);
+  el.innerHTML = filtered.map((t) => {
+    const overdue = t.due_date && t.due_date < today && t.status !== 'Concluído';
+    return `
     <div class="checklist-item ${t.status === 'Concluído' ? 'done' : ''}" data-id="${t.id}">
       <input type="checkbox" class="checklist-check" ${t.status === 'Concluído' ? 'checked' : ''} onchange="toggleTask(${t.id}, this.checked)" />
-      <div class="checklist-info">
+      <div class="checklist-info" style="flex:1">
         <div class="checklist-title">${esc(t.title)}</div>
-        <div class="checklist-meta">
-          ${t.responsible ? `<span>👤 ${esc(t.responsible)}</span>` : ''}
-          ${t.due_date ? `<span style="margin-left:8px">📅 ${fmtDateBR(t.due_date)}</span>` : ''}
-          <span style="margin-left:8px">${taskStatusPill(t.status)}</span>
+        <div class="checklist-meta" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px">
+          ${priorityPill(t.priority || 'Média')}
+          ${t.responsible ? `<span class="pill">👤 ${esc(t.responsible)}</span>` : ''}
+          ${t.due_date ? `<span class="pill ${overdue ? 'pill-no' : ''}">📅 ${fmtDateBR(t.due_date)}${overdue ? ' ⚠️' : ''}</span>` : ''}
+          ${taskStatusPill(t.status)}
         </div>
       </div>
       <div style="display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="openTaskComments(${t.id})">💬</button>
         <button class="btn btn-ghost btn-sm" onclick="openEditTask(${t.id})">Editar</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteTask(${t.id})">✕</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 document.getElementById('checklistFilter').addEventListener('change', (e) => {
-  renderChecklist(eventData?.checklist, e.target.value);
+  checklistFilters.status = e.target.value;
+  renderChecklist(eventData?.checklist);
 });
+
+async function openTaskComments(tid) {
+  const task = eventData.checklist.find((t) => t.id === tid);
+  if (!task) return;
+  const comments = await Api.get(`/api/events/${eventId}/checklist/${tid}/comments`);
+  document.getElementById('modalSlot').innerHTML = `
+    <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+      <div class="modal" style="max-width:520px">
+        <h3 style="margin-bottom:4px;font-size:16px">${esc(task.title)}</h3>
+        <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Comentários da tarefa</div>
+        <div id="commentsList" style="max-height:260px;overflow-y:auto;margin-bottom:16px">
+          ${comments.length ? comments.map((c) => `
+            <div style="padding:10px;background:var(--off-white);border-radius:6px;margin-bottom:8px">
+              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <strong style="font-size:13px">${esc(c.author || '?')}</strong>
+                <span style="font-size:12px;color:var(--muted)">${fmtDateTimeBR(c.created_at)}</span>
+              </div>
+              <div style="font-size:14px">${esc(c.comment)}</div>
+            </div>`).join('') : '<p class="muted">Nenhum comentário ainda.</p>'}
+        </div>
+        <textarea id="newComment" placeholder="Escreva um comentário..." style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:70px;margin-bottom:12px"></textarea>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="closeModal()">Fechar</button>
+          <button class="btn btn-primary btn-sm" onclick="saveComment(${tid})">Comentar</button>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function saveComment(tid) {
+  const comment = document.getElementById('newComment').value.trim();
+  if (!comment) { toast('Escreva um comentário.'); return; }
+  await Api.post(`/api/events/${eventId}/checklist/${tid}/comments`, { comment });
+  closeModal();
+  await load();
+  toast('Comentário adicionado.');
+}
 
 async function toggleTask(tid, checked) {
   const status = checked ? 'Concluído' : 'Pendente';
@@ -294,6 +349,8 @@ function showContractModal(contract, suppliers) {
     `<option value="${s.id}" ${contract?.supplier_id === s.id ? 'selected' : ''}>${esc(s.company)}${s.category ? ' (' + esc(s.category) + ')' : ''}</option>`
   ).join('');
 
+  const CONTRACT_STATUSES = ['Em negociação','Aguardando aprovação','Aprovado','Contratado','Recusado','Cancelado'];
+
   document.getElementById('modalSlot').innerHTML = `
     <div class="modal-bg" id="contractModal">
       <div class="modal">
@@ -303,7 +360,7 @@ function showContractModal(contract, suppliers) {
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
           <div class="field"><label>Status</label>
             <select id="mStatus">
-              ${['Em negociação','Aprovado','Recusado','Cancelado'].map((s) => `<option ${contract?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+              ${CONTRACT_STATUSES.map((s) => `<option ${contract?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
           </div>
           <div class="field"><label>Pagamento</label>
@@ -311,6 +368,11 @@ function showContractModal(contract, suppliers) {
               ${['Pendente','Parcial','Pago'].map((s) => `<option ${contract?.payment_status === s ? 'selected' : ''}>${s}</option>`).join('')}
             </select>
           </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
+          <div class="field"><label>Data da contratação</label><input type="date" id="mContractDate" value="${contract?.contract_date || ''}" /></div>
+          <div class="field"><label>Previsão de pagamento</label><input type="date" id="mPaymentDue" value="${contract?.payment_due_date || ''}" /></div>
+          <div class="field"><label>Data de pagamento</label><input type="date" id="mPaymentDate" value="${contract?.payment_date || ''}" /></div>
         </div>
         <div class="field"><label>Observações</label><textarea id="mNotes" rows="2">${esc(contract?.notes || '')}</textarea></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
@@ -322,10 +384,13 @@ function showContractModal(contract, suppliers) {
 
   document.getElementById('mSaveBtn').addEventListener('click', async () => {
     const body = {
-      value:          document.getElementById('mValue').value || null,
-      status:         document.getElementById('mStatus').value,
-      payment_status: document.getElementById('mPayment').value,
-      notes:          document.getElementById('mNotes').value.trim() || null,
+      value:            document.getElementById('mValue').value || null,
+      status:           document.getElementById('mStatus').value,
+      payment_status:   document.getElementById('mPayment').value,
+      contract_date:    document.getElementById('mContractDate').value || null,
+      payment_due_date: document.getElementById('mPaymentDue').value || null,
+      payment_date:     document.getElementById('mPaymentDate').value || null,
+      notes:            document.getElementById('mNotes').value.trim() || null,
     };
     if (!isEdit) body.supplier_id = document.getElementById('mSupplier').value;
     if (!isEdit && !body.supplier_id) { toast('Selecione um fornecedor.'); return; }
@@ -361,10 +426,17 @@ function showTaskModal(task) {
           <div class="field"><label>Responsável</label><input type="text" id="tResp" value="${esc(task?.responsible || '')}" /></div>
           <div class="field"><label>Prazo</label><input type="date" id="tDate" value="${task?.due_date || ''}" /></div>
         </div>
-        <div class="field"><label>Status</label>
-          <select id="tStatus">
-            ${['Pendente','Em andamento','Concluído'].map((s) => `<option ${task?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
-          </select>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field"><label>Status</label>
+            <select id="tStatus">
+              ${['Pendente','Em andamento','Concluído'].map((s) => `<option ${task?.status === s ? 'selected' : ''}>${s}</option>`).join('')}
+            </select>
+          </div>
+          <div class="field"><label>Prioridade</label>
+            <select id="tPriority">
+              ${['Baixa','Média','Alta','Crítica'].map((p) => `<option ${(task?.priority || 'Média') === p ? 'selected' : ''}>${p}</option>`).join('')}
+            </select>
+          </div>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
           <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -381,6 +453,7 @@ function showTaskModal(task) {
       responsible: document.getElementById('tResp').value.trim() || null,
       due_date:    document.getElementById('tDate').value || null,
       status:      document.getElementById('tStatus').value,
+      priority:    document.getElementById('tPriority').value,
     };
     try {
       if (isEdit) await Api.put(`/api/events/${eventId}/checklist/${task.id}`, body);

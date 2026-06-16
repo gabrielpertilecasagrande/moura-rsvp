@@ -7,8 +7,8 @@ const { logActivity } = require('../utils/activity');
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
 
-const CONTRACT_STATUS  = ['Em negociação', 'Aprovado', 'Recusado', 'Cancelado'];
-const PAYMENT_STATUS   = ['Pendente', 'Parcial', 'Pago'];
+const CONTRACT_STATUS = ['Em negociação', 'Aguardando aprovação', 'Aprovado', 'Contratado', 'Recusado', 'Cancelado'];
+const PAYMENT_STATUS  = ['Pendente', 'Parcial', 'Pago'];
 
 function getEvent(id) {
   return db.prepare('SELECT * FROM events WHERE id = ?').get(Number(id));
@@ -36,19 +36,22 @@ router.post('/', requirePerm('can_contracts'), (req, res) => {
   const supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(Number(b.supplier_id));
   if (!supplier) return res.status(404).json({ error: 'Fornecedor não encontrado.' });
 
-  const status  = CONTRACT_STATUS.includes(b.status)   ? b.status  : 'Em negociação';
+  const status  = CONTRACT_STATUS.includes(b.status)        ? b.status         : 'Em negociação';
   const payment = PAYMENT_STATUS.includes(b.payment_status) ? b.payment_status : 'Pendente';
 
   const info = db.prepare(
-    `INSERT INTO contracts (event_id, supplier_id, value, status, payment_status, notes)
-     VALUES (?, ?, ?, ?, ?, ?)`
+    `INSERT INTO contracts (event_id, supplier_id, value, status, payment_status, notes, contract_date, payment_due_date, payment_date)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     eventId,
     supplier.id,
     b.value != null ? Number(b.value) : null,
     status,
     payment,
-    b.notes ? String(b.notes).trim() : null
+    b.notes             ? String(b.notes).trim() : null,
+    b.contract_date     || null,
+    b.payment_due_date  || null,
+    b.payment_date      || null
   );
 
   const contract = db.prepare(
@@ -68,14 +71,17 @@ router.put('/:cid', requirePerm('can_contracts'), (req, res) => {
   if (!c) return res.status(404).json({ error: 'Contratação não encontrada.' });
 
   const b = req.body || {};
-  const status  = CONTRACT_STATUS.includes(b.status)       ? b.status         : c.status;
-  const payment = PAYMENT_STATUS.includes(b.payment_status) ? b.payment_status : c.payment_status;
-  const value   = b.value != null ? Number(b.value) : c.value;
-  const notes   = b.notes != null ? (String(b.notes).trim() || null) : c.notes;
+  const status           = CONTRACT_STATUS.includes(b.status)        ? b.status         : c.status;
+  const payment          = PAYMENT_STATUS.includes(b.payment_status) ? b.payment_status : c.payment_status;
+  const value            = b.value            != null ? Number(b.value)                  : c.value;
+  const notes            = b.notes            != null ? (String(b.notes).trim() || null) : c.notes;
+  const contract_date    = b.contract_date    != null ? (b.contract_date    || null)     : c.contract_date;
+  const payment_due_date = b.payment_due_date != null ? (b.payment_due_date || null)     : c.payment_due_date;
+  const payment_date     = b.payment_date     != null ? (b.payment_date     || null)     : c.payment_date;
 
   db.prepare(
-    `UPDATE contracts SET value=?, status=?, payment_status=?, notes=?, updated_at=datetime('now') WHERE id=?`
-  ).run(value, status, payment, notes, cid);
+    `UPDATE contracts SET value=?, status=?, payment_status=?, notes=?, contract_date=?, payment_due_date=?, payment_date=?, updated_at=datetime('now') WHERE id=?`
+  ).run(value, status, payment, notes, contract_date, payment_due_date, payment_date, cid);
 
   const updated = db.prepare(
     `SELECT c.*, s.company, s.category FROM contracts c JOIN suppliers s ON s.id = c.supplier_id WHERE c.id = ?`

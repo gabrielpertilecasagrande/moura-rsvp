@@ -35,6 +35,22 @@ function addColumn(table, column, definition) {
   }
 }
 
-// Migrations idempotentes aqui conforme o sistema evolui
+// Migrations idempotentes
+addColumn('checklist', 'priority', "TEXT NOT NULL DEFAULT 'Média'");
+addColumn('contracts', 'contract_date', 'TEXT');
+addColumn('contracts', 'payment_due_date', 'TEXT');
+addColumn('contracts', 'payment_date', 'TEXT');
+
+// Tabela de comentários do checklist
+db.exec(`
+  CREATE TABLE IF NOT EXISTS checklist_comments (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id    INTEGER NOT NULL REFERENCES checklist(id) ON DELETE CASCADE,
+    author     TEXT,
+    comment    TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_checklist_comments_task ON checklist_comments(task_id);
+`);
 
 module.exports = db;
