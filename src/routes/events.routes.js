@@ -1,13 +1,14 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 const multer = require('multer');
 const QRCode = require('qrcode');
 const PDFDocument = require('pdfkit');
 const { PNG } = require('pngjs');
 const jpeg = require('jpeg-js');
 const db = require('../db');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, SECRET } = require('../middleware/auth');
 const { uniqueSlug, slugify } = require('../utils/slug');
 const { logActivity } = require('../utils/activity');
 const { parseFormConfig } = require('../utils/formConfig');
@@ -16,7 +17,65 @@ const {
 } = require('../utils/permissions');
 
 const router = express.Router();
-router.use(requireAuth); // todas as rotas deste arquivo exigem login
+
+// ── GET /api/events/:id/metrics — métricas de confirmações do evento ──────────
+// Aceita DOIS modos de autenticação:
+//  1) Service token do Moura One: JWT { email, target:'rsvp' } assinado com o
+//     segredo compartilhado (mesmo formato do handshake SSO). É uma chamada
+//     máquina-a-máquina: o Moura One já validou a posse do evento
+//     (canViewExternalEvent) antes de chamar, e o segredo compartilhado prova a
+//     origem confiável. Mais restrito que provision-event/sync-user (que aceitam
+//     o próprio segredo como bearer), pois aqui é somente leitura.
+//  2) Sessão normal de usuário do RSVP, exigindo permissão can_view no evento.
+//
+// Fica ANTES do `router.use(requireAuth)` de propósito: o requireAuth recusa
+// qualquer token com o claim `target` (regra do SSO), então um service token
+// nunca chegaria aqui se passasse por ele. Para não regredir a segurança, o
+// caminho de sessão normal abaixo reaplica requireAuth + requirePerm.
+function metricsAuth(req, res, next) {
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+  if (token) {
+    try {
+      const payload = jwt.verify(token, SECRET);
+      if (payload && payload.target === 'rsvp') {
+        req.serviceCall = true; // chamada de integração (Moura One)
+        return next();
+      }
+    } catch { /* assinatura inválida/expirada → cai para a sessão normal abaixo */ }
+  }
+  // Sem service token válido: trata como sessão de usuário (mesmo fluxo das
+  // demais rotas) e exige permissão de visualização no evento.
+  return requireAuth(req, res, () => requirePerm('can_view')(req, res, next));
+}
+
+router.get('/:id/metrics', metricsAuth, (req, res) => {
+  const e = db.prepare('SELECT id, name, expected_guests FROM events WHERE id = ?').get(req.params.id);
+  if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const row = db.prepare(`
+    SELECT
+      COUNT(*) AS total_responses,
+      SUM(CASE WHEN response = 'confirmado' THEN 1 ELSE 0 END) AS confirmed,
+      SUM(CASE WHEN response = 'recusado'   THEN 1 ELSE 0 END) AS declined
+    FROM participants WHERE event_id = ?
+  `).get(e.id);
+  const confirmed = Number(row.confirmed || 0);
+  const declined  = Number(row.declined  || 0);
+  const total     = Number(row.total_responses || 0);
+  const expected  = Number(e.expected_guests || 0);
+  // "Pendentes" = convidados esperados ainda sem resposta (nunca negativo).
+  const pending = expected > 0 ? Math.max(0, expected - confirmed - declined) : 0;
+  res.json({
+    event_id: e.id,
+    confirmed,
+    declined,
+    pending,
+    total_responses: total,
+    expected_guests: expected,
+  });
+});
+
+router.use(requireAuth); // todas as rotas abaixo exigem login
 
 // ---- Upload de imagens (capa + logo do cliente) ----
 // Uploads: se DATA_DIR estiver definido (volume Railway), salva lá dentro.
