@@ -25,6 +25,7 @@ function renderShell(active) {
     item('/admin/command.html', 'command', 'Central de Comando'),
     item('/admin/dashboard.html', 'dashboard', 'Dashboard'),
     item('/admin/events.html', 'events', 'Eventos'),
+    item('/admin/history.html', 'history', 'Histórico'),
     item('/admin/calendar.html', 'calendar', 'Calendário'),
     item('/admin/team.html', 'team', 'Equipe'),
     item('/admin/clients.html', 'clients', 'Clientes'),

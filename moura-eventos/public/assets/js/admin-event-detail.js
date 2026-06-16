@@ -1336,20 +1336,111 @@ function exportPostReportPdf() {
 document.getElementById('savePostReportBtn')?.addEventListener('click', savePostReport);
 document.getElementById('exportPostReportPdfBtn')?.addEventListener('click', exportPostReportPdf);
 
-// ── Carregar dados operacionais do Lote B ────────────────────────────────────
+// ── Eventos Relacionados (Lote D) ────────────────────────────────────────────
+function relStatusPill(s) {
+  const map = { 'Planejamento': '', 'Contratação': 'pill-active', 'Produção': 'pill-ok', 'Evento realizado': 'pill-ok', 'Encerrado': '' };
+  return `<span class="pill ${map[s] || ''}">${esc(s)}</span>`;
+}
+
+function renderRelated(rows) {
+  const el = document.getElementById('relatedCard');
+  if (!el) return;
+  const canEdit = canEditEvent();
+  const list = (rows && rows.length)
+    ? rows.map((e) => `<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--gray-soft)">
+        <div style="flex:1;min-width:0">
+          <a href="/admin/event-detail.html?id=${e.id}" style="font-weight:600">${esc(e.name)}</a>
+          <div class="muted" style="font-size:12px">${[e.client, e.event_date ? fmtDateBR(e.event_date) : null].filter(Boolean).map(esc).join(' · ')}</div>
+        </div>
+        ${relStatusPill(e.status)}
+        ${canEdit ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="unlinkRelated(${e.id})">Desvincular</button>` : ''}
+      </div>`).join('')
+    : '<p class="muted" style="font-size:13px;padding:6px 0">Nenhum evento vinculado. Útil para conectar edições anuais ou eventos da mesma série.</p>';
+
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:15px;font-weight:600">Eventos relacionados</div>
+      ${canEdit ? '<button class="btn btn-ghost btn-sm" id="linkEventBtn">+ Vincular evento</button>' : ''}
+    </div>
+    ${list}`;
+
+  const btn = document.getElementById('linkEventBtn');
+  if (btn) btn.addEventListener('click', openLinkEventModal);
+}
+
+async function openLinkEventModal() {
+  let events = [];
+  try { events = await Api.get('/api/events'); } catch { events = []; }
+  const linkedIds = new Set((relatedData || []).map((r) => r.id));
+  const candidates = events.filter((e) => e.id !== Number(eventId) && !linkedIds.has(e.id));
+
+  document.getElementById('modalSlot').innerHTML = `
+    <div class="modal-bg">
+      <div class="modal">
+        <h2>Vincular evento</h2>
+        <div class="field"><label>Buscar evento</label>
+          <input type="text" id="linkSearch" placeholder="Filtrar pela lista…" />
+        </div>
+        <div class="field"><label>Selecione</label>
+          <select id="linkSelect" size="8" style="width:100%">
+            ${candidates.map((e) => `<option value="${e.id}">${esc(e.name)}${e.event_date ? ' — ' + fmtDateBR(e.event_date) : ''}${e.client ? ' (' + esc(e.client) + ')' : ''}</option>`).join('')}
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" id="linkSaveBtn">Vincular</button>
+        </div>
+      </div>
+    </div>`;
+
+  const select = document.getElementById('linkSelect');
+  document.getElementById('linkSearch').addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase();
+    Array.from(select.options).forEach((o) => { o.hidden = !o.text.toLowerCase().includes(q); });
+  });
+  document.getElementById('linkSaveBtn').addEventListener('click', async () => {
+    const relId = Number(select.value);
+    if (!relId) { toast('Selecione um evento.'); return; }
+    try {
+      await Api.post(`/api/events/${eventId}/relations`, { related_event_id: relId });
+      closeModal();
+      toast('Evento vinculado.');
+      await loadOperational();
+    } catch (err) { toast(err.message); }
+  });
+}
+
+async function unlinkRelated(rid) {
+  if (!confirm('Desvincular este evento?')) return;
+  try {
+    await Api.del(`/api/events/${eventId}/relations/${rid}`);
+    toast('Vínculo removido.');
+    await loadOperational();
+  } catch (e) { toast(e.message); }
+}
+
+// Botão "Modo Dia do Evento"
+const dayBtn = document.getElementById('eventDayBtn');
+if (dayBtn) dayBtn.href = `/admin/event-day.html?id=${eventId}`;
+
+// ── Carregar dados operacionais (Lotes B, C e D) ─────────────────────────────
+let relatedData = [];
 async function loadOperational() {
-  const [approvals, risks, decisions, crises, prData] = await Promise.all([
+  const [approvals, risks, decisions, crises, prData, related] = await Promise.all([
     Api.get(`/api/events/${eventId}/approvals`),
     Api.get(`/api/events/${eventId}/risks`),
     Api.get(`/api/events/${eventId}/decisions`),
     Api.get(`/api/events/${eventId}/crises`),
     Api.get(`/api/events/${eventId}/post-report`),
+    Api.get(`/api/events/${eventId}/relations`),
   ]);
   renderApprovals(approvals);
   renderRisks(risks);
   renderDecisions(decisions);
   renderCrises(crises);
   renderPostReport(prData);
+  relatedData = related || [];
+  renderRelated(relatedData);
 }
 
 // Botões do Lote B

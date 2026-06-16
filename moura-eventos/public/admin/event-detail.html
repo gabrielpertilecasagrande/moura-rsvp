@@ -46,6 +46,7 @@
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <span id="eventStatusPill"></span>
           <a href="/admin/events.html" class="btn btn-ghost">← Eventos</a>
+          <a href="#" class="btn btn-primary btn-sm" id="eventDayBtn">🎯 Modo Dia do Evento</a>
           <button class="btn btn-ghost btn-sm" id="exportPdfBtn">⬇ Exportar PDF</button>
           <button class="btn btn-ghost btn-sm" id="duplicateBtn">Duplicar</button>
           <a href="#" class="btn btn-ghost btn-sm" id="editEventBtn">Editar</a>
@@ -72,6 +73,7 @@
       <!-- Aba: Visão Geral -->
       <div class="tab-pane active" id="tab-overview">
         <div class="card" id="overviewCard" style="max-width:680px"></div>
+        <div class="card" id="relatedCard" style="max-width:680px;margin-top:20px"></div>
       </div>
 
       <!-- Aba: Contratações -->

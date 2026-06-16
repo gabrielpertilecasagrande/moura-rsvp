@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Histórico de Eventos — Moura One</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+  <style>
+    .hist-stats { display:grid; grid-template-columns:repeat(auto-fill,minmax(160px,1fr)); gap:14px; margin:20px 0; }
+    .hist-stat { background:var(--white); border:1px solid var(--gray-soft); border-radius:var(--radius); padding:16px 20px; }
+    .hist-stat .n { font-size:24px; font-weight:700; color:var(--navy); }
+    .hist-stat .l { font-size:12px; color:var(--muted); margin-top:2px; }
+    .bench { background:var(--off-white); border-radius:var(--radius); padding:16px 20px; margin-bottom:24px; }
+    .bench h3 { font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-bottom:12px; }
+    .bench-row { display:flex; align-items:center; gap:12px; padding:8px 0; border-bottom:1px solid var(--gray-soft); font-size:14px; }
+    .bench-row:last-child { border-bottom:none; }
+    .bench-row .bt { flex:1; font-weight:500; }
+    .bench-row .bc { color:var(--muted); font-size:13px; min-width:70px; text-align:right; }
+    .bench-row .ba { font-weight:600; color:var(--navy); min-width:120px; text-align:right; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Memória institucional</div>
+          <h1>Histórico de Eventos</h1>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <input type="text" id="searchInput" placeholder="Buscar evento ou cliente…" style="padding:7px 12px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px;min-width:200px" />
+          <select id="typeFilter" style="padding:7px 12px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px">
+            <option value="">Todos os tipos</option>
+          </select>
+          <select id="yearFilter" style="padding:7px 12px;border:1px solid var(--gray-soft);border-radius:6px;font-size:13px">
+            <option value="">Todos os anos</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="hist-stats" id="histStats"></div>
+      <div class="bench" id="benchmark"></div>
+      <div id="histList"></div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-history.js"></script>
+</body>
+</html>

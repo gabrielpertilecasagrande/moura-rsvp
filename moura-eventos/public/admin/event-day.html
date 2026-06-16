@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dia do Evento — Moura One</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+  <style>
+    body { background:var(--off-white); }
+    .day-top { background:var(--navy-deep); color:#fff; padding:16px 20px; position:sticky; top:0; z-index:20; }
+    .day-top .row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .day-top h1 { font-size:20px; margin:0; color:#fff; }
+    .day-top .meta { font-size:13px; color:#9fb0d8; margin-top:4px; }
+    .day-top a.back { color:#9fb0d8; text-decoration:none; font-size:14px; }
+    .day-wrap { max-width:1100px; margin:0 auto; padding:20px; }
+    .day-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:20px; }
+    .day-card { background:var(--white); border:1px solid var(--gray-soft); border-radius:14px; padding:18px 20px; }
+    .day-card h2 { font-size:15px; text-transform:uppercase; letter-spacing:.04em; color:var(--navy); margin:0 0 14px; display:flex; justify-content:space-between; align-items:center; }
+    .day-card h2 .count { font-size:13px; color:var(--muted); font-weight:500; text-transform:none; letter-spacing:0; }
+    .dtask { display:flex; align-items:center; gap:14px; padding:14px 0; border-bottom:1px solid var(--gray-soft); }
+    .dtask:last-child { border-bottom:none; }
+    .dtask-check { width:28px; height:28px; min-width:28px; border-radius:8px; border:2px solid var(--gray); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:16px; color:#fff; background:#fff; transition:all .15s; }
+    .dtask.done .dtask-check { background:var(--cyan); border-color:var(--cyan); }
+    .dtask-title { flex:1; font-size:15px; font-weight:500; }
+    .dtask.done .dtask-title { text-decoration:line-through; color:var(--muted); }
+    .dtask-resp { font-size:12px; color:var(--muted); }
+    .contact { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid var(--gray-soft); }
+    .contact:last-child { border-bottom:none; }
+    .contact-info { flex:1; min-width:0; }
+    .contact-name { font-size:15px; font-weight:600; }
+    .contact-sub { font-size:12px; color:var(--muted); }
+    .contact-btns { display:flex; gap:8px; }
+    .cbtn { width:42px; height:42px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; text-decoration:none; border:1px solid var(--gray-soft); background:var(--off-white); }
+    .cbtn.wa { background:#25D366; color:#fff; border-color:#25D366; }
+    .occ-item { padding:12px 0; border-bottom:1px solid var(--gray-soft); }
+    .occ-item:last-child { border-bottom:none; }
+    .occ-meta { font-size:12px; color:var(--muted); margin-bottom:3px; }
+    .occ-desc { font-size:14px; }
+    .full { grid-column:1/-1; }
+    .empty { color:var(--muted); font-size:14px; padding:8px 0; }
+  </style>
+</head>
+<body>
+  <div class="day-top">
+    <div class="day-wrap" style="padding:0">
+      <a href="#" class="back" id="backLink">← Voltar ao evento</a>
+      <div class="row" style="margin-top:6px;justify-content:space-between">
+        <div>
+          <h1 id="evName">Carregando…</h1>
+          <div class="meta" id="evMeta"></div>
+        </div>
+        <span id="refreshSlot"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="day-wrap">
+    <div class="day-grid">
+      <!-- Checklist ao vivo -->
+      <div class="day-card">
+        <h2>Checklist ao vivo <span class="count" id="taskCount"></span></h2>
+        <div style="margin-bottom:10px">
+          <label style="font-size:13px;color:var(--muted);cursor:pointer">
+            <input type="checkbox" id="hideDone" /> Ocultar concluídas
+          </label>
+        </div>
+        <div id="dayChecklist"></div>
+      </div>
+
+      <!-- Contatos rápidos -->
+      <div class="day-card">
+        <h2>Contatos dos fornecedores <span class="count" id="contactCount"></span></h2>
+        <div id="dayContacts"></div>
+      </div>
+
+      <!-- Ocorrências -->
+      <div class="day-card full">
+        <h2>Ocorrências do dia <span class="count" id="occCount"></span></h2>
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <input type="text" id="occInput" placeholder="Registrar ocorrência rápida…" style="flex:1;min-width:200px;padding:10px 14px;border:1px solid var(--gray-soft);border-radius:10px;font-size:14px" />
+          <select id="occImpact" style="padding:10px 14px;border:1px solid var(--gray-soft);border-radius:10px;font-size:14px">
+            <option value="Baixo">Impacto baixo</option>
+            <option value="Médio" selected>Impacto médio</option>
+            <option value="Alto">Impacto alto</option>
+          </select>
+          <button class="btn btn-primary" id="occAddBtn">Registrar</button>
+        </div>
+        <div id="dayOccurrences"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-event-day.js"></script>
+</body>
+</html>

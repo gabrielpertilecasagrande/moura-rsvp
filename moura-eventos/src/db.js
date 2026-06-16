@@ -149,6 +149,19 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_knowledge_category ON knowledge_articles(category);
 `);
 
+// Lote D — Eventos Relacionados (vínculo entre eventos, ex.: edições anuais)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS event_relations (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id         INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    related_event_id INTEGER NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(event_id, related_event_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_relations_event   ON event_relations(event_id);
+  CREATE INDEX IF NOT EXISTS idx_relations_related ON event_relations(related_event_id);
+`);
+
 // Tabela de modelos de checklist por tipo de evento
 db.exec(`
   CREATE TABLE IF NOT EXISTS event_type_templates (
