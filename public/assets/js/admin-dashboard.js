@@ -1,170 +1,106 @@
 requireSession();
 mountShell('dashboard');
 
-// Operador não cria eventos: oculta o botão "Novo evento" do topo.
-if (!canCreateEvents()) document.getElementById('newEventBtn')?.remove();
-
-// Cor dinâmica para taxas: <50 vermelho, 50-79 laranja, 80+ verde.
-function rateTone(pct) { if (pct >= 80) return 'green'; if (pct >= 50) return 'amber'; return 'red'; }
-const ICO = {
-  cal: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
-  bolt: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9z"/></svg>',
-  check: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
-  x: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
-  clock: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
-  rate: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
+const STATUS_COLORS = {
+  'Planejamento': 'tone-gray',
+  'Contratação':  'tone-cyan',
+  'Produção':     'tone-navy',
+  'Evento realizado': 'tone-cyan',
+  'Encerrado':    'tone-gray',
 };
-// Apenas indicadores de eventos no painel. As informações de confirmações/recusas
-// ficam exclusivamente na página de cada evento.
-const STAT_DEFS = [
-  { k: 'totalEvents', l: 'Total de eventos', tone: 'navy', ico: ICO.cal },
-  { k: 'activeEvents', l: 'Eventos ativos', tone: 'green', ico: ICO.bolt },
-];
 
-function statCard(d) {
-  const tip = d.tip ? `<span class="info-i" title="${d.tip}">i</span>` : '';
-  return `<div class="stat tone-${d.tone}">
-    <div class="stat-top"><span class="stat-ico">${d.ico || ''}</span><span class="l">${d.l}${tip}</span></div>
-    <div class="n">${d.n}</div>
-  </div>`;
+function fmtMoney(v) {
+  if (v == null) return '—';
+  return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-let ALL_EVENTS = [];
-let eventsTab = 'current'; // 'current' | 'past'
+async function load() {
+  const d = await Api.get('/api/dashboard');
 
-// Um evento é "passado/concluído" quando a data de realização já passou.
-function isPastEvent(e) {
-  if (!e.event_date) return false;
-  const end = new Date(`${e.event_date}T23:59:59`).getTime();
-  return Date.now() > end;
-}
+  // Stats
+  const byStatus = {};
+  (d.byStatus || []).forEach((r) => { byStatus[r.status] = r.n; });
+  const active = (byStatus['Planejamento'] || 0) + (byStatus['Contratação'] || 0) + (byStatus['Produção'] || 0);
 
-async function init() {
-  const s = await Api.get('/api/dashboard');
-  const cards = STAT_DEFS.map((d) => statCard({ ...d, n: s[d.k] ?? 0 }));
-  document.getElementById('stats').innerHTML = cards.join('');
+  document.getElementById('stats').innerHTML = `
+    <div class="stat tone-navy"><div class="stat-value">${d.totalEvents}</div><div class="stat-label">Total de Eventos</div></div>
+    <div class="stat tone-cyan"><div class="stat-value">${active}</div><div class="stat-label">Em Andamento</div></div>
+    <div class="stat tone-gray"><div class="stat-value">${d.totalSuppliers}</div><div class="stat-label">Fornecedores</div></div>
+    <div class="stat tone-red"><div class="stat-value">${d.overdueTasks || 0}</div><div class="stat-label">Tarefas Vencidas</div></div>
+    <div class="stat tone-gray"><div class="stat-value">${d.pendingContractsCount || 0}</div><div class="stat-label">Contratos Pendentes</div></div>
+    <div class="stat tone-red"><div class="stat-value">${fmtMoney(d.pendingPaymentsValue)}</div><div class="stat-label">Pagamentos Pendentes</div></div>
+  `;
 
-  ALL_EVENTS = await Api.get('/api/events');
-  renderEvents();
-}
+  // Próximos eventos
+  const upcomingEl = document.getElementById('upcomingEvents');
+  if (!d.upcomingEvents || d.upcomingEvents.length === 0) {
+    upcomingEl.innerHTML = '<p class="muted">Nenhum evento próximo.</p>';
+  } else {
+    upcomingEl.innerHTML = `<div class="table-wrap"><table><thead><tr>
+      <th>Evento</th><th>Cliente</th><th>Data</th><th>Status</th><th></th>
+    </tr></thead><tbody>
+    ${d.upcomingEvents.map((e) => `<tr>
+      <td><a href="/admin/event-detail.html?id=${e.id}" style="font-weight:500">${esc(e.name)}</a></td>
+      <td>${esc(e.client || '—')}</td>
+      <td>${e.event_date ? fmtDateBR(e.event_date) : '—'}</td>
+      <td><span class="pill ${statusPill(e.status)}">${esc(e.status)}</span></td>
+      <td><a href="/admin/event-detail.html?id=${e.id}" class="btn btn-ghost btn-sm">Ver</a></td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
+  }
 
-function renderEvents() {
-  const current = ALL_EVENTS.filter((e) => !isPastEvent(e));
-  const past = ALL_EVENTS.filter(isPastEvent);
-  const list = eventsTab === 'past' ? past : current;
-
-  // Abas de eventos atuais x passados/concluídos.
-  const tabs = document.getElementById('eventTabs');
-  tabs.innerHTML = `
-    <button data-tab="current" class="${eventsTab === 'current' ? 'active' : ''}">Eventos atuais (${current.length})</button>
-    <button data-tab="past" class="${eventsTab === 'past' ? 'active' : ''}">Eventos passados/concluídos (${past.length})</button>`;
-
-  const box = document.getElementById('events');
-  if (!ALL_EVENTS.length) {
-    box.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-      <div class="ico">📅</div>
-      <h3>${canCreateEvents() ? 'Nenhum evento cadastrado ainda.' : 'Você ainda não tem eventos liberados.'}</h3>
-      <p>${canCreateEvents() ? 'Clique em "Novo evento" para começar.' : 'Solicite a um administrador o acesso aos eventos.'}</p>
-      ${canCreateEvents() ? '<a href="/admin/event-form.html" class="btn btn-primary" style="margin-top:14px">+ Novo evento</a>' : ''}
+  // Eventos por status
+  const ALL_STATUS = ['Planejamento', 'Contratação', 'Produção', 'Evento realizado', 'Encerrado'];
+  document.getElementById('byStatus').innerHTML = ALL_STATUS.map((s) => {
+    const n = byStatus[s] || 0;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--gray-soft)">
+      <span class="pill ${statusPill(s)}" style="font-size:12px">${esc(s)}</span>
+      <strong style="font-size:18px">${n}</strong>
     </div>`;
-    return;
+  }).join('');
+
+  // Eventos recentes
+  const recentEl = document.getElementById('recentEvents');
+  if (!d.recentEvents || d.recentEvents.length === 0) {
+    recentEl.innerHTML = '<p class="muted">Nenhum evento ainda.</p>';
+  } else {
+    recentEl.innerHTML = `<div class="table-wrap"><table><thead><tr>
+      <th>Evento</th><th>Cliente</th><th>Data</th><th>Status</th><th></th>
+    </tr></thead><tbody>
+    ${d.recentEvents.map((e) => `<tr>
+      <td><a href="/admin/event-detail.html?id=${e.id}" style="font-weight:500">${esc(e.name)}</a></td>
+      <td>${esc(e.client || '—')}</td>
+      <td>${e.event_date ? fmtDateBR(e.event_date) : '—'}</td>
+      <td><span class="pill ${statusPill(e.status)}">${esc(e.status)}</span></td>
+      <td><a href="/admin/event-detail.html?id=${e.id}" class="btn btn-ghost btn-sm">Ver</a></td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
   }
-  if (!list.length) {
-    box.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="ico">🗂️</div>
-      <h3>${eventsTab === 'past' ? 'Nenhum evento passado por aqui.' : 'Nenhum evento em andamento.'}</h3></div>`;
-    return;
+
+  // Atividade recente
+  const actEl = document.getElementById('recentActivity');
+  if (!d.recentActivity || d.recentActivity.length === 0) {
+    actEl.innerHTML = '<p class="muted">Nenhuma atividade ainda.</p>';
+  } else {
+    actEl.innerHTML = `<div class="table-wrap"><table><thead><tr>
+      <th>Usuário</th><th>Ação</th><th>Detalhes</th><th>Quando</th>
+    </tr></thead><tbody>
+    ${d.recentActivity.map((a) => `<tr>
+      <td>${esc(a.actor || '—')}</td>
+      <td>${esc(a.action)}</td>
+      <td class="muted">${esc(a.details || '—')}</td>
+      <td class="muted" style="white-space:nowrap">${fmtDateTimeBR(a.created_at)}</td>
+    </tr>`).join('')}
+    </tbody></table></div>`;
   }
-  box.innerHTML = list.map(eventCard).join('');
+
+  document.getElementById('refreshSlot').innerHTML = '';
+  document.getElementById('refreshSlot').appendChild(refreshButton(load, 'Atualizar dashboard'));
 }
 
-function deadlineTag(e) {
-  if (e.status !== 'ativo') return '';
-  if (!e.rsvp_deadline) return '';
-  const end = new Date(`${e.rsvp_deadline}T23:59:59`).getTime();
-  const days = Math.ceil((end - Date.now()) / 86400000);
-  if (Date.now() > end && !e.force_open) return '<span class="deadline-tag deadline-red">Prazo encerrado</span>';
-  if (days <= 7) return `<span class="deadline-tag deadline-amber">Faltam ${days} dia(s)</span>`;
-  return '<span class="deadline-tag deadline-green">Prazo aberto</span>';
+function statusPill(s) {
+  const map = { 'Planejamento': 'pill', 'Contratação': 'pill pill-active', 'Produção': 'pill pill-ok', 'Evento realizado': 'pill pill-ok', 'Encerrado': 'pill' };
+  return map[s] || 'pill';
 }
 
-function eventCard(e) {
-  const cover = e.cover_image
-    ? `<div class="cover" style="background-image:url('${e.cover_image}')"></div>`
-    : `<div class="cover"><span class="ph">SEM CAPA</span></div>`;
-  const statusPill = e.status === 'ativo'
-    ? '<span class="pill pill-active">Ativo</span>' : '<span class="pill pill-inactive">Inativo</span>';
-  return `
-  <div class="event-card">
-    <a href="/admin/event-detail.html?id=${e.id}" style="text-decoration:none;color:inherit">
-      ${cover}
-      <div class="body">
-        <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
-          <h3>${esc(e.name)}</h3>${statusPill}
-        </div>
-        <div class="meta">${e.event_date ? fmtDateBR(e.event_date) : 'Data a definir'}${e.location ? ' · ' + esc(e.location) : ''}</div>
-        <div style="margin-top:2px">${deadlineTag(e)}</div>
-        <div class="nums">
-          <span><b>${e.total_responses}</b> respostas</span>
-          <span style="color:#0f8a4a"><b>${e.confirmed}</b> confirmados</span>
-          <span style="color:var(--danger)"><b>${e.declined}</b> recusas</span>
-        </div>
-      </div>
-    </a>
-    <div class="event-card-actions">
-      <a class="btn btn-primary btn-sm" href="/admin/event-detail.html?id=${e.id}">👁 Ver evento</a>
-      ${(e._perms && e._perms.can_duplicate) ? `<button class="btn btn-ghost btn-sm" onclick="duplicateEvent(${e.id}, event)">Duplicar</button>` : ''}
-    </div>
-  </div>`;
-}
-
-async function duplicateEvent(id, ev) {
-  if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-  if (!confirm('Duplicar este evento? Será criada uma cópia com as mesmas configurações, sem os participantes.')) return;
-  try {
-    const novo = await Api.post(`/api/events/${id}/duplicate`);
-    toast('Evento duplicado.');
-    location.href = `/admin/event-form.html?id=${novo.id}`;
-  } catch (e) { toast(e.message); }
-}
-
-// ---- Busca global ----
-let gst;
-const gs = document.getElementById('globalSearch');
-const gr = document.getElementById('searchResults');
-gs.addEventListener('input', () => {
-  clearTimeout(gst);
-  const q = gs.value.trim();
-  if (q.length < 2) { gr.classList.add('hidden'); gr.innerHTML = ''; return; }
-  gst = setTimeout(() => runSearch(q), 250);
-});
-document.addEventListener('click', (e) => {
-  if (!gr.contains(e.target) && e.target !== gs) gr.classList.add('hidden');
-});
-async function runSearch(q) {
-  try {
-    const r = await Api.get(`/api/search?q=${encodeURIComponent(q)}`);
-    const parts = [];
-    if (r.events.length) {
-      parts.push('<div class="sr-group">Eventos</div>');
-      parts.push(r.events.map((e) => `<a class="sr-item" href="/admin/event-detail.html?id=${e.id}">
-        <span class="sr-ico">📅</span><span><strong>${esc(e.name)}</strong>${e.location ? `<span class="sr-sub">${esc(e.location)}</span>` : ''}</span></a>`).join(''));
-    }
-    if (r.participants.length) {
-      parts.push('<div class="sr-group">Participantes</div>');
-      parts.push(r.participants.map((p) => `<a class="sr-item" href="/admin/event-detail.html?id=${p.event_id}">
-        <span class="sr-ico">${p.response === 'confirmado' ? '✅' : '❌'}</span>
-        <span><strong>${esc(p.name)}</strong><span class="sr-sub">${esc(p.event_name)}${p.email ? ' · ' + esc(p.email) : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</span></span></a>`).join(''));
-    }
-    gr.innerHTML = parts.join('') || '<div class="sr-empty">Nenhum resultado encontrado.</div>';
-    gr.classList.remove('hidden');
-  } catch (e) { /* silencioso */ }
-}
-
-document.getElementById('eventTabs').addEventListener('click', (e) => {
-  const b = e.target.closest('button'); if (!b) return;
-  eventsTab = b.dataset.tab;
-  renderEvents();
-});
-
-init().catch((e) => toast(e.message));
-document.getElementById('refreshSlot').appendChild(refreshButton(init, 'Atualizar dashboard'));
+load().catch(console.error);
