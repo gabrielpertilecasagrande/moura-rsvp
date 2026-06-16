@@ -207,7 +207,6 @@ function fileIcon(mime) {
   return '📄';
 }
 
-// Upload via drag-and-drop e click
 const dropZone   = document.getElementById('dropZone');
 const fileInput  = document.getElementById('fileInput');
 document.getElementById('browseFiles').addEventListener('click', () => fileInput.click());
@@ -277,7 +276,7 @@ async function deleteDiaryEntry(did) {
   await load();
 }
 
-// ── Modais de Contratação ─────────────────────────────────────────────────────
+// ── Contratação ───────────────────────────────────────────────────────────────
 async function loadSuppliers() {
   if (suppliersCache.length > 0) return;
   suppliersCache = await Api.get('/api/suppliers?limit=999');
@@ -292,10 +291,7 @@ function openAddContract() {
         <h3 style="margin-bottom:20px">Adicionar Contratação</h3>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Fornecedor</label>
-          <select id="contractSupplier" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px">
-            <option value="">Selecione...</option>
-            ${opt}
-          </select>
+          <select id="contractSupplier" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px"><option value="">Selecione...</option>${opt}</select>
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Valor</label>
@@ -303,24 +299,15 @@ function openAddContract() {
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Status</label>
-          <select id="contractStatus" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px">
-            <option value="Em negociação">Em negociação</option>
-            <option value="Aprovado">Aprovado</option>
-            <option value="Recusado">Recusado</option>
-            <option value="Cancelado">Cancelado</option>
-          </select>
+          <select id="contractStatus" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px"><option value="Em negociação">Em negociação</option><option value="Aprovado">Aprovado</option><option value="Recusado">Recusado</option><option value="Cancelado">Cancelado</option></select>
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Pagamento</label>
-          <select id="contractPayment" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px">
-            <option value="Pendente">Pendente</option>
-            <option value="Parcial">Parcial</option>
-            <option value="Pago">Pago</option>
-          </select>
+          <select id="contractPayment" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px"><option value="Pendente">Pendente</option><option value="Parcial">Parcial</option><option value="Pago">Pago</option></select>
         </div>
         <div style="margin-bottom:20px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Notas</label>
-          <textarea id="contractNotes" placeholder="Anotações internas..." style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:60px"></textarea>
+          <textarea id="contractNotes" placeholder="Anotações..." style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:60px"></textarea>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
@@ -341,32 +328,23 @@ function openEditContract(cid) {
         <h3 style="margin-bottom:20px">Editar Contratação</h3>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Fornecedor</label>
-          <div style="padding:8px;background:var(--off-white);border-radius:6px;font-size:14px">${esc(c.company)}</div>
+          <div style="padding:8px;background:var(--off-white);border-radius:6px">${esc(c.company)}</div>
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Valor</label>
-          <input type="number" id="contractValue" placeholder="0,00" step="0.01" value="${c.value || ''}" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px" />
+          <input type="number" id="contractValue" step="0.01" value="${c.value || ''}" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px" />
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Status</label>
-          <select id="contractStatus" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px">
-            <option value="Em negociação" ${c.status === 'Em negociação' ? 'selected' : ''}>Em negociação</option>
-            <option value="Aprovado" ${c.status === 'Aprovado' ? 'selected' : ''}>Aprovado</option>
-            <option value="Recusado" ${c.status === 'Recusado' ? 'selected' : ''}>Recusado</option>
-            <option value="Cancelado" ${c.status === 'Cancelado' ? 'selected' : ''}>Cancelado</option>
-          </select>
+          <select id="contractStatus" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px"><option value="Em negociação" ${c.status==='Em negociação'?'selected':''}>Em negociação</option><option value="Aprovado" ${c.status==='Aprovado'?'selected':''}>Aprovado</option><option value="Recusado" ${c.status==='Recusado'?'selected':''}>Recusado</option><option value="Cancelado" ${c.status==='Cancelado'?'selected':''}>Cancelado</option></select>
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Pagamento</label>
-          <select id="contractPayment" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px">
-            <option value="Pendente" ${c.payment_status === 'Pendente' ? 'selected' : ''}>Pendente</option>
-            <option value="Parcial" ${c.payment_status === 'Parcial' ? 'selected' : ''}>Parcial</option>
-            <option value="Pago" ${c.payment_status === 'Pago' ? 'selected' : ''}>Pago</option>
-          </select>
+          <select id="contractPayment" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px"><option value="Pendente" ${c.payment_status==='Pendente'?'selected':''}>Pendente</option><option value="Parcial" ${c.payment_status==='Parcial'?'selected':''}>Parcial</option><option value="Pago" ${c.payment_status==='Pago'?'selected':''}>Pago</option></select>
         </div>
         <div style="margin-bottom:20px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Notas</label>
-          <textarea id="contractNotes" placeholder="Anotações internas..." style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:60px">${esc(c.notes || '')}</textarea>
+          <textarea id="contractNotes" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:60px">${esc(c.notes || '')}</textarea>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
@@ -383,7 +361,6 @@ async function saveContract(cid) {
   const status = document.getElementById('contractStatus').value;
   const payment_status = document.getElementById('contractPayment').value;
   const notes = document.getElementById('contractNotes').value.trim();
-
   if (cid) {
     await Api.put(`/api/events/${eventId}/contracts/${cid}`, { value, status, payment_status, notes });
   } else {
@@ -400,7 +377,7 @@ async function deleteContract(cid) {
   await load();
 }
 
-// ── Modais de Checklist ───────────────────────────────────────────────────────
+// ── Checklist ─────────────────────────────────────────────────────────────────
 function openAddTask() {
   document.getElementById('modalSlot').innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
@@ -412,7 +389,7 @@ function openAddTask() {
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Responsável</label>
-          <input type="text" id="taskResponsible" placeholder="Nome da pessoa" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px" />
+          <input type="text" id="taskResponsible" placeholder="Nome" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px" />
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Data de Vencimento</label>
@@ -420,11 +397,7 @@ function openAddTask() {
         </div>
         <div style="margin-bottom:20px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Status</label>
-          <select id="taskStatus" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px">
-            <option value="Pendente">Pendente</option>
-            <option value="Em andamento">Em andamento</option>
-            <option value="Concluído">Concluído</option>
-          </select>
+          <select id="taskStatus" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px"><option value="Pendente">Pendente</option><option value="Em andamento">Em andamento</option><option value="Concluído">Concluído</option></select>
         </div>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
@@ -448,4 +421,48 @@ function openEditTask(tid) {
         </div>
         <div style="margin-bottom:16px">
           <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Responsável</label>
-          <input type="text" id="taskResponsible" value="${esc(t.responsible || '')}" placeholder="Nome da pessoa" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:
+          <input type="text" id="taskResponsible" value="${esc(t.responsible || '')}" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px" />
+        </div>
+        <div style="margin-bottom:16px">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Data de Vencimento</label>
+          <input type="date" id="taskDueDate" value="${t.due_date || ''}" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px" />
+        </div>
+        <div style="margin-bottom:20px">
+          <label style="display:block;font-size:13px;font-weight:500;margin-bottom:6px">Status</label>
+          <select id="taskStatus" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px"><option value="Pendente" ${t.status==='Pendente'?'selected':''}>Pendente</option><option value="Em andamento" ${t.status==='Em andamento'?'selected':''}>Em andamento</option><option value="Concluído" ${t.status==='Concluído'?'selected':''}>Concluído</option></select>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary btn-sm" onclick="saveTask(${tid})">Salvar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+async function saveTask(tid) {
+  const title = document.getElementById('taskTitle').value.trim();
+  const responsible = document.getElementById('taskResponsible').value.trim();
+  const due_date = document.getElementById('taskDueDate').value;
+  const status = document.getElementById('taskStatus').value;
+  if (!title) { toast('Informe o título da tarefa.'); return; }
+  if (tid) {
+    await Api.put(`/api/events/${eventId}/checklist/${tid}`, { title, responsible, due_date, status });
+  } else {
+    await Api.post(`/api/events/${eventId}/checklist`, { title, responsible, due_date, status });
+  }
+  closeModal();
+  await load();
+}
+
+async function deleteTask(tid) {
+  if (!confirm('Remover tarefa?')) return;
+  await Api.del(`/api/events/${eventId}/checklist/${tid}`);
+  await load();
+}
+
+function closeModal() {
+  document.getElementById('modalSlot').innerHTML = '';
+}
+
+load().catch(console.error);
