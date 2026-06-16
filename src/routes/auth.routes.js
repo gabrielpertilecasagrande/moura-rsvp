@@ -1,11 +1,21 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const db = require('../db');
 const { sign, requireAuth, SECRET } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
+const { normalizeRole } = require('../utils/permissions');
 
 const router = express.Router();
+
+// Comparação em tempo constante (evita vazar o segredo por tempo de resposta).
+function safeEqual(a, b) {
+  const ba = Buffer.from(String(a));
+  const bb = Buffer.from(String(b));
+  if (ba.length !== bb.length) return false;
+  return crypto.timingSafeEqual(ba, bb);
+}
 
 // POST /api/auth/login
 router.post('/login', (req, res) => {
@@ -128,6 +138,40 @@ router.post('/password', requireAuth, (req, res) => {
   db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, admin.id);
   logActivity(admin.name || admin.email, 'alterou a própria senha', null);
   res.json({ ok: true, message: 'Senha alterada com sucesso.' });
+});
+
+// POST /api/auth/sync-user — provisionamento interno de conta, chamado pelo
+// Moura One ao criar/editar um usuário, para a mesma pessoa existir nos dois
+// sistemas. Autenticado pelo SEGREDO COMPARTILHADO (Authorization: Bearer
+// <JWT_SECRET>), não por sessão de usuário. Faz upsert: cria a conta (ativa, com
+// senha aleatória — staff entra por SSO) ou atualiza nome/papel se já existir.
+router.post('/sync-user', (req, res) => {
+  const secret = process.env.JWT_SECRET;
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  // Falha fechada: sem JWT_SECRET configurado, ninguém entra.
+  if (!secret || !token || !safeEqual(token, secret)) {
+    return res.status(401).json({ error: 'Não autorizado.' });
+  }
+  const { name, email, role } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'E-mail obrigatório.' });
+  const mail = String(email).toLowerCase().trim();
+  const r = normalizeRole(role); // admin | gestor | operador (desconhecido → operador)
+  const n = name ? String(name).trim() : mail;
+
+  const existing = db.prepare('SELECT id FROM admins WHERE email = ?').get(mail);
+  if (existing) {
+    db.prepare('UPDATE admins SET name = ?, role = ? WHERE email = ?').run(n, r, mail);
+    logActivity('Moura One (sync)', 'atualizou usuário via integração', mail);
+    return res.json({ ok: true, action: 'updated' });
+  }
+  const randomPwd = crypto.randomBytes(32).toString('hex');
+  const hash = bcrypt.hashSync(randomPwd, 10);
+  db.prepare(
+    "INSERT INTO admins (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, 'ativo')"
+  ).run(n, mail, hash, r);
+  logActivity('Moura One (sync)', 'criou usuário via integração', mail);
+  res.status(201).json({ ok: true, action: 'created' });
 });
 
 module.exports = router;
