@@ -6,6 +6,8 @@ const db = require('../db');
 const { sign, requireAuth, SECRET } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { normalizeRole } = require('../utils/permissions');
+const { uniqueSlug } = require('../utils/slug');
+const { parseFormConfig } = require('../utils/formConfig');
 
 const router = express.Router();
 
@@ -172,6 +174,47 @@ router.post('/sync-user', (req, res) => {
   ).run(n, mail, hash, r);
   logActivity('Moura One (sync)', 'criou usuário via integração', mail);
   res.status(201).json({ ok: true, action: 'created' });
+});
+
+// POST /api/auth/provision-event — criação de evento no RSVP a partir do Moura One.
+// O Moura One é o sistema central: quando o usuário marca "Criar no RSVP" ao
+// cadastrar um evento, ele chama esta rota para gerar o evento-clone aqui.
+// Autenticado pelo SEGREDO COMPARTILHADO (Authorization: Bearer <JWT_SECRET>),
+// não por sessão de usuário. Espelha exatamente o INSERT de POST /api/events
+// (mesmas colunas e defaults), então é seguro quanto ao schema. Retorna o `id`
+// (que o Moura One guarda como rsvp_event_id), o `slug` e a `public_url` do convite.
+router.post('/provision-event', (req, res) => {
+  const secret = process.env.JWT_SECRET;
+  const header = req.headers.authorization || '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  // Falha fechada: sem JWT_SECRET configurado, ninguém entra.
+  if (!secret || !token || !safeEqual(token, secret)) {
+    return res.status(401).json({ error: 'Não autorizado.' });
+  }
+  const b = req.body || {};
+  if (!b.name) return res.status(400).json({ error: 'O nome do evento é obrigatório.' });
+
+  const slug = uniqueSlug(db, b.slug && String(b.slug).trim() ? b.slug : b.name);
+  const formConfig = JSON.stringify(parseFormConfig(b.form_config));
+
+  const info = db.prepare(`
+    INSERT INTO events (slug, name, description, event_date, event_time, location, city, address,
+      cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
+      expected_guests, whatsapp, whatsapp_enabled, force_open, form_config)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    slug, String(b.name).trim(), b.description || null, b.event_date || null, b.event_time || null,
+    b.location || null, b.city || null, b.address || null, null, null, b.rsvp_deadline || null, 'ativo',
+    b.confirm_message || 'Olá, {nome}. Sua presença no evento foi confirmada com sucesso.',
+    b.decline_message || 'Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.',
+    parseInt(b.expected_guests, 10) || 0, b.whatsapp || null, 1, 0, formConfig
+  );
+
+  const created = db.prepare('SELECT id, slug, name FROM events WHERE id = ?').get(info.lastInsertRowid);
+  const base = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const public_url = `${base}/rsvp/${created.slug}`;
+  logActivity('Moura One (integração)', 'criou evento via integração', created.name);
+  res.status(201).json({ id: created.id, slug: created.slug, public_url });
 });
 
 module.exports = router;
