@@ -1,49 +1,99 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { authorizedEventIds } = require('../utils/permissions');
+const { authorizedEventIds, normalizeRole } = require('../utils/permissions');
 
 const router = express.Router();
 router.use(requireAuth);
 
-// GET /api/dashboard — números gerais (restritos aos eventos que o usuário pode ver)
 router.get('/', (req, res) => {
-  const ids = authorizedEventIds(req.admin); // null = admin (todos)
-  // Cláusula de filtro reutilizável para events (alias e) e participants (alias p).
-  let evWhere = '';
-  let pWhere = '';
-  let params = [];
-  if (ids !== null) {
-    if (!ids.length) {
-      return res.json({ totalEvents: 0, activeEvents: 0, confirmed: 0, declined: 0, pending: 0,
-        totalResponses: 0, totalExpected: 0, responseRate: null });
+  const isAdmin = normalizeRole(req.admin.role) === 'admin';
+  const ids = authorizedEventIds(req.admin);
+
+  let eventsWhere = '';
+  let eventsParams = [];
+  if (!isAdmin && ids !== null) {
+    if (ids.length === 0) {
+      eventsWhere = 'WHERE 1=0';
+    } else {
+      eventsWhere = `WHERE id IN (${ids.map(() => '?').join(',')})`;
+      eventsParams = ids;
     }
-    const ph = ids.map(() => '?').join(',');
-    evWhere = `WHERE e.id IN (${ph})`;
-    pWhere = `WHERE p.event_id IN (${ph})`;
-    params = ids;
   }
 
-  const totalEvents = db.prepare(`SELECT COUNT(*) c FROM events e ${evWhere}`).get(...params).c;
-  const activeEvents = db.prepare(`SELECT COUNT(*) c FROM events e ${evWhere}${evWhere ? ' AND' : ' WHERE'} e.status='ativo'`).get(...params).c;
-  const confirmed = db.prepare(`SELECT COUNT(*) c FROM participants p ${pWhere}${pWhere ? ' AND' : ' WHERE'} p.response='confirmado'`).get(...params).c;
-  const declined = db.prepare(`SELECT COUNT(*) c FROM participants p ${pWhere}${pWhere ? ' AND' : ' WHERE'} p.response='recusado'`).get(...params).c;
+  const totalEvents = db.prepare(`SELECT COUNT(*) AS n FROM events ${eventsWhere}`).get(...eventsParams).n;
 
-  const perEvent = db.prepare(`
-    SELECT e.expected_guests AS exp,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id=e.id) AS resp
-    FROM events e ${evWhere}${evWhere ? ' AND' : ' WHERE'} e.expected_guests > 0
-  `).all(...params);
-  const pending = perEvent.reduce((acc, r) => acc + Math.max(0, r.exp - r.resp), 0);
+  const byStatus = db.prepare(
+    `SELECT status, COUNT(*) AS n FROM events ${eventsWhere} GROUP BY status`
+  ).all(...eventsParams);
 
-  const totalResponses = confirmed + declined;
-  const totalExpected = perEvent.reduce((acc, r) => acc + r.exp, 0);
-  const respExpected = perEvent.reduce((acc, r) => acc + r.resp, 0);
-  const responseRate = totalExpected > 0 ? Math.round((respExpected / totalExpected) * 100) : null;
+  const totalSuppliers = db.prepare('SELECT COUNT(*) AS n FROM suppliers').get().n;
+
+  const contractsByPayment = db.prepare(
+    `SELECT payment_status, COUNT(*) AS n FROM contracts
+     ${eventsWhere ? eventsWhere.replace('WHERE id', 'WHERE event_id') : ''}
+     GROUP BY payment_status`
+  ).all(...eventsParams);
+
+  const pendingPayments = db.prepare(
+    `SELECT COUNT(*) AS n FROM contracts
+     WHERE payment_status = 'Pendente'
+     ${!isAdmin && ids !== null && ids.length > 0 ? `AND event_id IN (${ids.map(() => '?').join(',')})` : isAdmin ? '' : ids !== null && ids.length === 0 ? 'AND 1=0' : ''}`
+  ).get(...(isAdmin || ids === null ? [] : ids)).n;
+
+  const pendingChecklist = db.prepare(
+    `SELECT COUNT(*) AS n FROM checklist
+     WHERE status = 'Pendente'
+     ${!isAdmin && ids !== null && ids.length > 0 ? `AND event_id IN (${ids.map(() => '?').join(',')})` : isAdmin ? '' : ids !== null && ids.length === 0 ? 'AND 1=0' : ''}`
+  ).get(...(isAdmin || ids === null ? [] : ids)).n;
+
+  const recentActivity = db.prepare(
+    'SELECT actor, action, details, created_at FROM activity_log ORDER BY created_at DESC LIMIT 10'
+  ).all();
+
+  const recentEvents = db.prepare(
+    `SELECT id, name, client, event_date, status FROM events ${eventsWhere} ORDER BY created_at DESC LIMIT 5`
+  ).all(...eventsParams);
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  const upcomingEvents = db.prepare(
+    `SELECT id, name, client, event_date, status FROM events
+     ${eventsWhere ? eventsWhere + ' AND event_date >= ?' : 'WHERE event_date >= ?'}
+     ORDER BY event_date ASC LIMIT 5`
+  ).all(...eventsParams, today);
+
+  const overdueTasks = db.prepare(
+    `SELECT COUNT(*) AS n FROM checklist
+     WHERE due_date < ? AND status != 'Concluído'
+     ${!isAdmin && ids !== null && ids.length > 0 ? `AND event_id IN (${ids.map(() => '?').join(',')})` : isAdmin ? '' : ids !== null && ids.length === 0 ? 'AND 1=0' : ''}`
+  ).get(today, ...(isAdmin || ids === null ? [] : ids)).n;
+
+  const pendingContractsCount = db.prepare(
+    `SELECT COUNT(*) AS n FROM contracts
+     WHERE status = 'Em negociação'
+     ${!isAdmin && ids !== null && ids.length > 0 ? `AND event_id IN (${ids.map(() => '?').join(',')})` : isAdmin ? '' : ids !== null && ids.length === 0 ? 'AND 1=0' : ''}`
+  ).get(...(isAdmin || ids === null ? [] : ids)).n;
+
+  const pendingPaymentsValue = db.prepare(
+    `SELECT COALESCE(SUM(value), 0) AS total FROM contracts
+     WHERE payment_status = 'Pendente'
+     ${!isAdmin && ids !== null && ids.length > 0 ? `AND event_id IN (${ids.map(() => '?').join(',')})` : isAdmin ? '' : ids !== null && ids.length === 0 ? 'AND 1=0' : ''}`
+  ).get(...(isAdmin || ids === null ? [] : ids)).total;
 
   res.json({
-    totalEvents, activeEvents, confirmed, declined, pending,
-    totalResponses, totalExpected, responseRate,
+    totalEvents,
+    byStatus,
+    totalSuppliers,
+    contractsByPayment,
+    pendingPayments,
+    pendingChecklist,
+    recentActivity,
+    recentEvents,
+    upcomingEvents,
+    overdueTasks,
+    pendingContractsCount,
+    pendingPaymentsValue,
   });
 });
 
