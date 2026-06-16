@@ -3,11 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Dashboard — Moura RSVP</title>
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
-  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
-  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <title>Dashboard — Moura Eventos</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
   <link rel="stylesheet" href="/assets/css/styles.css" />
 </head>
 <body>
@@ -19,22 +16,34 @@
           <div class="eyebrow">Visão geral</div>
           <h1>Dashboard</h1>
         </div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span id="refreshSlot"></span>
-          <a href="/admin/event-form.html" class="btn btn-primary" id="newEventBtn">+ Novo evento</a>
+        <span id="refreshSlot"></span>
+      </div>
+      <div class="stat-grid" id="stats"></div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:32px">
+        <div>
+          <div class="page-head" style="margin-bottom:14px">
+            <h2 style="font-size:18px">Próximos Eventos</h2>
+            <a href="/admin/events.html" class="btn btn-ghost btn-sm">Ver todos</a>
+          </div>
+          <div id="upcomingEvents"></div>
+        </div>
+        <div>
+          <div class="page-head" style="margin-bottom:14px">
+            <h2 style="font-size:18px">Eventos por Status</h2>
+          </div>
+          <div class="card" style="padding:12px 20px" id="byStatus"></div>
         </div>
       </div>
 
-      <div class="search-global">
-        <input type="text" id="globalSearch" placeholder="Buscar eventos, participantes, e-mails ou telefones…" autocomplete="off" />
-        <div id="searchResults" class="search-results hidden"></div>
+      <div class="page-head" style="margin-top:32px;margin-bottom:14px">
+        <h2 style="font-size:18px">Eventos recentes</h2>
       </div>
-
-      <div class="stat-grid" id="stats"></div>
-
-      <div class="page-head" style="margin-bottom:14px"><h2 style="font-size:18px">Eventos</h2></div>
-      <div class="seg event-tabs" id="eventTabs"></div>
-      <div class="event-list" id="events"><p class="muted">Carregando…</p></div>
+      <div id="recentEvents"></div>
+      <div class="page-head" style="margin-top:32px;margin-bottom:14px">
+        <h2 style="font-size:18px">Atividade recente</h2>
+      </div>
+      <div id="recentActivity"></div>
     </main>
   </div>
   <div id="modalSlot"></div>
