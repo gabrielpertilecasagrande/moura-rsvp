@@ -23,6 +23,10 @@ function requireAuth(req, res, next) {
   } catch {
     return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
   }
+  // Tokens de handshake SSO (com claim "target") servem só para o login único
+  // em /api/auth/sso — nunca como sessão. Como tokens de sessão normais não têm
+  // esse claim, o bloqueio é retrocompatível (não desloga ninguém).
+  if (payload.target) return res.status(401).json({ error: 'Sessão inválida. Entre novamente.' });
   const u = db.prepare('SELECT id, name, email, role, status FROM admins WHERE id = ?').get(payload.id);
   if (!u) return res.status(401).json({ error: 'Conta não encontrada. Entre novamente.' });
   if (u.status !== 'ativo') {

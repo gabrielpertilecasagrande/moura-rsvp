@@ -39,6 +39,11 @@
   <script>
     if (Api.token()) location.href = '/admin/dashboard.html';
     const err = document.getElementById('err');
+    // Aviso quando o login único (SSO) pelo Moura One não pôde ser concluído.
+    if (new URLSearchParams(location.search).get('sso') === 'erro') {
+      err.textContent = 'Não foi possível entrar automaticamente pelo Moura One. Faça login.';
+      err.classList.remove('hidden');
+    }
     async function login() {
       err.classList.add('hidden');
       const btn = document.getElementById('btn'); btn.disabled = true; btn.textContent = 'Entrando…';
