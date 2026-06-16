@@ -103,4 +103,36 @@ function statusPill(s) {
   return map[s] || '';
 }
 
+// ── Busca Global ──────────────────────────────────────────────────────────────
+const gInput = document.getElementById('globalSearch');
+const gResults = document.getElementById('searchResults');
+let gDebounce;
+
+function srGroup(title, items) {
+  if (!items.length) return '';
+  return `<div class="sr-group">${title}</div>` + items.join('');
+}
+function srItem(href, ico, title, sub) {
+  return `<a class="sr-item" href="${href}"><span class="sr-ico">${ico}</span><span><strong>${esc(title)}</strong><span class="sr-sub">${esc(sub)}</span></span></a>`;
+}
+
+async function runSearch(q) {
+  if (q.trim().length < 2) { gResults.classList.add('hidden'); return; }
+  try {
+    const r = await Api.get('/api/search?q=' + encodeURIComponent(q.trim()));
+    const html =
+      srGroup('Eventos', r.events.map((e) => srItem(`/admin/event-detail.html?id=${e.id}`, '📅', e.name, [e.client, e.city].filter(Boolean).join(' · ') || 'Evento'))) +
+      srGroup('Fornecedores', r.suppliers.map((s) => srItem(`/admin/supplier-form.html?id=${s.id}`, '🏢', s.company, [s.category, s.city].filter(Boolean).join(' · ') || 'Fornecedor'))) +
+      srGroup('Tarefas', r.tasks.map((t) => srItem(`/admin/event-detail.html?id=${t.event_id}`, '✅', t.title, `${t.event_name} · ${t.status}`))) +
+      srGroup('Arquivos', r.files.map((f) => srItem(`/admin/event-detail.html?id=${f.event_id}`, '📎', f.filename, `${f.event_name} · ${f.category || 'Outros'}`))) +
+      srGroup('Diário', r.diary.map((d) => srItem(`/admin/event-detail.html?id=${d.event_id}`, '📝', d.entry.slice(0, 60), `${d.event_name} · ${d.author || ''}`)));
+    gResults.innerHTML = html || '<div class="sr-empty">Nenhum resultado encontrado.</div>';
+    gResults.classList.remove('hidden');
+  } catch (e) { /* silencioso */ }
+}
+
+gInput.addEventListener('input', () => { clearTimeout(gDebounce); gDebounce = setTimeout(() => runSearch(gInput.value), 280); });
+document.addEventListener('click', (e) => { if (!e.target.closest('.search-global')) gResults.classList.add('hidden'); });
+gInput.addEventListener('focus', () => { if (gInput.value.trim().length >= 2) gResults.classList.remove('hidden'); });
+
 load().catch(console.error);

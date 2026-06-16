@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendário — Moura One</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+  <style>
+    .cal-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
+    .cal-nav { display:flex; align-items:center; gap:8px; }
+    .cal-title { font-family:var(--display); font-size:20px; font-weight:600; text-transform:capitalize; min-width:180px; text-align:center; }
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; }
+    .cal-dow { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--muted); text-align:center; padding:6px 0; }
+    .cal-cell { background:var(--white); border:1px solid var(--gray-soft); border-radius:10px; min-height:96px; padding:6px; display:flex; flex-direction:column; gap:3px; overflow:hidden; }
+    .cal-cell.other { background:var(--off-white); opacity:.55; }
+    .cal-cell.today { border-color:var(--cyan); box-shadow:0 0 0 2px var(--cyan-soft); }
+    .cal-daynum { font-size:12px; font-weight:600; color:var(--muted); }
+    .cal-cell.today .cal-daynum { color:var(--cyan); }
+    .cal-item { font-size:11px; padding:2px 6px; border-radius:6px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; text-decoration:none; display:block; }
+    .ci-event { background:var(--navy); }
+    .ci-task { background:var(--warn); color:#3d2a00; }
+    .ci-payment { background:var(--danger); }
+    .cal-legend { display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted); margin-top:14px; }
+    .cal-legend span { display:inline-flex; align-items:center; gap:6px; }
+    .cal-dot { width:10px; height:10px; border-radius:3px; }
+    @media (max-width:767px){ .cal-cell{ min-height:70px; } .cal-item{ font-size:10px; } }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Operação</div>
+          <h1>Calendário</h1>
+        </div>
+      </div>
+
+      <div class="cal-head">
+        <div class="cal-nav">
+          <button class="btn btn-ghost btn-sm" id="prevBtn">←</button>
+          <div class="cal-title" id="calTitle"></div>
+          <button class="btn btn-ghost btn-sm" id="nextBtn">→</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="todayBtn">Hoje</button>
+      </div>
+
+      <div class="cal-grid" id="calDow"></div>
+      <div class="cal-grid" id="calGrid" style="margin-top:6px"></div>
+
+      <div class="cal-legend">
+        <span><span class="cal-dot" style="background:var(--navy)"></span> Evento</span>
+        <span><span class="cal-dot" style="background:var(--warn)"></span> Prazo de tarefa</span>
+        <span><span class="cal-dot" style="background:var(--danger)"></span> Vencimento de pagamento</span>
+      </div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-calendar.js"></script>
+</body>
+</html>

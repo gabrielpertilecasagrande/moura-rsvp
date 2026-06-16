@@ -549,4 +549,79 @@ function closeModal() {
 document.getElementById('addContractBtn').addEventListener('click', openAddContract);
 document.getElementById('addTaskBtn').addEventListener('click', openAddTask);
 
+// Duplicar evento
+document.getElementById('duplicateBtn').addEventListener('click', async () => {
+  if (!confirm('Duplicar este evento? Será criada uma cópia em Planejamento com o mesmo checklist (tarefas zeradas).')) return;
+  try {
+    const novo = await Api.post(`/api/events/${eventId}/duplicate`, {});
+    toast('Evento duplicado.');
+    setTimeout(() => location.href = `/admin/event-detail.html?id=${novo.id}`, 500);
+  } catch (e) { toast(e.message); }
+});
+
+// Exportar relatório completo do evento em PDF (via janela de impressão)
+document.getElementById('exportPdfBtn').addEventListener('click', () => {
+  const d = eventData;
+  if (!d) return;
+  const ev = d.event;
+  const contracts = d.contracts || [];
+  const checklist = d.checklist || [];
+  const diary = d.diary || [];
+  const total = contracts.reduce((s, c) => s + (c.value || 0), 0);
+  const pago = contracts.filter((c) => c.payment_status === 'Pago').reduce((s, c) => s + (c.value || 0), 0);
+  const pend = total - pago;
+
+  const row = (k, v) => v ? `<tr><td class="k">${k}</td><td>${esc(v)}</td></tr>` : '';
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${esc(ev.name)} — Moura One</title>
+  <style>
+    *{box-sizing:border-box} body{font-family:Arial,Helvetica,sans-serif;color:#1A1F2B;max-width:820px;margin:32px auto;padding:0 20px}
+    .brand{font-size:24px;font-weight:800;letter-spacing:-.02em;color:#0E1B3D}.brand i{color:#00C2B8;font-style:normal}
+    .tag{color:#64748B;font-size:12px;margin-bottom:18px}
+    h1{font-size:22px;margin:14px 0 2px;color:#152C6B}h2{font-size:15px;margin:26px 0 8px;color:#152C6B;border-bottom:2px solid #00C2B8;padding-bottom:4px}
+    table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:8px}
+    td,th{padding:7px 9px;border-bottom:1px solid #E2E8F0;text-align:left;vertical-align:top}
+    th{font-size:11px;text-transform:uppercase;color:#64748B;letter-spacing:.04em}
+    td.k{color:#64748B;width:160px}
+    .fin{display:flex;gap:10px;margin:8px 0}.fin div{flex:1;background:#F1F5F9;border-radius:8px;padding:10px 12px}
+    .fin .n{font-size:17px;font-weight:700;color:#152C6B}.fin .l{font-size:11px;color:#64748B}
+    .diary p{white-space:pre-wrap;font-size:13px;margin:0}.diary .m{font-size:11px;color:#64748B;margin:10px 0 2px}
+    @media print{body{margin:12px auto}}
+  </style></head><body>
+  <div class="brand">moura <i>one</i></div>
+  <div class="tag">Plataforma de Operações e Eventos · Relatório do Evento</div>
+  <h1>${esc(ev.name)}</h1>
+  <table>
+    ${row('Cliente', ev.client)}${row('Tipo', ev.event_type)}
+    ${row('Data', ev.event_date ? fmtDateBR(ev.event_date) : '')}${row('Horário', ev.event_time)}
+    ${row('Local', ev.location)}${row('Cidade', ev.city)}
+    ${row('Responsável', ev.responsible)}${row('Status', ev.status)}
+  </table>
+
+  <h2>Resumo Financeiro</h2>
+  <div class="fin">
+    <div><div class="n">${fmtMoney(total)}</div><div class="l">Total contratado</div></div>
+    <div><div class="n">${fmtMoney(pago)}</div><div class="l">Pago</div></div>
+    <div><div class="n">${fmtMoney(pend)}</div><div class="l">Pendente</div></div>
+    <div><div class="n">${contracts.length}</div><div class="l">Contratações</div></div>
+  </div>
+
+  <h2>Contratações</h2>
+  ${contracts.length ? `<table><thead><tr><th>Fornecedor</th><th>Categoria</th><th>Valor</th><th>Status</th><th>Pagamento</th></tr></thead><tbody>
+    ${contracts.map((c) => `<tr><td>${esc(c.company)}</td><td>${esc(c.category || '—')}</td><td>${fmtMoney(c.value)}</td><td>${esc(c.status)}</td><td>${esc(c.payment_status)}</td></tr>`).join('')}
+  </tbody></table>` : '<p style="color:#64748B;font-size:13px">Nenhuma contratação.</p>'}
+
+  <h2>Checklist (${checklist.filter((t) => t.status === 'Concluído').length}/${checklist.length} concluídas)</h2>
+  ${checklist.length ? `<table><thead><tr><th>Tarefa</th><th>Responsável</th><th>Prazo</th><th>Prioridade</th><th>Status</th></tr></thead><tbody>
+    ${checklist.map((t) => `<tr><td>${esc(t.title)}</td><td>${esc(t.responsible || '—')}</td><td>${t.due_date ? fmtDateBR(t.due_date) : '—'}</td><td>${esc(t.priority || 'Média')}</td><td>${esc(t.status)}</td></tr>`).join('')}
+  </tbody></table>` : '<p style="color:#64748B;font-size:13px">Nenhuma tarefa.</p>'}
+
+  <h2>Diário do Evento</h2>
+  ${diary.length ? `<div class="diary">${diary.map((e) => `<div class="m">${fmtDateTimeBR(e.created_at)} · ${esc(e.author || '?')}</div><p>${esc(e.entry)}</p>`).join('')}</div>` : '<p style="color:#64748B;font-size:13px">Nenhum registro.</p>'}
+
+  <p style="margin-top:30px;color:#94A3B8;font-size:11px">Gerado em ${new Date().toLocaleString('pt-BR')} · Moura One</p>
+  </body></html>`;
+  const w = window.open('', '_blank');
+  w.document.write(html); w.document.close(); w.print();
+});
+
 load().catch(console.error);

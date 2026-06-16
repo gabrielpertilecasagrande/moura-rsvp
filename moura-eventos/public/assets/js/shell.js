@@ -24,6 +24,8 @@ function renderShell(active) {
   const nav = [
     item('/admin/dashboard.html', 'dashboard', 'Dashboard'),
     item('/admin/events.html', 'events', 'Eventos'),
+    item('/admin/calendar.html', 'calendar', 'Calendário'),
+    item('/admin/clients.html', 'clients', 'Clientes'),
     item('/admin/suppliers.html', 'suppliers', 'Fornecedores'),
     usersItem,
     isAdmin ? item('/admin/activity.html', 'activity', 'Atividades') : '',
@@ -32,10 +34,13 @@ function renderShell(active) {
   return `
   <header class="topbar">
     <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menu"><span></span></button>
-    <img class="topbar-logo" src="/assets/img/logo-moura.png" alt="Moura" style="filter:brightness(0) invert(1)" />
+    <span class="logo-mo" style="font-size:20px"><span class="lm">moura</span><span class="lo">one</span></span>
   </header>
   <aside class="sidebar" id="sidebar">
-    <div class="brand"><img src="/assets/img/logo-moura.png" alt="Moura" /></div>
+    <div class="brand">
+      <span class="logo-mo"><span class="lm">moura</span><span class="lo">one</span></span>
+      <div class="logo-tag">Plataforma de Operações e Eventos</div>
+    </div>
     <nav>${nav}</nav>
     <div class="spacer"></div>
     <div class="side-foot">
@@ -48,7 +53,7 @@ function renderShell(active) {
       </div>
       <a class="side-account" href="/admin/account.html" id="accountBtn">Minha conta</a>
       <button class="logout" id="logoutBtn">Sair</button>
-      <div class="side-version">Moura One · Plataforma de Gestão de Eventos</div>
+      <div class="side-version">Moura One · Plataforma de Operações e Eventos</div>
     </div>
   </aside>
   <div class="sidebar-overlay" id="sidebarOverlay"></div>`;

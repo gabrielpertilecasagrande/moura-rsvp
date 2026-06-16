@@ -67,10 +67,20 @@ function renderList(events) {
       <td style="white-space:nowrap">
         <a href="/admin/event-detail.html?id=${e.id}" class="btn btn-ghost btn-sm">Ver</a>
         ${canCreateEvents() ? `<a href="/admin/event-form.html?id=${e.id}" class="btn btn-ghost btn-sm">Editar</a>` : ''}
+        ${canCreateEvents() ? `<button class="btn btn-ghost btn-sm" onclick="duplicateEvent(${e.id})" title="Duplicar evento">Duplicar</button>` : ''}
       </td>
     </tr>`).join('')}
     </tbody>
   </table></div>`;
+}
+
+async function duplicateEvent(id) {
+  if (!confirm('Duplicar este evento? Será criada uma cópia em Planejamento com o mesmo checklist (tarefas zeradas como Pendente).')) return;
+  try {
+    const novo = await Api.post(`/api/events/${id}/duplicate`, {});
+    toast('Evento duplicado.');
+    setTimeout(() => location.href = `/admin/event-detail.html?id=${novo.id}`, 500);
+  } catch (e) { toast(e.message); }
 }
 
 let debounce;

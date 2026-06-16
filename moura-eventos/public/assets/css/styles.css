@@ -1,27 +1,37 @@
 /* ============================================================
-   Moura RSVP — sistema de design
-   Paleta institucional: navy #2C427E · cyan #2BC2CE
-   off-white #F2F3F3 · cinza #D9D9D9 · charcoal #28282A
+   Moura One — sistema de design
+   Identidade da marca (Plataforma de Operações e Eventos)
+   Azul Profundo #0E1B3D · Azul Institucional #152C6B · Turquesa #00C2B8
+   Neutras: Carvão #1A1F2B · Slate #475569/#64748B/#94A3B8
+   Cinza Claro #E2E8F0 · Extra Claro #F1F5F9 · Branco #FFFFFF
    ============================================================ */
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
 :root {
-  --navy: #2C427E;
-  --navy-deep: #21345f;
-  --cyan: #2BC2CE;
-  --cyan-soft: #e6f8fa;
-  --off-white: #F2F3F3;
-  --gray: #D9D9D9;
-  --gray-soft: #eceded;
-  --charcoal: #28282A;
-  --muted: #6b6f78;
-  --ok: #2BC2CE;
-  --danger: #c2553e;
+  --navy: #152C6B;          /* Azul Institucional — títulos, links, ações */
+  --navy-deep: #0E1B3D;     /* Azul Profundo — sidebar, hovers, fundos */
+  --cyan: #00C2B8;          /* Turquesa — destaque, indicadores */
+  --cyan-soft: #e0f7f5;
+  --off-white: #F1F5F9;     /* Cinza Extra Claro */
+  --gray: #E2E8F0;          /* Cinza Claro */
+  --gray-soft: #eef2f7;
+  --charcoal: #1A1F2B;      /* Carvão */
+  --muted: #64748B;         /* Slate (texto secundário) */
+  --ok: #00C2B8;
+  --danger: #EF4444;        /* Status Crítico */
+  --warn: #F59E0B;          /* Status Alto */
+  --success: #22C55E;       /* Status Concluído */
+  --info: #3B82F6;          /* Status Planejamento */
+  --purple: #8B5CF6;        /* Status Produção */
   --white: #fff;
+  /* Gradientes da marca */
+  --grad-principal: linear-gradient(135deg, #0E1B3D 0%, #152C6B 100%);
+  --grad-destaque:  linear-gradient(135deg, #152C6B 0%, #00C2B8 100%);
+  --grad-suave:     linear-gradient(135deg, #00C2B8 0%, #66E2D6 100%);
   --radius: 14px;
   --radius-sm: 9px;
-  --shadow: 0 1px 2px rgba(40,40,42,.06), 0 8px 24px rgba(40,40,42,.06);
-  --shadow-lg: 0 12px 40px rgba(33,52,95,.16);
+  --shadow: 0 1px 2px rgba(14,27,61,.06), 0 8px 24px rgba(14,27,61,.06);
+  --shadow-lg: 0 12px 40px rgba(14,27,61,.16);
   --display: 'Space Grotesk', system-ui, sans-serif;
   --display-soft: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --body: 'Inter', system-ui, -apple-system, sans-serif;
@@ -93,19 +103,31 @@ input:focus, textarea:focus, select:focus {
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
   padding: 4px 10px; border-radius: 100px; }
 .pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.pill-ok { color: #0f8a93; background: var(--cyan-soft); }
-.pill-no { color: var(--danger); background: #f7ebe7; }
-.pill-active { color: #0f8a93; background: var(--cyan-soft); }
+.pill-ok { color: #0a8f88; background: var(--cyan-soft); }
+.pill-no { color: var(--danger); background: #fdecec; }
+.pill-active { color: #0a8f88; background: var(--cyan-soft); }
 .pill-inactive { color: var(--muted); background: var(--gray-soft); }
 
 /* ============================================================
    ADMIN — layout com barra lateral
    ============================================================ */
 .admin-shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
-.sidebar { background: var(--navy); color: #cdd6ec; padding: 26px 18px; display: flex; flex-direction: column;
-  position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-.sidebar .brand { background: var(--white); border-radius: 10px; padding: 14px 16px; margin-bottom: 28px; }
-.sidebar .brand img { width: 100%; }
+.sidebar { background: var(--navy-deep); color: #cdd6ec; padding: 26px 18px; display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  background-image: radial-gradient(120% 60% at 0% 100%, rgba(0,194,184,.16) 0%, rgba(0,194,184,0) 60%); }
+.sidebar .brand { padding: 4px 6px 0; margin-bottom: 28px; }
+
+/* ---- Wordmark "moura one" ---- */
+.logo-mo { font-family: var(--display-soft); font-weight: 800; font-size: 26px; line-height: 1;
+  letter-spacing: -.02em; display: inline-flex; align-items: baseline; }
+.logo-mo .lm { color: #fff; }
+.logo-mo .lo { color: var(--cyan); position: relative; margin-left: .14em; }
+.logo-mo .lo::before { content: ''; position: absolute; top: -.30em; left: .04em; width: .26em; height: .26em;
+  border-radius: 50% 50% 50% 0; transform: rotate(45deg); background: var(--cyan); }
+.logo-tag { font-family: var(--body); font-size: 10.5px; color: #8aa0c7; letter-spacing: .01em; margin-top: 7px; }
+/* Variante clara (sobre fundo branco) */
+.logo-mo.on-light .lm { color: var(--navy-deep); }
+.logo-mo.on-light + .logo-tag, .logo-tag.on-light { color: var(--muted); }
 .sidebar nav { display: flex; flex-direction: column; gap: 4px; }
 .sidebar nav a { color: #cdd6ec; text-decoration: none; padding: 10px 12px; border-radius: 8px;
   font-weight: 500; font-size: 14px; transition: .12s; }
@@ -219,7 +241,7 @@ tbody tr:hover { background: var(--off-white); }
    LOGIN
    ============================================================ */
 .login-page { min-height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr; }
-.login-aside { background: var(--navy); color: #fff; padding: 56px 48px; display: flex; flex-direction: column; justify-content: space-between; }
+.login-aside { background: var(--grad-principal); color: #fff; padding: 56px 48px; display: flex; flex-direction: column; justify-content: space-between; }
 .login-aside .logo { background: #fff; border-radius: 12px; padding: 18px 22px; width: max-content; max-width: 260px; }
 .login-aside h2 { font-size: 30px; line-height: 1.2; margin-top: 40px; max-width: 380px; }
 .login-aside p { color: #b9c4de; max-width: 360px; }

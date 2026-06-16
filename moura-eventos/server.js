@@ -27,6 +27,9 @@ app.use('/api/auth',     loginLimiter, require('./src/routes/auth.routes'));
 app.use('/api/users',    require('./src/routes/users.routes'));
 app.use('/api/dashboard', require('./src/routes/dashboard.routes'));
 app.use('/api/activity', require('./src/routes/activity.routes'));
+app.use('/api/search',   require('./src/routes/search.routes'));
+app.use('/api/calendar', require('./src/routes/calendar.routes'));
+app.use('/api/clients',  require('./src/routes/clients.routes'));
 app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
 app.use('/api/events',   require('./src/routes/events.routes'));
 app.use('/api/events/:id/contracts', require('./src/routes/contracts.routes'));
@@ -43,6 +46,8 @@ app.get('/admin/events.html',        (_req, res) => res.sendFile(path.join(admin
 app.get('/admin/event-form.html',    (_req, res) => res.sendFile(path.join(adminDir, 'event-form.html')));
 app.get('/admin/event-detail.html',  (_req, res) => res.sendFile(path.join(adminDir, 'event-detail.html')));
 app.get('/admin/suppliers.html',     (_req, res) => res.sendFile(path.join(adminDir, 'suppliers.html')));
+app.get('/admin/calendar.html',      (_req, res) => res.sendFile(path.join(adminDir, 'calendar.html')));
+app.get('/admin/clients.html',       (_req, res) => res.sendFile(path.join(adminDir, 'clients.html')));
 app.get('/admin/supplier-form.html', (_req, res) => res.sendFile(path.join(adminDir, 'supplier-form.html')));
 app.get('/admin/users.html',         (_req, res) => res.sendFile(path.join(adminDir, 'users.html')));
 app.get('/admin/activity.html',      (_req, res) => res.sendFile(path.join(adminDir, 'activity.html')));

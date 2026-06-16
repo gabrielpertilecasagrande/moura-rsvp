@@ -153,6 +153,35 @@ router.put('/:id', requirePerm('can_edit'), (req, res) => {
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(id));
 });
 
+// POST /api/events/:id/duplicate — duplica evento + checklist (status zerado)
+router.post('/:id/duplicate', requireRole('admin', 'gestor'), requirePerm('can_view'), (req, res) => {
+  const id = Number(req.params.id);
+  const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+
+  const dup = db.transaction(() => {
+    const info = db.prepare(
+      `INSERT INTO events (name, client, event_date, event_time, location, city, responsible, status, event_type)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'Planejamento', ?)`
+    ).run(`${ev.name} (cópia)`, ev.client, ev.event_date, ev.event_time, ev.location, ev.city, ev.responsible, ev.event_type);
+    const newId = info.lastInsertRowid;
+
+    // Copia as tarefas do checklist, zerando status e datas de execução.
+    const tasks = db.prepare('SELECT title, responsible, priority FROM checklist WHERE event_id = ?').all(id);
+    const insTask = db.prepare(
+      `INSERT INTO checklist (event_id, title, responsible, priority, status) VALUES (?, ?, ?, ?, 'Pendente')`
+    );
+    for (const t of tasks) insTask.run(newId, t.title, t.responsible, t.priority || 'Média');
+    return newId;
+  });
+
+  const newId = dup();
+  const created = db.prepare('SELECT * FROM events WHERE id = ?').get(newId);
+  if (normalizeRole(req.admin.role) !== 'admin') grantFullAccess(req.admin.id, newId);
+  logActivity(req.admin.name || req.admin.email, 'duplicou evento', `${ev.name} → ${created.name}`);
+  res.status(201).json(created);
+});
+
 // GET /api/events/templates/:type
 router.get('/templates/:type', (req, res) => {
   const rows = db.prepare(
