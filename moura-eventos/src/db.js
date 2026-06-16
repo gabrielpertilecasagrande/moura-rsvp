@@ -142,4 +142,8 @@ if (templateCount === 0) {
   insertAll(templates);
 }
 
+// Expõe o caminho resolvido para diagnóstico no boot (verificar persistência).
+db.dataDir = dataDir;
+db.dbPath  = dbPath;
+
 module.exports = db;

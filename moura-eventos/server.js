@@ -58,4 +58,25 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: 'Erro interno do servidor.' });
 });
 
-app.listen(PORT, () => console.log(`Moura Eventos rodando em http://localhost:${PORT}`));
+// ── Bootstrap na inicialização ────────────────────────────────────────────────
+// 1) Garante o admin (login funciona após todo deploy, sem seed manual).
+// 2) Loga o caminho do banco e a contagem de eventos para diagnosticar se o
+//    volume persistente está realmente montado (se "eventos" zerar a cada deploy,
+//    o volume NÃO está ativo no serviço).
+const db = require('./src/db');
+const { ensureAdmin } = require('./src/utils/ensureAdmin');
+try {
+  const r = ensureAdmin();
+  console.log(`[seed] admin ${r.created ? 'CRIADO' : 'já existe'}: ${r.email}`);
+} catch (e) {
+  console.error('[seed] falha ao garantir admin:', e.message);
+}
+try {
+  const n = db.prepare('SELECT COUNT(*) AS n FROM events').get().n;
+  const usandoVolume = !!process.env.DATA_DIR;
+  console.log(`[db] caminho=${db.dbPath} | DATA_DIR=${process.env.DATA_DIR || '(não definido)'} | eventos=${n} | volume_esperado=${usandoVolume}`);
+} catch (e) {
+  console.error('[db] falha no diagnóstico:', e.message);
+}
+
+app.listen(PORT, () => console.log(`Moura One rodando em http://localhost:${PORT}`));
