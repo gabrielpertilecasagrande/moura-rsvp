@@ -55,6 +55,32 @@ router.get('/', (req, res) => {
     `SELECT id, name, client, event_date, status FROM events ${eventsWhere} ORDER BY created_at DESC LIMIT 5`
   ).all(...eventsParams);
 
+  const today = new Date().toISOString().slice(0, 10);
+
+  const upcomingEvents = db.prepare(
+    `SELECT id, name, client, event_date, status FROM events
+     ${eventsWhere ? eventsWhere + ' AND event_date >= ?' : 'WHERE event_date >= ?'}
+     ORDER BY event_date ASC LIMIT 5`
+  ).all(...eventsParams, today);
+
+  const overdueTasks = db.prepare(
+    `SELECT COUNT(*) AS n FROM checklist
+     WHERE due_date < ? AND status != 'Concluído'
+     ${!isAdmin && ids !== null && ids.length > 0 ? `AND event_id IN (${ids.map(() => '?').join(',')})` : isAdmin ? '' : ids !== null && ids.length === 0 ? 'AND 1=0' : ''}`
+  ).get(today, ...(isAdmin || ids === null ? [] : ids)).n;
+
+  const pendingContractsCount = db.prepare(
+    `SELECT COUNT(*) AS n FROM contracts
+     WHERE status = 'Em negociação'
+     ${!isAdmin && ids !== null && ids.length > 0 ? `AND event_id IN (${ids.map(() => '?').join(',')})` : isAdmin ? '' : ids !== null && ids.length === 0 ? 'AND 1=0' : ''}`
+  ).get(...(isAdmin || ids === null ? [] : ids)).n;
+
+  const pendingPaymentsValue = db.prepare(
+    `SELECT COALESCE(SUM(value), 0) AS total FROM contracts
+     WHERE payment_status = 'Pendente'
+     ${!isAdmin && ids !== null && ids.length > 0 ? `AND event_id IN (${ids.map(() => '?').join(',')})` : isAdmin ? '' : ids !== null && ids.length === 0 ? 'AND 1=0' : ''}`
+  ).get(...(isAdmin || ids === null ? [] : ids)).total;
+
   res.json({
     totalEvents,
     byStatus,
@@ -64,6 +90,10 @@ router.get('/', (req, res) => {
     pendingChecklist,
     recentActivity,
     recentEvents,
+    upcomingEvents,
+    overdueTasks,
+    pendingContractsCount,
+    pendingPaymentsValue,
   });
 });
 

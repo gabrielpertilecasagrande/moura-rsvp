@@ -71,6 +71,25 @@ function renderOverview(ev, totalValue) {
   const row = (label, val) => val
     ? `<div style="display:flex;gap:16px;padding:10px 0;border-bottom:1px solid var(--gray-soft)"><span class="muted" style="min-width:140px;font-size:13px">${label}</span><span style="font-size:14px">${val}</span></div>`
     : '';
+
+  const d = eventData;
+  const today = new Date().toISOString().slice(0, 10);
+  const contracts = d.contracts || [];
+  const checklist = d.checklist || [];
+  const files = d.files || [];
+
+  const pendingPaymentsValue = contracts
+    .filter((c) => c.payment_status === 'Pendente')
+    .reduce((sum, c) => sum + (c.value || 0), 0);
+  const openTasks = checklist.filter((t) => t.status !== 'Concluído').length;
+  const overdueTasks = checklist.filter((t) => t.due_date && t.due_date < today && t.status !== 'Concluído').length;
+
+  const statCard = (label, val, danger) =>
+    `<div style="background:var(--off-white);border-radius:8px;padding:14px 18px;text-align:center">
+      <div style="font-size:20px;font-weight:700;color:${danger ? 'var(--danger)' : 'var(--navy)'}">${val}</div>
+      <div style="font-size:12px;color:var(--muted);margin-top:2px">${label}</div>
+    </div>`;
+
   document.getElementById('overviewCard').innerHTML = `
     ${row('Data', ev.event_date ? fmtDateBR(ev.event_date) : null)}
     ${row('Horário', ev.event_time)}
@@ -78,8 +97,15 @@ function renderOverview(ev, totalValue) {
     ${row('Cidade', esc(ev.city))}
     ${row('Responsável', esc(ev.responsible))}
     ${row('Status', statusPill(ev.status))}
-    ${row('Total contratado', ev.contracts_count ? fmtMoney(totalValue) : null)}
-    <div style="padding:10px 0;color:var(--muted);font-size:12px">Criado em ${fmtDateTimeBR(ev.created_at)}</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-top:20px">
+      ${statCard('Contratações', contracts.length)}
+      ${statCard('Valor Total', fmtMoney(totalValue))}
+      ${statCard('Pagamentos Pendentes', fmtMoney(pendingPaymentsValue), pendingPaymentsValue > 0)}
+      ${statCard('Tarefas Abertas', openTasks, openTasks > 0)}
+      ${statCard('Tarefas Atrasadas', overdueTasks, overdueTasks > 0)}
+      ${statCard('Arquivos', files.length)}
+    </div>
+    <div style="padding:14px 0 0;color:var(--muted);font-size:12px">Atualizado em ${fmtDateTimeBR(ev.updated_at || ev.created_at)}</div>
   `;
 }
 
