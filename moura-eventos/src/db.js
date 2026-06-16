@@ -47,6 +47,15 @@ addColumn('suppliers', 'instagram', 'TEXT');
 addColumn('suppliers', 'state', 'TEXT');
 addColumn('suppliers', 'rating', 'INTEGER DEFAULT 0');
 
+// Índices para consultas frequentes (permissões, JOINs e contagens do dashboard).
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_contracts_supplier   ON contracts(supplier_id);
+  CREATE INDEX IF NOT EXISTS idx_contracts_payment     ON contracts(payment_status);
+  CREATE INDEX IF NOT EXISTS idx_contracts_status      ON contracts(status);
+  CREATE INDEX IF NOT EXISTS idx_checklist_status      ON checklist(status);
+  CREATE INDEX IF NOT EXISTS idx_admins_status         ON admins(status);
+`);
+
 // Tabela de comentários do checklist
 db.exec(`
   CREATE TABLE IF NOT EXISTS checklist_comments (

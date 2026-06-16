@@ -10,6 +10,15 @@ router.use(requireAuth);
 const CONTRACT_STATUS = ['Em negociação', 'Aguardando aprovação', 'Aprovado', 'Contratado', 'Recusado', 'Cancelado'];
 const PAYMENT_STATUS  = ['Pendente', 'Parcial', 'Pago'];
 
+// Converte um valor monetário recebido em número válido (>= 0) ou null.
+// Evita gravar NaN (que quebra o better-sqlite3) ou negativos.
+function parseMoney(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n;
+}
+
 function getEvent(id) {
   return db.prepare('SELECT * FROM events WHERE id = ?').get(Number(id));
 }
@@ -45,7 +54,7 @@ router.post('/', requirePerm('can_contracts'), (req, res) => {
   ).run(
     eventId,
     supplier.id,
-    b.value != null ? Number(b.value) : null,
+    parseMoney(b.value),
     status,
     payment,
     b.notes             ? String(b.notes).trim() : null,
@@ -73,7 +82,7 @@ router.put('/:cid', requirePerm('can_contracts'), (req, res) => {
   const b = req.body || {};
   const status           = CONTRACT_STATUS.includes(b.status)        ? b.status         : c.status;
   const payment          = PAYMENT_STATUS.includes(b.payment_status) ? b.payment_status : c.payment_status;
-  const value            = b.value            != null ? Number(b.value)                  : c.value;
+  const value            = b.value            != null ? parseMoney(b.value)              : c.value;
   const notes            = b.notes            != null ? (String(b.notes).trim() || null) : c.notes;
   const contract_date    = b.contract_date    != null ? (b.contract_date    || null)     : c.contract_date;
   const payment_due_date = b.payment_due_date != null ? (b.payment_due_date || null)     : c.payment_due_date;

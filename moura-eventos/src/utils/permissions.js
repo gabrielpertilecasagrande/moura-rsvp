@@ -19,10 +19,18 @@ function normalizeRole(role) {
   return ROLES.includes(role) ? role : 'operador';
 }
 
+// Permissões sugeridas (pré-marcadas na tela de acesso) conforme o papel.
+// Gestor recebe acesso operacional completo exceto exclusão; operador recebe
+// apenas o essencial (visualizar, checklist, diário).
 function defaultPermsForRole(role) {
   const out = {};
-  for (const k of PERM_KEYS) out[k] = 1;
-  out.can_delete = 0;
+  for (const k of PERM_KEYS) out[k] = 0;
+  if (normalizeRole(role) === 'operador') {
+    out.can_view = 1; out.can_checklist = 1; out.can_diary = 1;
+  } else {
+    for (const k of PERM_KEYS) out[k] = 1;
+    out.can_delete = 0;
+  }
   return out;
 }
 

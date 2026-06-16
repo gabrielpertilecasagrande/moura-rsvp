@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole, requirePerm, authorizedEventIds, grantFullAccess, normalizeRole } = require('../utils/permissions');
 const { logActivity } = require('../utils/activity');
+const { removeStoredFile } = require('../utils/uploads');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -107,7 +108,7 @@ router.get('/:id', requirePerm('can_view'), (req, res) => {
   ).all(id);
 
   const files = db.prepare(
-    'SELECT id, filename, mime_type, size, uploaded_by, created_at FROM event_files WHERE event_id = ? ORDER BY created_at DESC'
+    'SELECT id, filename, mime_type, size, uploaded_by, category, created_at FROM event_files WHERE event_id = ? ORDER BY created_at DESC'
   ).all(id);
 
   const diary = db.prepare(
@@ -165,7 +166,11 @@ router.delete('/:id', requirePerm('can_delete'), (req, res) => {
   const id = Number(req.params.id);
   const ev = db.prepare('SELECT name FROM events WHERE id = ?').get(id);
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  // Remove os arquivos físicos antes do CASCADE apagar as linhas em event_files,
+  // evitando arquivos órfãos acumulando no volume.
+  const storedFiles = db.prepare('SELECT stored_name FROM event_files WHERE event_id = ?').all(id);
   db.prepare('DELETE FROM events WHERE id = ?').run(id);
+  storedFiles.forEach((f) => removeStoredFile(f.stored_name));
   logActivity(req.admin.name || req.admin.email, 'excluiu evento', ev.name);
   res.json({ ok: true });
 });

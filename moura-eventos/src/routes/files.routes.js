@@ -7,15 +7,10 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requirePerm } = require('../utils/permissions');
 const { logActivity } = require('../utils/activity');
+const { uploadsDir, removeStoredFile } = require('../utils/uploads');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
-
-const uploadsDir = process.env.DATA_DIR
-  ? path.join(path.resolve(process.env.DATA_DIR), 'uploads')
-  : path.join(__dirname, '..', '..', 'uploads');
-
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadsDir),
@@ -89,8 +84,7 @@ router.delete('/:fid', requirePerm('can_files'), (req, res) => {
     Number(req.params.fid), Number(req.params.id)
   );
   if (!f) return res.status(404).json({ error: 'Arquivo não encontrado.' });
-  const filePath = path.join(uploadsDir, f.stored_name);
-  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  removeStoredFile(f.stored_name);
   db.prepare('DELETE FROM event_files WHERE id = ?').run(f.id);
   logActivity(req.admin.name || req.admin.email, 'excluiu arquivo', f.filename);
   res.json({ ok: true });

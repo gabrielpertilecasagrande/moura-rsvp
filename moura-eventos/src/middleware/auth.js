@@ -1,6 +1,13 @@
 const jwt = require('jsonwebtoken');
 const db = require('../db');
-const SECRET = process.env.JWT_SECRET || 'dev-secret';
+
+// Em produção exigimos um JWT_SECRET forte. Sem ele, tokens poderiam ser
+// forjados — falha imediata e explícita em vez de cair num segredo padrão.
+const isProd = process.env.NODE_ENV === 'production';
+if (isProd && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16)) {
+  throw new Error('JWT_SECRET ausente ou fraco. Defina um valor com pelo menos 16 caracteres em produção.');
+}
+const SECRET = process.env.JWT_SECRET || 'dev-secret-apenas-para-desenvolvimento';
 
 function sign(admin) {
   return jwt.sign(

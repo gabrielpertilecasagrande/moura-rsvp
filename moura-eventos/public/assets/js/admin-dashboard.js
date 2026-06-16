@@ -99,8 +99,8 @@ async function load() {
 }
 
 function statusPill(s) {
-  const map = { 'Planejamento': 'pill', 'Contratação': 'pill pill-active', 'Produção': 'pill pill-ok', 'Evento realizado': 'pill pill-ok', 'Encerrado': 'pill' };
-  return map[s] || 'pill';
+  const map = { 'Planejamento': '', 'Contratação': 'pill-active', 'Produção': 'pill-ok', 'Evento realizado': 'pill-ok', 'Encerrado': '' };
+  return map[s] || '';
 }
 
 load().catch(console.error);
