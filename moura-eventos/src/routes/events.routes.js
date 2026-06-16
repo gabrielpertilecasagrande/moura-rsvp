@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(requireAuth);
 
 const EVENT_STATUS = ['Planejamento', 'Contratação', 'Produção', 'Evento realizado', 'Encerrado'];
+const EVENT_TYPES  = ['Fórum', 'Congresso', 'Convenção', 'Seminário', 'Feira', 'Jantar', 'Lançamento', 'Reunião'];
 
 // GET /api/events
 router.get('/', (req, res) => {
@@ -52,9 +53,11 @@ router.post('/', requireRole('admin', 'gestor'), (req, res) => {
   if (!b.name) return res.status(400).json({ error: 'O nome do evento é obrigatório.' });
   const status = EVENT_STATUS.includes(b.status) ? b.status : 'Planejamento';
 
+  const event_type = EVENT_TYPES.includes(b.event_type) ? b.event_type : null;
+
   const info = db.prepare(
-    `INSERT INTO events (name, client, event_date, event_time, location, city, responsible, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO events (name, client, event_date, event_time, location, city, responsible, status, event_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     String(b.name).trim(),
     b.client   ? String(b.client).trim()   : null,
@@ -63,13 +66,26 @@ router.post('/', requireRole('admin', 'gestor'), (req, res) => {
     b.location ? String(b.location).trim() : null,
     b.city     ? String(b.city).trim()     : null,
     b.responsible ? String(b.responsible).trim() : null,
-    status
+    status,
+    event_type
   );
 
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
   if (normalizeRole(req.admin.role) !== 'admin') {
     grantFullAccess(req.admin.id, event.id);
   }
+
+  if (event_type) {
+    const templates = db.prepare(
+      'SELECT * FROM event_type_templates WHERE event_type = ? ORDER BY sort_order ASC'
+    ).all(event_type);
+    const insertTask = db.prepare(
+      `INSERT INTO checklist (event_id, title, priority, responsible, status) VALUES (?, ?, ?, ?, 'Pendente')`
+    );
+    const insertAll = db.transaction((rows) => { for (const t of rows) insertTask.run(event.id, t.title, t.priority, t.responsible); });
+    insertAll(templates);
+  }
+
   logActivity(req.admin.name || req.admin.email, 'criou evento', event.name);
   res.status(201).json(event);
 });
@@ -114,8 +130,10 @@ router.put('/:id', requirePerm('can_edit'), (req, res) => {
   if (!name) return res.status(400).json({ error: 'O nome do evento é obrigatório.' });
   const status = EVENT_STATUS.includes(b.status) ? b.status : ev.status;
 
+  const event_type = b.event_type != null ? (EVENT_TYPES.includes(b.event_type) ? b.event_type : null) : ev.event_type;
+
   db.prepare(
-    `UPDATE events SET name=?, client=?, event_date=?, event_time=?, location=?, city=?, responsible=?, status=?, updated_at=datetime('now')
+    `UPDATE events SET name=?, client=?, event_date=?, event_time=?, location=?, city=?, responsible=?, status=?, event_type=?, updated_at=datetime('now')
      WHERE id=?`
   ).run(
     name,
@@ -126,11 +144,20 @@ router.put('/:id', requirePerm('can_edit'), (req, res) => {
     b.city        != null ? (String(b.city).trim()        || null) : ev.city,
     b.responsible != null ? (String(b.responsible).trim() || null) : ev.responsible,
     status,
+    event_type,
     id
   );
 
   logActivity(req.admin.name || req.admin.email, 'editou evento', name);
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(id));
+});
+
+// GET /api/events/templates/:type
+router.get('/templates/:type', (req, res) => {
+  const rows = db.prepare(
+    'SELECT title, priority, responsible FROM event_type_templates WHERE event_type = ? ORDER BY sort_order ASC'
+  ).all(req.params.type);
+  res.json(rows);
 });
 
 // DELETE /api/events/:id

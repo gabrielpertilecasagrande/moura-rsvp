@@ -38,8 +38,27 @@
           <div class="field"><label>WhatsApp</label><input type="text" id="whatsapp" placeholder="(00) 90000-0000" /></div>
           <div class="field"><label>E-mail</label><input type="email" id="email" /></div>
         </div>
-        <div class="field"><label>Cidade</label><input type="text" id="city" /></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field"><label>Cidade</label><input type="text" id="city" /></div>
+          <div class="field"><label>Estado (UF)</label><input type="text" id="state" maxlength="2" placeholder="SP" /></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field"><label>Site</label><input type="url" id="website" placeholder="https://" /></div>
+          <div class="field"><label>Instagram</label><input type="text" id="instagram" placeholder="@usuario" /></div>
+        </div>
+        <div class="field">
+          <label>Avaliação</label>
+          <div id="ratingWidget" style="display:flex;gap:6px;padding:4px 0">
+            <span class="star" data-v="1" style="font-size:22px;cursor:pointer">☆</span>
+            <span class="star" data-v="2" style="font-size:22px;cursor:pointer">☆</span>
+            <span class="star" data-v="3" style="font-size:22px;cursor:pointer">☆</span>
+            <span class="star" data-v="4" style="font-size:22px;cursor:pointer">☆</span>
+            <span class="star" data-v="5" style="font-size:22px;cursor:pointer">☆</span>
+          </div>
+          <input type="hidden" id="rating" value="0" />
+        </div>
         <div class="field"><label>Observações</label><textarea id="notes" rows="3"></textarea></div>
+        <div id="supplierStats" style="display:none;margin-bottom:16px"></div>
         <div style="display:flex;gap:10px;margin-top:8px">
           <button class="btn btn-primary" id="saveBtn">Salvar fornecedor</button>
           <a href="/admin/suppliers.html" class="btn btn-ghost">Cancelar</a>

@@ -11,6 +11,33 @@ if (!canCreateEvents()) {
   setTimeout(() => location.href = '/admin/events.html', 1500);
 }
 
+const PRIORITY_COLORS = { 'Crítica': '#e63946', 'Alta': '#f4a261', 'Média': '#2BC2CE', 'Baixa': '#8b9099' };
+
+async function loadTemplatePreview(type) {
+  const preview = document.getElementById('templatePreview');
+  const list    = document.getElementById('templateList');
+  if (!type) { preview.style.display = 'none'; return; }
+  try {
+    const tasks = await Api.get(`/api/events/templates/${encodeURIComponent(type)}`);
+    if (!tasks.length) { preview.style.display = 'none'; return; }
+    list.innerHTML = tasks.map(t => {
+      const color = PRIORITY_COLORS[t.priority] || 'var(--navy)';
+      return `<div style="display:flex;align-items:center;gap:8px;font-size:13px">
+        <span style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></span>
+        <span>${esc(t.title)}</span>
+        <span style="color:${color};font-size:11px;font-weight:600">${esc(t.priority)}</span>
+      </div>`;
+    }).join('');
+    preview.style.display = 'block';
+  } catch { preview.style.display = 'none'; }
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+document.getElementById('event_type').addEventListener('change', function() {
+  if (!isEdit) loadTemplatePreview(this.value);
+});
+
 async function init() {
   if (isEdit) {
     document.getElementById('formEyebrow').textContent = 'Editar';
@@ -24,6 +51,7 @@ async function init() {
     document.getElementById('city').value        = event.city        || '';
     document.getElementById('responsible').value = event.responsible || '';
     document.getElementById('status').value      = event.status      || 'Planejamento';
+    document.getElementById('event_type').value  = event.event_type  || '';
   }
 }
 
@@ -40,6 +68,7 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     city:        document.getElementById('city').value.trim()        || null,
     responsible: document.getElementById('responsible').value.trim() || null,
     status:      document.getElementById('status').value,
+    event_type:  document.getElementById('event_type').value         || null,
   };
 
   const btn = document.getElementById('saveBtn');

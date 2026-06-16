@@ -31,15 +31,35 @@
           <div class="field"><label>Cidade</label><input type="text" id="city" /></div>
           <div class="field"><label>Responsável</label><input type="text" id="responsible" /></div>
         </div>
-        <div class="field">
-          <label>Status</label>
-          <select id="status">
-            <option>Planejamento</option>
-            <option>Contratação</option>
-            <option>Produção</option>
-            <option>Evento realizado</option>
-            <option>Encerrado</option>
-          </select>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="field">
+            <label>Tipo de evento</label>
+            <select id="event_type">
+              <option value="">Selecione um tipo</option>
+              <option>Fórum</option>
+              <option>Congresso</option>
+              <option>Convenção</option>
+              <option>Seminário</option>
+              <option>Feira</option>
+              <option>Jantar</option>
+              <option>Lançamento</option>
+              <option>Reunião</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Status</label>
+            <select id="status">
+              <option>Planejamento</option>
+              <option>Contratação</option>
+              <option>Produção</option>
+              <option>Evento realizado</option>
+              <option>Encerrado</option>
+            </select>
+          </div>
+        </div>
+        <div id="templatePreview" style="display:none;margin-bottom:16px">
+          <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:8px">Tarefas criadas automaticamente:</div>
+          <div id="templateList" style="display:flex;flex-direction:column;gap:6px"></div>
         </div>
         <div style="display:flex;gap:10px;margin-top:8px">
           <button class="btn btn-primary" id="saveBtn">Salvar evento</button>

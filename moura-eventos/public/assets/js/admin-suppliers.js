@@ -29,18 +29,24 @@ function render(suppliers) {
     body.innerHTML = '<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Nenhum fornecedor encontrado.</td></tr>';
     return;
   }
-  body.innerHTML = suppliers.map((s) => `<tr>
+  body.innerHTML = suppliers.map((s) => {
+    const stars = s.rating > 0 ? '★'.repeat(s.rating) + '☆'.repeat(5 - s.rating) : '—';
+    const starColor = s.rating > 0 ? '#f4a261' : 'var(--muted)';
+    const cityState = [s.city, s.state].filter(Boolean).join(' / ');
+    return `<tr>
     <td><a href="/admin/supplier-form.html?id=${s.id}" style="font-weight:600">${esc(s.company)}</a></td>
     <td>${s.category ? `<span class="pill" style="background:${categoryColor(s.category)}20;color:${categoryColor(s.category)};border-color:${categoryColor(s.category)}40">${esc(s.category)}</span>` : '—'}</td>
     <td>${esc(s.contact || '—')}</td>
     <td>${s.whatsapp ? `<a href="https://wa.me/55${s.whatsapp.replace(/\D/g,'')}" target="_blank" class="btn btn-ghost btn-sm">📱 WhatsApp</a>` : '—'}</td>
-    <td>${esc(s.city || '—')}</td>
+    <td>${esc(cityState || '—')}</td>
+    <td style="text-align:center;color:${starColor};letter-spacing:2px;font-size:13px">${stars}</td>
     <td style="text-align:center">${s.contracts_count || 0}</td>
     <td style="white-space:nowrap">
       <a href="/admin/supplier-form.html?id=${s.id}" class="btn btn-ghost btn-sm">Editar</a>
       ${currentRole() === 'admin' ? `<button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteSupplier(${s.id},'${esc(s.company).replace(/'/g,"\\'")}')">Excluir</button>` : ''}
     </td>
-  </tr>`).join('');
+  </tr>`;
+  }).join('');
 }
 
 async function deleteSupplier(id, name) {

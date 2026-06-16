@@ -96,6 +96,7 @@ function renderOverview(ev, totalValue) {
     </div>`;
 
   document.getElementById('overviewCard').innerHTML = `
+    ${row('Tipo', esc(ev.event_type))}
     ${row('Data', ev.event_date ? fmtDateBR(ev.event_date) : null)}
     ${row('Horário', ev.event_time)}
     ${row('Local', esc(ev.location))}

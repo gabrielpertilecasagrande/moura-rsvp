@@ -42,15 +42,19 @@ router.post('/', requireRole('admin', 'gestor'), (req, res) => {
   const category = CATEGORIES.includes(b.category) ? b.category : null;
 
   const info = db.prepare(
-    'INSERT INTO suppliers (company, contact, whatsapp, email, city, category, notes) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO suppliers (company, contact, whatsapp, email, city, state, category, notes, website, instagram, rating) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
   ).run(
     String(b.company).trim(),
-    b.contact  ? String(b.contact).trim()  : null,
-    b.whatsapp ? String(b.whatsapp).trim() : null,
-    b.email    ? String(b.email).trim()    : null,
-    b.city     ? String(b.city).trim()     : null,
+    b.contact   ? String(b.contact).trim()   : null,
+    b.whatsapp  ? String(b.whatsapp).trim()  : null,
+    b.email     ? String(b.email).trim()     : null,
+    b.city      ? String(b.city).trim()      : null,
+    b.state     ? String(b.state).trim()     : null,
     category,
-    b.notes    ? String(b.notes).trim()    : null
+    b.notes     ? String(b.notes).trim()     : null,
+    b.website   ? String(b.website).trim()   : null,
+    b.instagram ? String(b.instagram).trim() : null,
+    Number.isInteger(Number(b.rating)) && Number(b.rating) >= 0 && Number(b.rating) <= 5 ? Number(b.rating) : 0
   );
 
   const supplier = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(info.lastInsertRowid);
@@ -69,7 +73,15 @@ router.get('/:id', (req, res) => {
      WHERE c.supplier_id = ? ORDER BY e.event_date DESC`
   ).all(s.id);
 
-  res.json({ supplier: s, contracts });
+  const stats = db.prepare(
+    `SELECT COUNT(*) AS contracts_count,
+            AVG(value) AS avg_value,
+            (SELECT e.name FROM contracts c2 JOIN events e ON e.id = c2.event_id
+             WHERE c2.supplier_id = ? ORDER BY e.event_date DESC LIMIT 1) AS last_event_name
+     FROM contracts WHERE supplier_id = ?`
+  ).get(s.id, s.id);
+
+  res.json({ supplier: s, contracts, stats });
 });
 
 // PUT /api/suppliers/:id
@@ -83,16 +95,24 @@ router.put('/:id', requireRole('admin', 'gestor'), (req, res) => {
   if (!company) return res.status(400).json({ error: 'O nome da empresa é obrigatório.' });
   const category = b.category != null ? (CATEGORIES.includes(b.category) ? b.category : null) : s.category;
 
+  const rating = b.rating != null
+    ? (Number.isInteger(Number(b.rating)) && Number(b.rating) >= 0 && Number(b.rating) <= 5 ? Number(b.rating) : s.rating)
+    : s.rating;
+
   db.prepare(
-    'UPDATE suppliers SET company=?, contact=?, whatsapp=?, email=?, city=?, category=?, notes=? WHERE id=?'
+    'UPDATE suppliers SET company=?, contact=?, whatsapp=?, email=?, city=?, state=?, category=?, notes=?, website=?, instagram=?, rating=? WHERE id=?'
   ).run(
     company,
-    b.contact  != null ? (String(b.contact).trim()  || null) : s.contact,
-    b.whatsapp != null ? (String(b.whatsapp).trim() || null) : s.whatsapp,
-    b.email    != null ? (String(b.email).trim()    || null) : s.email,
-    b.city     != null ? (String(b.city).trim()     || null) : s.city,
+    b.contact   != null ? (String(b.contact).trim()   || null) : s.contact,
+    b.whatsapp  != null ? (String(b.whatsapp).trim()  || null) : s.whatsapp,
+    b.email     != null ? (String(b.email).trim()     || null) : s.email,
+    b.city      != null ? (String(b.city).trim()      || null) : s.city,
+    b.state     != null ? (String(b.state).trim()     || null) : s.state,
     category,
-    b.notes    != null ? (String(b.notes).trim()    || null) : s.notes,
+    b.notes     != null ? (String(b.notes).trim()     || null) : s.notes,
+    b.website   != null ? (String(b.website).trim()   || null) : s.website,
+    b.instagram != null ? (String(b.instagram).trim() || null) : s.instagram,
+    rating,
     id
   );
 
