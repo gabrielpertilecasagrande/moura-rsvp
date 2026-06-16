@@ -77,8 +77,8 @@ router.post('/', requireRole('admin', 'gestor'), (req, res) => {
   const event_type = EVENT_TYPES.includes(b.event_type) ? b.event_type : null;
 
   const info = db.prepare(
-    `INSERT INTO events (name, client, event_date, event_time, location, city, responsible, status, event_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO events (name, client, event_date, event_time, location, city, responsible, status, event_type, rsvp_event_id, checkin_event_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
     String(b.name).trim(),
     b.client   ? String(b.client).trim()   : null,
@@ -88,7 +88,9 @@ router.post('/', requireRole('admin', 'gestor'), (req, res) => {
     b.city     ? String(b.city).trim()     : null,
     b.responsible ? String(b.responsible).trim() : null,
     status,
-    event_type
+    event_type,
+    b.rsvp_event_id    ? String(b.rsvp_event_id).trim()    : null,
+    b.checkin_event_id ? String(b.checkin_event_id).trim()  : null
   );
 
   const event = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
@@ -146,20 +148,22 @@ router.put('/:id', requirePerm('can_edit'), (req, res) => {
 
   const next = {
     name,
-    client:      b.client      != null ? (String(b.client).trim()      || null) : ev.client,
-    event_date:  b.event_date  != null ? (b.event_date                 || null) : ev.event_date,
-    event_time:  b.event_time  != null ? (b.event_time                 || null) : ev.event_time,
-    location:    b.location    != null ? (String(b.location).trim()    || null) : ev.location,
-    city:        b.city        != null ? (String(b.city).trim()        || null) : ev.city,
-    responsible: b.responsible != null ? (String(b.responsible).trim() || null) : ev.responsible,
+    client:           b.client           != null ? (String(b.client).trim()           || null) : ev.client,
+    event_date:       b.event_date        != null ? (b.event_date                      || null) : ev.event_date,
+    event_time:       b.event_time        != null ? (b.event_time                      || null) : ev.event_time,
+    location:         b.location          != null ? (String(b.location).trim()         || null) : ev.location,
+    city:             b.city              != null ? (String(b.city).trim()             || null) : ev.city,
+    responsible:      b.responsible       != null ? (String(b.responsible).trim()      || null) : ev.responsible,
     status,
     event_type,
+    rsvp_event_id:    b.rsvp_event_id    != null ? (String(b.rsvp_event_id).trim()    || null) : ev.rsvp_event_id,
+    checkin_event_id: b.checkin_event_id != null ? (String(b.checkin_event_id).trim()  || null) : ev.checkin_event_id,
   };
 
   db.prepare(
-    `UPDATE events SET name=?, client=?, event_date=?, event_time=?, location=?, city=?, responsible=?, status=?, event_type=?, updated_at=datetime('now')
+    `UPDATE events SET name=?, client=?, event_date=?, event_time=?, location=?, city=?, responsible=?, status=?, event_type=?, rsvp_event_id=?, checkin_event_id=?, updated_at=datetime('now')
      WHERE id=?`
-  ).run(next.name, next.client, next.event_date, next.event_time, next.location, next.city, next.responsible, next.status, next.event_type, id);
+  ).run(next.name, next.client, next.event_date, next.event_time, next.location, next.city, next.responsible, next.status, next.event_type, next.rsvp_event_id, next.checkin_event_id, id);
 
   // Se o tipo foi definido agora e o checklist está vazio, aplica o modelo.
   if (next.event_type && !ev.event_type) {

@@ -65,8 +65,13 @@ async function init() {
     document.getElementById('location').value    = event.location    || '';
     document.getElementById('city').value        = event.city        || '';
     document.getElementById('responsible').value = event.responsible || '';
-    document.getElementById('status').value      = event.status      || 'Planejamento';
-    document.getElementById('event_type').value  = event.event_type  || '';
+    document.getElementById('status').value           = event.status           || 'Planejamento';
+    document.getElementById('event_type').value        = event.event_type        || '';
+    document.getElementById('rsvp_event_id').value     = event.rsvp_event_id     || '';
+    document.getElementById('checkin_event_id').value  = event.checkin_event_id  || '';
+    if (event.rsvp_event_id || event.checkin_event_id) {
+      document.getElementById('integrationSection').open = true;
+    }
     updateWeekday();
   }
 }
@@ -83,8 +88,10 @@ document.getElementById('saveBtn').addEventListener('click', async () => {
     location:    document.getElementById('location').value.trim()    || null,
     city:        document.getElementById('city').value.trim()        || null,
     responsible: document.getElementById('responsible').value.trim() || null,
-    status:      document.getElementById('status').value,
-    event_type:  document.getElementById('event_type').value         || null,
+    status:           document.getElementById('status').value,
+    event_type:       document.getElementById('event_type').value          || null,
+    rsvp_event_id:    document.getElementById('rsvp_event_id').value.trim()    || null,
+    checkin_event_id: document.getElementById('checkin_event_id').value.trim()  || null,
   };
 
   const btn = document.getElementById('saveBtn');

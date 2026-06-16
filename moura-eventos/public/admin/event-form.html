@@ -6,6 +6,10 @@
   <title>Evento — Moura One</title>
   <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
   <link rel="stylesheet" href="/assets/css/styles.css" />
+  <style>
+    details[open] #integrSummaryArrow { content:'▼'; transform:rotate(90deg); }
+    details summary::-webkit-details-marker { display:none; }
+  </style>
 </head>
 <body>
   <div class="admin-shell">
@@ -63,6 +67,27 @@
             </select>
           </div>
         </div>
+        <!-- Sistemas integrados (RSVP / Check-in) -->
+        <details id="integrationSection" style="margin-bottom:16px;border:1px solid var(--gray-soft);border-radius:var(--radius);padding:0">
+          <summary style="padding:12px 16px;cursor:pointer;font-weight:600;font-size:14px;color:var(--navy);list-style:none;display:flex;align-items:center;gap:8px">
+            <span id="integrSummaryArrow" style="font-size:12px">▶</span> Sistemas integrados (RSVP &amp; Check-in)
+            <span class="muted" style="font-size:12px;font-weight:400">— opcional</span>
+          </summary>
+          <div style="padding:16px;border-top:1px solid var(--gray-soft)">
+            <div style="color:var(--muted);font-size:13px;margin-bottom:14px">Vincule este evento aos outros sistemas. Esses IDs são fornecidos por cada plataforma ao criar o evento lá.</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="field">
+                <label>ID do evento no RSVP</label>
+                <input type="text" id="rsvp_event_id" placeholder="ex: evt_abc123" />
+              </div>
+              <div class="field">
+                <label>ID do evento no Check-in</label>
+                <input type="text" id="checkin_event_id" placeholder="UUID do evento" />
+              </div>
+            </div>
+          </div>
+        </details>
+
         <div id="templatePreview" style="display:none;margin-bottom:16px">
           <div style="font-size:13px;font-weight:600;color:var(--navy);margin-bottom:8px">Tarefas criadas automaticamente:</div>
           <div id="templateList" style="display:flex;flex-direction:column;gap:6px"></div>

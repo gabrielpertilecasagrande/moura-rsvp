@@ -68,6 +68,7 @@
         <button data-tab="files">Arquivos</button>
         <button data-tab="diary">Diário</button>
         <button data-tab="timeline">Linha do tempo</button>
+        <button data-tab="integrations" id="integrationsTab" class="hidden">🔗 RSVP &amp; Check-in</button>
       </div>
 
       <!-- Aba: Visão Geral -->
@@ -285,6 +286,37 @@
           <button class="btn btn-ghost btn-sm" id="exportDiaryBtn">⬇ Exportar PDF</button>
         </div>
         <div id="diaryList" style="max-width:680px"></div>
+      </div>
+
+      <!-- Aba: RSVP & Check-in -->
+      <div class="tab-pane" id="tab-integrations">
+        <div style="max-width:700px">
+          <!-- RSVP -->
+          <div class="card" style="margin-bottom:20px" id="rsvpCard">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+              <div>
+                <div style="font-size:16px;font-weight:600">Moura RSVP</div>
+                <div class="muted" style="font-size:13px" id="rsvpIdLabel"></div>
+              </div>
+              <button class="btn btn-primary btn-sm" id="openRsvpBtn">🔗 Abrir RSVP</button>
+            </div>
+            <div id="rsvpMetrics"></div>
+          </div>
+          <!-- Check-in -->
+          <div class="card" id="checkinCard">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+              <div>
+                <div style="font-size:16px;font-weight:600">Check-in por QR</div>
+                <div class="muted" style="font-size:13px" id="checkinIdLabel"></div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn btn-ghost btn-sm" id="genOperatorTokenBtn">🎫 Gerar link de operador</button>
+                <button class="btn btn-primary btn-sm" id="openCheckinBtn">🔗 Abrir Check-in</button>
+              </div>
+            </div>
+            <div id="checkinMetrics"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Aba: Linha do tempo -->

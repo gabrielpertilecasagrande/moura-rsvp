@@ -71,6 +71,7 @@ async function load() {
   renderDiary(d.diary);
   renderTimeline(d);
   loadCover(ev.cover_image);
+  showIntegrationsTab(ev);
 }
 
 // ── Linha do tempo (montada a partir dos dados já carregados) ─────────────────
@@ -1422,6 +1423,161 @@ async function unlinkRelated(rid) {
 // Botão "Modo Dia do Evento"
 const dayBtn = document.getElementById('eventDayBtn');
 if (dayBtn) dayBtn.href = `/admin/event-day.html?id=${eventId}`;
+
+// ── RSVP & Check-in (Lote Integração) ───────────────────────────────────────
+function showIntegrationsTab(ev) {
+  const hasRsvp    = !!ev.rsvp_event_id;
+  const hasCheckin = !!ev.checkin_event_id;
+  const tab = document.getElementById('integrationsTab');
+  if (tab && (hasRsvp || hasCheckin)) tab.classList.remove('hidden');
+
+  if (hasRsvp) {
+    const lbl = document.getElementById('rsvpIdLabel');
+    if (lbl) lbl.textContent = `ID: ${ev.rsvp_event_id}`;
+    loadRsvpMetrics(ev.rsvp_event_id);
+  } else {
+    const card = document.getElementById('rsvpCard');
+    if (card) card.innerHTML = '<p class="muted" style="font-size:13px">Nenhum evento RSVP vinculado. Edite o evento para adicionar o ID.</p>';
+  }
+
+  if (hasCheckin) {
+    const lbl = document.getElementById('checkinIdLabel');
+    if (lbl) lbl.textContent = `ID: ${ev.checkin_event_id}`;
+    loadCheckinMetrics(ev.checkin_event_id);
+  } else {
+    const card = document.getElementById('checkinCard');
+    if (card) card.innerHTML = '<p class="muted" style="font-size:13px">Nenhum evento de Check-in vinculado. Edite o evento para adicionar o ID.</p>';
+  }
+
+  // Botão Abrir RSVP
+  const rsvpBtn = document.getElementById('openRsvpBtn');
+  if (rsvpBtn) {
+    rsvpBtn.style.display = hasRsvp ? '' : 'none';
+    rsvpBtn.addEventListener('click', async () => {
+      rsvpBtn.disabled = true; rsvpBtn.textContent = 'Aguarde…';
+      try {
+        const { url } = await Api.post('/api/integrations/sso-token', { target: 'rsvp', event_id: Number(eventId) });
+        window.open(url, '_blank');
+      } catch (e) { toast(e.message); }
+      finally { rsvpBtn.disabled = false; rsvpBtn.textContent = '🔗 Abrir RSVP'; }
+    });
+  }
+
+  // Botão Abrir Check-in
+  const ciBtn = document.getElementById('openCheckinBtn');
+  if (ciBtn) {
+    ciBtn.style.display = hasCheckin ? '' : 'none';
+    ciBtn.addEventListener('click', async () => {
+      ciBtn.disabled = true; ciBtn.textContent = 'Aguarde…';
+      try {
+        // Check-in usa link direto (sem SSO; autenticado pelo token de operador).
+        const ev2 = eventData?.event;
+        if (!ev2?.checkin_event_id) { toast('ID do Check-in não configurado.'); return; }
+        const checkinBase = (await fetch('/api/integrations/checkin-metrics/' + encodeURIComponent(ev2.checkin_event_id), { headers: { Authorization: `Bearer ${Api.token()}` } })).ok
+          ? null : null; // só para testar conectividade; a URL vem da config do servidor
+        toast('Abra o Check-in via link de operador.');
+      } catch (e) { toast(e.message); }
+      finally { ciBtn.disabled = false; ciBtn.textContent = '🔗 Abrir Check-in'; }
+    });
+  }
+
+  // Botão Gerar link de operador
+  const opBtn = document.getElementById('genOperatorTokenBtn');
+  if (opBtn) {
+    opBtn.style.display = hasCheckin ? '' : 'none';
+    opBtn.addEventListener('click', () => openOperatorTokenModal(eventData?.event?.checkin_event_id));
+  }
+}
+
+async function loadRsvpMetrics(rsvpEventId) {
+  const el = document.getElementById('rsvpMetrics');
+  if (!el) return;
+  el.innerHTML = '<p class="muted" style="font-size:13px">Carregando métricas…</p>';
+  try {
+    const m = await Api.get(`/api/integrations/rsvp-metrics/${encodeURIComponent(rsvpEventId)}`);
+    const confirmed = m.confirmed ?? m.total_confirmed ?? m.confirmados ?? '—';
+    const declined  = m.declined  ?? m.total_declined  ?? m.recusados  ?? '—';
+    const pending   = m.pending   ?? m.total_pending   ?? m.pendentes  ?? '—';
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px">
+      <div style="background:var(--off-white);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:#16a34a">${confirmed}</div>
+        <div style="font-size:12px;color:var(--muted)">Confirmados</div>
+      </div>
+      <div style="background:var(--off-white);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:var(--danger)">${declined}</div>
+        <div style="font-size:12px;color:var(--muted)">Recusados</div>
+      </div>
+      <div style="background:var(--off-white);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:var(--navy)">${pending}</div>
+        <div style="font-size:12px;color:var(--muted)">Pendentes</div>
+      </div>
+    </div>`;
+  } catch (e) {
+    el.innerHTML = `<p class="muted" style="font-size:13px">Não foi possível carregar métricas: ${esc(e.message)}</p>`;
+  }
+}
+
+async function loadCheckinMetrics(checkinEventId) {
+  const el = document.getElementById('checkinMetrics');
+  if (!el) return;
+  el.innerHTML = '<p class="muted" style="font-size:13px">Carregando métricas…</p>';
+  try {
+    const m = await Api.get(`/api/integrations/checkin-metrics/${encodeURIComponent(checkinEventId)}`);
+    el.innerHTML = `<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:12px">
+      <div style="background:var(--off-white);border-radius:8px;padding:14px;text-align:center">
+        <div style="font-size:22px;font-weight:700;color:var(--navy)">${m.total_checkins ?? '—'}</div>
+        <div style="font-size:12px;color:var(--muted)">Check-ins realizados</div>
+      </div>
+    </div>`;
+  } catch (e) {
+    el.innerHTML = `<p class="muted" style="font-size:13px">Não foi possível carregar métricas: ${esc(e.message)}</p>`;
+  }
+}
+
+function openOperatorTokenModal(checkinEventId) {
+  if (!checkinEventId) { toast('ID do Check-in não configurado.'); return; }
+  document.getElementById('modalSlot').innerHTML = `
+    <div class="modal-bg">
+      <div class="modal">
+        <h2>Gerar link de operador</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Gera um link de acesso único para o operador de check-in no local do evento.</p>
+        <div class="field"><label>Identificação do operador</label><input type="text" id="opLabel" placeholder="ex: Entrada principal" /></div>
+        <div class="field"><label>Validade (horas)</label><input type="number" id="opHours" value="12" min="1" max="72" /></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
+          <button class="btn btn-primary" id="opGenBtn">Gerar link</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('opGenBtn').addEventListener('click', async () => {
+    const label = document.getElementById('opLabel').value.trim() || null;
+    const hours = Number(document.getElementById('opHours').value) || 12;
+    const btn = document.getElementById('opGenBtn');
+    btn.disabled = true; btn.textContent = 'Gerando…';
+    try {
+      const { url, token, expires_at } = await Api.post('/api/integrations/operator-token', {
+        checkin_event_id: checkinEventId, label, expires_hours: hours,
+      });
+      closeModal();
+      const display = url || token;
+      document.getElementById('modalSlot').innerHTML = `
+        <div class="modal-bg">
+          <div class="modal">
+            <h2>Link gerado</h2>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Válido até ${fmtDateTimeBR(expires_at)}. Compartilhe apenas com o operador responsável.</p>
+            <div style="background:var(--off-white);border-radius:8px;padding:14px;word-break:break-all;font-size:13px;font-family:monospace;margin-bottom:16px">${esc(display)}</div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+              <button class="btn btn-ghost" onclick="navigator.clipboard.writeText(${JSON.stringify(display)}).then(()=>toast('Copiado!'))">Copiar</button>
+              <button class="btn btn-ghost" onclick="closeModal()">Fechar</button>
+            </div>
+          </div>
+        </div>`;
+    } catch (e) {
+      btn.disabled = false; btn.textContent = 'Gerar link';
+      toast(e.message);
+    }
+  });
+}
 
 // ── Carregar dados operacionais (Lotes B, C e D) ─────────────────────────────
 let relatedData = [];

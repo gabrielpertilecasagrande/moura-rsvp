@@ -46,6 +46,7 @@ app.use('/api/events/:id/crises',      require('./src/routes/crises.routes'));
 app.use('/api/events/:id/post-report', require('./src/routes/post-report.routes'));
 app.use('/api/knowledge',              require('./src/routes/knowledge.routes'));
 app.use('/api/history',                require('./src/routes/history.routes'));
+app.use('/api/integrations',           require('./src/routes/integrations.routes'));
 app.use('/api/events/:id/relations',   require('./src/routes/relations.routes'));
 
 // Páginas admin

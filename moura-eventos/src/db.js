@@ -162,6 +162,33 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_relations_related ON event_relations(related_event_id);
 `);
 
+// Integração RSVP + Check-in
+addColumn('events', 'rsvp_event_id',    'TEXT');
+addColumn('events', 'checkin_event_id', 'TEXT');
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sso_tokens (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    token      TEXT    NOT NULL UNIQUE,
+    target     TEXT    NOT NULL,
+    user_id    INTEGER NOT NULL,
+    event_id   INTEGER,
+    expires_at TEXT    NOT NULL,
+    used_at    TEXT,
+    created_at TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS operator_tokens (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    token            TEXT    NOT NULL UNIQUE,
+    checkin_event_id TEXT    NOT NULL,
+    label            TEXT,
+    expires_at       TEXT    NOT NULL,
+    used_count       INTEGER DEFAULT 0,
+    created_by       INTEGER,
+    created_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // Tabela de modelos de checklist por tipo de evento
 db.exec(`
   CREATE TABLE IF NOT EXISTS event_type_templates (
