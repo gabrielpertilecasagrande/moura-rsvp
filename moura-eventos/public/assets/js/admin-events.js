@@ -49,27 +49,31 @@ function renderList(events) {
     el.innerHTML = '<p class="muted">Nenhum evento encontrado.</p>';
     return;
   }
-  el.innerHTML = `<div class="table-wrap"><table>
+  el.innerHTML = `<div class="table-wrap"><table class="cards">
     <thead><tr>
-      <th>Evento</th><th>Cliente</th><th>Data</th><th>Cidade</th><th>Responsável</th>
-      <th>Status</th><th>Contratos</th><th>Tarefas abertas</th><th></th>
+      <th>Evento</th><th>Data</th><th>Responsável</th><th>Status</th><th>Atividade</th><th></th>
     </tr></thead>
     <tbody>
-    ${events.map((e) => `<tr>
-      <td><a href="/admin/event-detail.html?id=${e.id}" style="font-weight:600">${esc(e.name)}</a></td>
-      <td>${esc(e.client || '—')}</td>
-      <td style="white-space:nowrap">${e.event_date ? fmtDateBR(e.event_date) : '—'}</td>
-      <td>${esc(e.city || '—')}</td>
-      <td>${esc(e.responsible || '—')}</td>
-      <td><span class="${statusPillClass(e.status)}">${esc(e.status)}</span></td>
-      <td style="text-align:center">${e.contracts_count || 0}</td>
-      <td style="text-align:center">${e.open_tasks > 0 ? `<span class="pill pill-no">${e.open_tasks}</span>` : '—'}</td>
-      <td style="white-space:nowrap">
+    ${events.map((e) => {
+      const sub = [e.client, e.city].filter(Boolean).join(' · ');
+      return `<tr>
+      <td class="row-name" data-label="Evento">
+        <a href="/admin/event-detail.html?id=${e.id}" style="font-weight:600">${esc(e.name)}</a>
+        ${sub ? `<div class="muted" style="font-size:12.5px;margin-top:2px">${esc(sub)}</div>` : ''}
+      </td>
+      <td data-label="Data" style="white-space:nowrap">${e.event_date ? fmtDateBR(e.event_date) : '—'}</td>
+      <td data-label="Responsável">${esc(e.responsible || '—')}</td>
+      <td data-label="Status"><span class="${statusPillClass(e.status)}">${esc(e.status)}</span></td>
+      <td data-label="Atividade" style="white-space:nowrap">
+        ${e.contracts_count || 0} contrato(s)${e.open_tasks > 0 ? ` · <span class="pill pill-no">${e.open_tasks} tarefa(s)</span>` : ''}
+      </td>
+      <td class="cell-actions" data-label="Ações">
         <a href="/admin/event-detail.html?id=${e.id}" class="btn btn-ghost btn-sm">Ver</a>
         ${canCreateEvents() ? `<a href="/admin/event-form.html?id=${e.id}" class="btn btn-ghost btn-sm">Editar</a>` : ''}
         ${canCreateEvents() ? `<button class="btn btn-ghost btn-sm" onclick="duplicateEvent(${e.id})" title="Duplicar evento">Duplicar</button>` : ''}
       </td>
-    </tr>`).join('')}
+    </tr>`;
+    }).join('')}
     </tbody>
   </table></div>`;
 }

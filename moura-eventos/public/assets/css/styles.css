@@ -501,6 +501,24 @@ tbody tr:hover { background: var(--off-white); }
 .rsvp-footer .footer-logo { height: 30px; width: auto; margin: 0 auto 10px; }
 .rsvp-footer .footer-title { font-weight: 700; color: var(--navy); font-size: 14px; }
 
+/* ---- Linha do tempo do evento ---- */
+.tl-day { font-family:var(--display); font-weight:600; font-size:13px; color:var(--navy); margin:18px 0 8px; }
+.tl-item { display:flex; gap:12px; padding:8px 0; position:relative; }
+.tl-ico { width:30px; height:30px; border-radius:50%; background:var(--off-white); display:flex; align-items:center;
+  justify-content:center; flex:none; font-size:15px; }
+.tl-body { flex:1; min-width:0; }
+.tl-text { font-size:14px; }
+.tl-time { font-size:12px; color:var(--muted); margin-top:1px; }
+
+/* ---- Barra de formatação básica (diário/comentários) ---- */
+.fmt-bar { display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:6px; }
+.fmt-btn { border:1px solid var(--gray); background:var(--white); border-radius:6px; min-width:30px; height:28px;
+  padding:0 8px; cursor:pointer; font-size:13px; color:var(--navy); }
+.fmt-btn:hover { background:var(--off-white); border-color:var(--navy); }
+.fmt-hint { font-size:11.5px; color:var(--muted); }
+.rich em { font-style:italic; } .rich strong { font-weight:700; }
+.rich ul { margin:4px 0; padding-left:20px; }
+
 /* ---- Botão estilo link (comentários, diário) ---- */
 .btn-link-sm { background:none; border:none; padding:0; font:inherit; font-size:12.5px; font-weight:600;
   color:var(--navy); cursor:pointer; }

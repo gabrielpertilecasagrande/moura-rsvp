@@ -61,6 +61,7 @@
         <button data-tab="checklist">Checklist <span id="checklistCount" class="nav-badge hidden"></span></button>
         <button data-tab="files">Arquivos</button>
         <button data-tab="diary">Diário</button>
+        <button data-tab="timeline">Linha do tempo</button>
       </div>
 
       <!-- Aba: Visão Geral -->
@@ -173,6 +174,7 @@
         <div class="card" style="max-width:680px;margin-bottom:20px">
           <div class="field">
             <label>Novo registro</label>
+            <div id="diaryFmtBar"></div>
             <textarea id="diaryEntry" rows="3" placeholder="O que aconteceu hoje?"></textarea>
           </div>
           <button class="btn btn-primary btn-sm" id="saveDiaryBtn">Registrar</button>
@@ -182,6 +184,11 @@
           <button class="btn btn-ghost btn-sm" id="exportDiaryBtn">⬇ Exportar PDF</button>
         </div>
         <div id="diaryList" style="max-width:680px"></div>
+      </div>
+
+      <!-- Aba: Linha do tempo -->
+      <div class="tab-pane" id="tab-timeline">
+        <div id="timelineList" style="max-width:680px"></div>
       </div>
     </main>
   </div>

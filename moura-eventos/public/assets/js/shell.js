@@ -22,9 +22,11 @@ function renderShell(active) {
     ? `<a href="/admin/users.html" class="${active === 'users' ? 'active' : ''}" id="navUsers">Usuários<span class="nav-badge hidden" id="pendingBadge">0</span></a>`
     : '';
   const nav = [
+    item('/admin/command.html', 'command', 'Central de Comando'),
     item('/admin/dashboard.html', 'dashboard', 'Dashboard'),
     item('/admin/events.html', 'events', 'Eventos'),
     item('/admin/calendar.html', 'calendar', 'Calendário'),
+    item('/admin/team.html', 'team', 'Equipe'),
     item('/admin/clients.html', 'clients', 'Clientes'),
     item('/admin/suppliers.html', 'suppliers', 'Fornecedores'),
     usersItem,

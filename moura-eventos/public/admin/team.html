@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Equipe — Moura One</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+  <style>
+    .team-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+    .team-card { background:var(--white); border:1px solid var(--gray-soft); border-radius:var(--radius); box-shadow:var(--shadow); padding:18px; }
+    .team-head { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+    .team-avatar { width:42px; height:42px; border-radius:12px; background:var(--grad-destaque); color:#fff; display:flex; align-items:center; justify-content:center; font-family:var(--display); font-weight:700; flex:none; }
+    .team-name { font-family:var(--display); font-weight:600; font-size:16px; }
+    .team-stats { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .team-stat { background:var(--off-white); border-radius:8px; padding:10px 12px; }
+    .team-stat .n { font-size:18px; font-weight:700; color:var(--navy); }
+    .team-stat .n.red { color:var(--danger); }
+    .team-stat .l { font-size:11.5px; color:var(--muted); margin-top:1px; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Gestão de equipe</div>
+          <h1>Responsáveis</h1>
+          <p class="muted" style="font-size:14px;margin-top:4px">Carga de trabalho e contratos por pessoa.</p>
+        </div>
+      </div>
+      <div class="team-grid" id="teamGrid"></div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-team.js"></script>
+</body>
+</html>

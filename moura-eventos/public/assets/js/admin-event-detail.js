@@ -69,7 +69,42 @@ async function load() {
   renderChecklist(d.checklist);
   renderFiles(d.files);
   renderDiary(d.diary);
+  renderTimeline(d);
   loadCover(ev.cover_image);
+}
+
+// ── Linha do tempo (montada a partir dos dados já carregados) ─────────────────
+function renderTimeline(d) {
+  const ev = d.event;
+  const items = [];
+  if (ev.created_at) items.push({ date: ev.created_at, ico: '🎬', text: 'Evento criado' });
+  (d.checklist || []).forEach((t) => {
+    if (t.created_at) items.push({ date: t.created_at, ico: '➕', text: `Tarefa criada: <strong>${esc(t.title)}</strong>` });
+    if (t.status === 'Concluído' && t.updated_at) items.push({ date: t.updated_at, ico: '✅', text: `Tarefa concluída: <strong>${esc(t.title)}</strong>` });
+  });
+  (d.contracts || []).forEach((c) => {
+    if (c.created_at) items.push({ date: c.created_at, ico: '🤝', text: `Contratação: <strong>${esc(c.company)}</strong>${c.value ? ' — ' + fmtMoney(c.value) : ''}` });
+  });
+  (d.files || []).forEach((f) => {
+    if (f.created_at) items.push({ date: f.created_at, ico: '📎', text: `Arquivo enviado: <strong>${esc(f.filename)}</strong>` });
+  });
+  (d.diary || []).forEach((e) => {
+    if (e.created_at) items.push({ date: e.created_at, ico: '📝', text: `Diário: ${esc((e.entry || '').slice(0, 80))}${(e.entry || '').length > 80 ? '…' : ''}` });
+  });
+
+  items.sort((a, b) => (a.date < b.date ? 1 : -1)); // mais recente primeiro
+
+  const el = document.getElementById('timelineList');
+  if (!items.length) { el.innerHTML = '<p class="muted">Sem atividade registrada ainda.</p>'; return; }
+
+  let html = ''; let lastDay = '';
+  for (const it of items) {
+    const day = fmtDateBR(it.date.slice(0, 10));
+    if (day !== lastDay) { html += `<div class="tl-day">${day}</div>`; lastDay = day; }
+    const time = fmtDateTimeBR(it.date).split(' ').pop();
+    html += `<div class="tl-item"><div class="tl-ico">${it.ico}</div><div class="tl-body"><div class="tl-text">${it.text}</div><div class="tl-time">${time}</div></div></div>`;
+  }
+  el.innerHTML = html;
 }
 
 // ── Imagem de capa ────────────────────────────────────────────────────────────
@@ -96,7 +131,9 @@ async function loadCover(hasCover) {
     } catch { /* cai para o estado vazio */ }
   }
   area.innerHTML = canEditEvent()
-    ? `<div class="cover-empty" id="addCoverBtn">🖼️ Adicionar imagem de capa<div style="font-size:12px;margin-top:4px">JPG, PNG ou WebP</div></div>`
+    ? `<div class="cover-empty" id="addCoverBtn">🖼️ Adicionar imagem de capa
+        <div style="font-size:12px;margin-top:4px">Tamanho ideal: <strong>1200 × 400 px</strong> (proporção 3:1, horizontal)</div>
+        <div style="font-size:12px;margin-top:2px">JPG, PNG ou WebP · até 20 MB</div></div>`
     : '';
   const add = document.getElementById('addCoverBtn');
   if (add) add.onclick = () => document.getElementById('coverInput').click();
@@ -270,7 +307,7 @@ function commentBlock(c, isReply) {
         <strong style="font-size:13px">${esc(c.author || '?')}</strong>
         <span style="font-size:12px;color:var(--muted)">${fmtDateTimeBR(c.created_at)}${c.updated_at ? ' · editado' : ''}</span>
       </div>
-      <div style="font-size:14px" id="ctext-${c.id}">${esc(c.comment)}</div>
+      <div style="font-size:14px" class="rich" id="ctext-${c.id}">${renderRich(c.comment)}</div>
       <div style="display:flex;gap:10px;margin-top:5px">
         ${!isReply ? `<button class="btn-link-sm" onclick="replyComment(${c.id})">Responder</button>` : ''}
         <button class="btn-link-sm" onclick="editComment(${c.id})">Editar</button>
@@ -299,6 +336,7 @@ async function openTaskComments(tid) {
         <h3 style="margin-bottom:4px;font-size:16px">${esc(task.title)}</h3>
         <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Comentários da tarefa</div>
         <div id="commentsList" style="max-height:300px;overflow-y:auto;margin-bottom:16px"></div>
+        ${formatToolbar('newComment')}
         <textarea id="newComment" placeholder="Escreva um comentário..." style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:64px;margin-bottom:12px"></textarea>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="closeModal()">Fechar</button>
@@ -503,7 +541,7 @@ function renderDiary(entries) {
   el.innerHTML = filtered.map((e) => `
     <div class="diary-entry" id="diary-${e.id}">
       <div class="diary-meta">${fmtDateTimeBR(e.created_at)} · <strong>${esc(e.author || '?')}</strong>${e.updated_at ? ' · <em>editado</em>' : ''}</div>
-      <div class="diary-text" style="margin-top:6px;white-space:pre-wrap">${esc(e.entry)}</div>
+      <div class="diary-text rich" style="margin-top:6px">${renderRich(e.entry)}</div>
       <div style="margin-top:6px;display:flex;gap:6px">
         <button class="btn btn-ghost btn-sm" onclick="editDiary(${e.id})">Editar</button>
         <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteDiary(${e.id})">Remover</button>
@@ -517,6 +555,7 @@ function editDiary(did) {
   if (!entry) return;
   const box = document.getElementById(`diary-${did}`);
   box.innerHTML = `
+    ${formatToolbar('editDiaryText')}
     <textarea id="editDiaryText" rows="3" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit">${esc(entry.entry)}</textarea>
     <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">
       <button class="btn btn-ghost btn-sm" onclick="renderDiary(eventData.diary)">Cancelar</button>
@@ -806,5 +845,9 @@ document.getElementById('exportPdfBtn').addEventListener('click', () => {
   const w = window.open('', '_blank');
   w.document.write(html); w.document.close(); w.print();
 });
+
+// Barra de formatação no campo de novo registro do diário.
+const diaryFmt = document.getElementById('diaryFmtBar');
+if (diaryFmt) diaryFmt.innerHTML = formatToolbar('diaryEntry');
 
 load().catch(console.error);

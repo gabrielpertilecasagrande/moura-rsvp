@@ -65,6 +65,54 @@ function fmtDateTimeBR(s) {
 }
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
+// Renderiza formatação básica de forma SEGURA: escapa tudo primeiro e só então
+// converte um conjunto fixo de marcações (negrito, itálico, listas, quebras).
+// Como o texto é escapado antes, não há risco de XSS.
+function renderRich(text) {
+  let h = esc(text);
+  h = h.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
+  h = h.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  h = h.replace(/(^|[^_\w])_([^_\n]+)_(?![_\w])/g, '$1<em>$2</em>');
+  const lines = h.split('\n');
+  let out = ''; let inList = false;
+  for (const ln of lines) {
+    if (/^\s*[-•]\s+/.test(ln)) {
+      if (!inList) { out += '<ul>'; inList = true; }
+      out += '<li>' + ln.replace(/^\s*[-•]\s+/, '') + '</li>';
+    } else {
+      if (inList) { out += '</ul>'; inList = false; }
+      out += ln + '<br>';
+    }
+  }
+  if (inList) out += '</ul>';
+  return out.replace(/(<br>)+$/, '');
+}
+
+// Barra de formatação reutilizável para um <textarea> (por id).
+function formatToolbar(textareaId) {
+  return `<div class="fmt-bar">
+    <button type="button" class="fmt-btn" title="Negrito" onmousedown="event.preventDefault()" onclick="fmtWrap('${textareaId}','**','**')"><b>B</b></button>
+    <button type="button" class="fmt-btn" title="Itálico" onmousedown="event.preventDefault()" onclick="fmtWrap('${textareaId}','*','*')"><i>I</i></button>
+    <button type="button" class="fmt-btn" title="Lista" onmousedown="event.preventDefault()" onclick="fmtList('${textareaId}')">• Lista</button>
+    <span class="fmt-hint">**negrito** · *itálico* · - listas</span>
+  </div>`;
+}
+function fmtWrap(id, pre, post) {
+  const ta = document.getElementById(id); if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.slice(s, e) || 'texto';
+  ta.value = ta.value.slice(0, s) + pre + sel + post + ta.value.slice(e);
+  ta.focus(); ta.selectionStart = s + pre.length; ta.selectionEnd = s + pre.length + sel.length;
+}
+function fmtList(id) {
+  const ta = document.getElementById(id); if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  const sel = ta.value.slice(s, e) || 'item';
+  const prefixed = sel.split('\n').map((l) => '- ' + l).join('\n');
+  ta.value = ta.value.slice(0, s) + prefixed + ta.value.slice(e);
+  ta.focus();
+}
+
 // ---- ENTER confirma/prossegue na janela modal aberta ----
 // Vale para qualquer popup (.modal dentro de .modal-bg). Em textareas, o Enter
 // continua quebrando linha normalmente. Aciona o botão de ação principal do modal
