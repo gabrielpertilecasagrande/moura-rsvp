@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requirePerm } = require('../utils/permissions');
+const { touchEvent } = require('../utils/touch');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -24,6 +25,7 @@ router.post('/', requirePerm('can_diary'), (req, res) => {
   const info = db.prepare(
     'INSERT INTO diary (event_id, entry, author) VALUES (?, ?, ?)'
   ).run(eventId, String(b.entry).trim(), req.admin.name || req.admin.email);
+  touchEvent(eventId);
   res.status(201).json(db.prepare('SELECT * FROM diary WHERE id = ?').get(info.lastInsertRowid));
 });
 
@@ -34,6 +36,7 @@ router.delete('/:did', requirePerm('can_diary'), (req, res) => {
   const entry = db.prepare('SELECT * FROM diary WHERE id = ? AND event_id = ?').get(did, eventId);
   if (!entry) return res.status(404).json({ error: 'Registro não encontrado.' });
   db.prepare('DELETE FROM diary WHERE id = ?').run(did);
+  touchEvent(eventId);
   res.json({ ok: true });
 });
 

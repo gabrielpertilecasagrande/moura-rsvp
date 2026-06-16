@@ -8,6 +8,7 @@ const { requireAuth } = require('../middleware/auth');
 const { requirePerm } = require('../utils/permissions');
 const { logActivity } = require('../utils/activity');
 const { uploadsDir, removeStoredFile } = require('../utils/uploads');
+const { touchEvent } = require('../utils/touch');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -61,6 +62,7 @@ router.post('/', requirePerm('can_files'), upload.single('file'), (req, res) => 
     category
   );
 
+  touchEvent(eventId);
   logActivity(req.admin.name || req.admin.email, 'enviou arquivo', req.file.originalname);
   res.status(201).json(
     db.prepare('SELECT id, filename, mime_type, size, uploaded_by, category, created_at FROM event_files WHERE id = ?').get(info.lastInsertRowid)
@@ -86,6 +88,7 @@ router.delete('/:fid', requirePerm('can_files'), (req, res) => {
   if (!f) return res.status(404).json({ error: 'Arquivo não encontrado.' });
   removeStoredFile(f.stored_name);
   db.prepare('DELETE FROM event_files WHERE id = ?').run(f.id);
+  touchEvent(Number(req.params.id));
   logActivity(req.admin.name || req.admin.email, 'excluiu arquivo', f.filename);
   res.json({ ok: true });
 });

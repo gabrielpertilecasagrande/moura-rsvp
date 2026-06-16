@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requirePerm } = require('../utils/permissions');
+const { touchEvent } = require('../utils/touch');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -35,6 +36,7 @@ router.post('/', requirePerm('can_checklist'), (req, res) => {
     TASK_PRIORITY.includes(b.priority) ? b.priority : 'Média'
   );
 
+  touchEvent(eventId);
   res.status(201).json(db.prepare('SELECT * FROM checklist WHERE id = ?').get(info.lastInsertRowid));
 });
 
@@ -58,6 +60,7 @@ router.put('/:tid', requirePerm('can_checklist'), (req, res) => {
     `UPDATE checklist SET title=?, responsible=?, due_date=?, status=?, priority=?, updated_at=datetime('now') WHERE id=?`
   ).run(title, responsible, due_date, status, priority, tid);
 
+  touchEvent(eventId);
   res.json(db.prepare('SELECT * FROM checklist WHERE id = ?').get(tid));
 });
 
@@ -68,6 +71,7 @@ router.delete('/:tid', requirePerm('can_checklist'), (req, res) => {
   const task = db.prepare('SELECT * FROM checklist WHERE id = ? AND event_id = ?').get(tid, eventId);
   if (!task) return res.status(404).json({ error: 'Tarefa não encontrada.' });
   db.prepare('DELETE FROM checklist WHERE id = ?').run(tid);
+  touchEvent(eventId);
   res.json({ ok: true });
 });
 
@@ -87,6 +91,7 @@ router.post('/:tid/comments', requirePerm('can_checklist'), (req, res) => {
   const info = db.prepare(
     `INSERT INTO checklist_comments (task_id, author, comment) VALUES (?, ?, ?)`
   ).run(tid, req.admin.name || req.admin.email, String(b.comment).trim());
+  touchEvent(Number(req.params.id));
   res.status(201).json(db.prepare('SELECT * FROM checklist_comments WHERE id = ?').get(info.lastInsertRowid));
 });
 

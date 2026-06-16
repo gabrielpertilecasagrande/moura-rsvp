@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
-const { requireRole, normalizeRole } = require('../utils/permissions');
+const { requireRole, normalizeRole, authorizedEventIds } = require('../utils/permissions');
 const { logActivity } = require('../utils/activity');
 
 const router = express.Router();
@@ -27,11 +27,22 @@ router.get('/', (req, res) => {
     where += ' AND category = ?';
     params.push(category);
   }
+
+  // O nº de contratações reflete apenas os eventos que o usuário pode ver.
+  // Admin (ids === null) enxerga tudo.
+  const ids = authorizedEventIds(req.admin);
+  let countFilter = '';
+  let countParams = [];
+  if (ids !== null) {
+    if (ids.length === 0) countFilter = 'AND 1=0';
+    else { countFilter = `AND c.event_id IN (${ids.map(() => '?').join(',')})`; countParams = ids; }
+  }
+
   const rows = db.prepare(
     `SELECT s.*,
-       (SELECT COUNT(*) FROM contracts c WHERE c.supplier_id = s.id) AS contracts_count
+       (SELECT COUNT(*) FROM contracts c WHERE c.supplier_id = s.id ${countFilter}) AS contracts_count
      FROM suppliers s ${where} ORDER BY s.company COLLATE NOCASE`
-  ).all(...params);
+  ).all(...countParams, ...params);
   res.json(rows);
 });
 
@@ -67,19 +78,33 @@ router.get('/:id', (req, res) => {
   const s = db.prepare('SELECT * FROM suppliers WHERE id = ?').get(Number(req.params.id));
   if (!s) return res.status(404).json({ error: 'Fornecedor não encontrado.' });
 
-  const contracts = db.prepare(
-    `SELECT c.*, e.name AS event_name, e.event_date
-     FROM contracts c JOIN events e ON e.id = c.event_id
-     WHERE c.supplier_id = ? ORDER BY e.event_date DESC`
-  ).all(s.id);
+  // Contratos visíveis ao usuário: admin vê todos; demais só de eventos autorizados.
+  const ids = authorizedEventIds(req.admin);
+  let contracts;
+  if (ids === null) {
+    contracts = db.prepare(
+      `SELECT c.*, e.name AS event_name, e.event_date
+       FROM contracts c JOIN events e ON e.id = c.event_id
+       WHERE c.supplier_id = ? ORDER BY e.event_date DESC`
+    ).all(s.id);
+  } else if (ids.length === 0) {
+    contracts = [];
+  } else {
+    contracts = db.prepare(
+      `SELECT c.*, e.name AS event_name, e.event_date
+       FROM contracts c JOIN events e ON e.id = c.event_id
+       WHERE c.supplier_id = ? AND c.event_id IN (${ids.map(() => '?').join(',')})
+       ORDER BY e.event_date DESC`
+    ).all(s.id, ...ids);
+  }
 
-  const stats = db.prepare(
-    `SELECT COUNT(*) AS contracts_count,
-            AVG(value) AS avg_value,
-            (SELECT e.name FROM contracts c2 JOIN events e ON e.id = c2.event_id
-             WHERE c2.supplier_id = ? ORDER BY e.event_date DESC LIMIT 1) AS last_event_name
-     FROM contracts WHERE supplier_id = ?`
-  ).get(s.id, s.id);
+  // Estatísticas derivadas dos contratos já filtrados (ordenados por data DESC).
+  const values = contracts.map((c) => c.value).filter((v) => v != null);
+  const stats = {
+    contracts_count: contracts.length,
+    avg_value: values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
+    last_event_name: contracts.length ? contracts[0].event_name : null,
+  };
 
   res.json({ supplier: s, contracts, stats });
 });

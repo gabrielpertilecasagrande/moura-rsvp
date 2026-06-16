@@ -3,6 +3,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requirePerm } = require('../utils/permissions');
 const { logActivity } = require('../utils/activity');
+const { touchEvent } = require('../utils/touch');
 
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
@@ -67,6 +68,7 @@ router.post('/', requirePerm('can_contracts'), (req, res) => {
     `SELECT c.*, s.company, s.category FROM contracts c JOIN suppliers s ON s.id = c.supplier_id WHERE c.id = ?`
   ).get(info.lastInsertRowid);
 
+  touchEvent(eventId);
   const ev = getEvent(eventId);
   logActivity(req.admin.name || req.admin.email, 'adicionou contratação', `${ev.name} ← ${supplier.company}`);
   res.status(201).json(contract);
@@ -92,6 +94,7 @@ router.put('/:cid', requirePerm('can_contracts'), (req, res) => {
     `UPDATE contracts SET value=?, status=?, payment_status=?, notes=?, contract_date=?, payment_due_date=?, payment_date=?, updated_at=datetime('now') WHERE id=?`
   ).run(value, status, payment, notes, contract_date, payment_due_date, payment_date, cid);
 
+  touchEvent(eventId);
   const updated = db.prepare(
     `SELECT c.*, s.company, s.category FROM contracts c JOIN suppliers s ON s.id = c.supplier_id WHERE c.id = ?`
   ).get(cid);
@@ -105,6 +108,7 @@ router.delete('/:cid', requirePerm('can_contracts'), (req, res) => {
   const c = db.prepare('SELECT * FROM contracts WHERE id = ? AND event_id = ?').get(cid, eventId);
   if (!c) return res.status(404).json({ error: 'Contratação não encontrada.' });
   db.prepare('DELETE FROM contracts WHERE id = ?').run(cid);
+  touchEvent(eventId);
   const supplier = db.prepare('SELECT company FROM suppliers WHERE id = ?').get(c.supplier_id);
   const ev = getEvent(eventId);
   logActivity(req.admin.name || req.admin.email, 'removeu contratação', `${ev?.name} ← ${supplier?.company}`);
