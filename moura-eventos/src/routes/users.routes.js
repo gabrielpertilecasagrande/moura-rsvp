@@ -5,6 +5,18 @@ const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { PERM_KEYS, normalizeRole, defaultPermsForRole } = require('../utils/permissions');
 
+// Sincroniza um usuário com o RSVP de forma silenciosa (não bloqueia a resposta).
+function syncToRsvp(name, email, role) {
+  const url = process.env.RSVP_API_URL;
+  const secret = process.env.RSVP_JWT_SECRET;
+  if (!url || !secret) return;
+  fetch(`${url}/api/auth/sync-user`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
+    body: JSON.stringify({ name, email, role }),
+  }).catch(() => {}); // silencioso: RSVP indisponível não afeta o Moura One
+}
+
 const router = express.Router();
 
 // Todas as rotas exigem login + papel de administrador.
@@ -63,6 +75,7 @@ router.post('/', (req, res) => {
     .run(String(name).trim(), mail, hash, r);
   const created = db.prepare('SELECT * FROM admins WHERE id = ?').get(info.lastInsertRowid);
   logActivity(req.admin.name || req.admin.email, 'criou usuário', created.name);
+  syncToRsvp(created.name, created.email, created.role);
   res.status(201).json(publicView(created));
 });
 
@@ -95,6 +108,7 @@ router.put('/:id', (req, res) => {
   if (role !== normalizeRole(user.role)) logActivity(req.admin.name || req.admin.email, 'alterou permissão de usuário', `${name}: ${normalizeRole(user.role)} → ${role}`);
   else if (status !== user.status) logActivity(req.admin.name || req.admin.email, 'alterou situação de usuário', `${name}: ${user.status} → ${status}`);
   else logActivity(req.admin.name || req.admin.email, 'editou usuário', name);
+  syncToRsvp(name, email, role);
   res.json(publicView(db.prepare('SELECT * FROM admins WHERE id = ?').get(id)));
 });
 

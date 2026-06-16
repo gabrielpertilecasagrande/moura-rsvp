@@ -49,6 +49,9 @@ app.use('/api/history',                require('./src/routes/history.routes'));
 app.use('/api/integrations',           require('./src/routes/integrations.routes'));
 app.use('/api/events/:id/relations',   require('./src/routes/relations.routes'));
 
+// Health check para Railway
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
 // Páginas admin
 const adminDir = path.join(__dirname, 'public', 'admin');
 app.get('/admin/login.html',         (_req, res) => res.sendFile(path.join(adminDir, 'login.html')));
@@ -101,4 +104,17 @@ try {
   console.error('[db] falha no diagnóstico:', e.message);
 }
 
-app.listen(PORT, () => console.log(`Moura One rodando em http://localhost:${PORT}`));
+const server = app.listen(PORT, () => console.log(`Moura One rodando em http://localhost:${PORT}`));
+
+// Encerramento gracioso para deploys no Railway (evita notificações de "crash").
+function shutdown(signal) {
+  console.log(`[shutdown] ${signal} recebido — encerrando servidor...`);
+  server.close(() => {
+    console.log('[shutdown] servidor encerrado.');
+    process.exit(0);
+  });
+  // Força saída após 10 s se alguma conexão travar.
+  setTimeout(() => process.exit(0), 10_000).unref();
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT',  () => shutdown('SIGINT'));

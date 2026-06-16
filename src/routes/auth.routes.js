@@ -107,4 +107,33 @@ router.post('/password', requireAuth, (req, res) => {
   res.json({ ok: true, message: 'Senha alterada com sucesso.' });
 });
 
+// POST /api/auth/sync-user — provisionamento interno de conta pelo Moura One
+// Protegido pelo segredo compartilhado (Bearer JWT_SECRET), não por JWT de usuário.
+router.post('/sync-user', (req, res) => {
+  const authHeader = req.headers['authorization'] || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
+  if (!token || token !== process.env.JWT_SECRET) {
+    return res.status(401).json({ error: 'Não autorizado.' });
+  }
+  const { name, email, role } = req.body || {};
+  if (!email) return res.status(400).json({ error: 'E-mail obrigatório.' });
+  const mail = String(email).toLowerCase().trim();
+  const validRoles = ['admin', 'gestor', 'operador'];
+  const r = validRoles.includes(role) ? role : 'operador';
+  const n = name ? String(name).trim() : mail;
+
+  const existing = db.prepare('SELECT id FROM admins WHERE email = ?').get(mail);
+  if (existing) {
+    db.prepare('UPDATE admins SET name = ?, role = ? WHERE email = ?').run(n, r, mail);
+    return res.json({ ok: true, action: 'updated' });
+  }
+  // Cria conta já ativa com senha aleatória (staff usa SSO, não senha direta).
+  const randomPwd = require('crypto').randomBytes(32).toString('hex');
+  const hash = bcrypt.hashSync(randomPwd, 10);
+  db.prepare(
+    `INSERT INTO admins (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, 'ativo')`
+  ).run(n, mail, hash, r);
+  res.status(201).json({ ok: true, action: 'created' });
+});
+
 module.exports = router;
