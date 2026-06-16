@@ -26,14 +26,13 @@ const STATUS = {
 };
 // Rótulos curtos das 8 permissões por evento (cabeçalho da matriz).
 const PERM_COLS = [
-  { key: 'can_view', short: 'Ver', label: 'Visualizar evento' },
-  { key: 'can_edit', short: 'Editar', label: 'Editar evento' },
-  { key: 'can_participants', short: 'Particip.', label: 'Gerenciar participantes' },
-  { key: 'can_export', short: 'Exportar', label: 'Exportar relatórios' },
-  { key: 'can_history', short: 'Histórico', label: 'Visualizar histórico' },
-  { key: 'can_messages', short: 'Mensagens', label: 'Enviar mensagens' },
-  { key: 'can_duplicate', short: 'Duplicar', label: 'Duplicar evento' },
-  { key: 'can_delete', short: 'Excluir', label: 'Excluir evento' },
+  { key: 'can_view',      short: 'Ver',        label: 'Visualizar evento' },
+  { key: 'can_edit',      short: 'Editar',     label: 'Editar evento' },
+  { key: 'can_contracts', short: 'Contratos',  label: 'Gerenciar contratações' },
+  { key: 'can_checklist', short: 'Checklist',  label: 'Gerenciar checklist' },
+  { key: 'can_files',     short: 'Arquivos',   label: 'Gerenciar arquivos' },
+  { key: 'can_diary',     short: 'Diário',     label: 'Registrar no diário' },
+  { key: 'can_delete',    short: 'Excluir',    label: 'Excluir evento' },
 ];
 
 async function load() {

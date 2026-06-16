@@ -61,7 +61,7 @@ document.getElementById('backupBtn').addEventListener('click', async () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
     const d = new Date().toISOString().slice(0, 10);
-    a.download = `moura-rsvp-backup-${d}.db`;
+    a.download = `moura-eventos-backup-${d}.db`;
     a.click(); URL.revokeObjectURL(a.href);
     toast('Backup baixado. Guarde o arquivo em local seguro.');
   } catch (e) { toast(e.message); }
