@@ -42,10 +42,12 @@ addColumn('contracts', 'payment_due_date', 'TEXT');
 addColumn('contracts', 'payment_date', 'TEXT');
 addColumn('event_files', 'category', "TEXT NOT NULL DEFAULT 'Outros'");
 addColumn('events', 'event_type', 'TEXT');
+addColumn('events', 'cover_image', 'TEXT');
 addColumn('suppliers', 'website', 'TEXT');
 addColumn('suppliers', 'instagram', 'TEXT');
 addColumn('suppliers', 'state', 'TEXT');
 addColumn('suppliers', 'rating', 'INTEGER DEFAULT 0');
+addColumn('diary', 'updated_at', 'TEXT');
 
 // Índices para consultas frequentes (permissões, JOINs e contagens do dashboard).
 db.exec(`
@@ -67,6 +69,10 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_checklist_comments_task ON checklist_comments(task_id);
 `);
+
+// Colunas adicionais de checklist_comments (após a tabela existir).
+addColumn('checklist_comments', 'parent_id', 'INTEGER');
+addColumn('checklist_comments', 'updated_at', 'TEXT');
 
 // Tabela de modelos de checklist por tipo de evento
 db.exec(`

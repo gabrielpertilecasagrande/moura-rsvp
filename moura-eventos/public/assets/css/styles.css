@@ -501,6 +501,19 @@ tbody tr:hover { background: var(--off-white); }
 .rsvp-footer .footer-logo { height: 30px; width: auto; margin: 0 auto 10px; }
 .rsvp-footer .footer-title { font-weight: 700; color: var(--navy); font-size: 14px; }
 
+/* ---- Botão estilo link (comentários, diário) ---- */
+.btn-link-sm { background:none; border:none; padding:0; font:inherit; font-size:12.5px; font-weight:600;
+  color:var(--navy); cursor:pointer; }
+.btn-link-sm:hover { text-decoration:underline; }
+
+/* ---- Imagem de capa do evento ---- */
+.cover-area { border-radius:var(--radius); overflow:hidden; }
+.cover-area img { width:100%; max-height:240px; object-fit:cover; display:block; }
+.cover-empty { border:2px dashed var(--gray); border-radius:var(--radius); padding:22px; text-align:center;
+  color:var(--muted); cursor:pointer; transition:.15s; background:var(--off-white); }
+.cover-empty:hover { border-color:var(--cyan); background:var(--cyan-soft); }
+.cover-actions { display:flex; gap:8px; justify-content:flex-end; margin-top:8px; }
+
 /* ---- Busca global (dashboard) ---- */
 .search-global { position: relative; margin-bottom: 24px; }
 .search-global input { width: 100%; }

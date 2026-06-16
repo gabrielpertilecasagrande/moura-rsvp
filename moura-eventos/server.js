@@ -30,6 +30,7 @@ app.use('/api/activity', require('./src/routes/activity.routes'));
 app.use('/api/search',   require('./src/routes/search.routes'));
 app.use('/api/calendar', require('./src/routes/calendar.routes'));
 app.use('/api/clients',  require('./src/routes/clients.routes'));
+app.use('/api/locations', require('./src/routes/locations.routes'));
 app.use('/api/suppliers', require('./src/routes/suppliers.routes'));
 app.use('/api/events',   require('./src/routes/events.routes'));
 app.use('/api/events/:id/contracts', require('./src/routes/contracts.routes'));

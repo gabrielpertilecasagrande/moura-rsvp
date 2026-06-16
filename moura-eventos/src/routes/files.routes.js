@@ -69,6 +69,60 @@ router.post('/', requirePerm('can_files'), upload.single('file'), (req, res) => 
   );
 });
 
+// ── Imagem de capa do evento ──────────────────────────────────────────────────
+// IMPORTANTE: rotas /cover vêm antes das rotas /:fid para não colidir.
+// POST /api/events/:id/files/cover
+router.post('/cover', requirePerm('can_edit'), upload.single('cover'), (req, res) => {
+  const eventId = Number(req.params.id);
+  if (!req.file) return res.status(400).json({ error: 'Selecione uma imagem.' });
+  if (!/^image\//.test(req.file.mimetype) || req.file.mimetype === 'image/svg+xml') {
+    fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: 'A capa deve ser uma imagem (JPG, PNG, WebP).' });
+  }
+  const ev = db.prepare('SELECT cover_image FROM events WHERE id = ?').get(eventId);
+  if (!ev) { fs.unlinkSync(req.file.path); return res.status(404).json({ error: 'Evento não encontrado.' }); }
+  if (ev.cover_image) removeStoredFile(ev.cover_image);
+  db.prepare("UPDATE events SET cover_image = ?, updated_at = datetime('now') WHERE id = ?").run(req.file.filename, eventId);
+  logActivity(req.admin.name || req.admin.email, 'definiu imagem de capa', null);
+  res.status(201).json({ ok: true });
+});
+
+// GET /api/events/:id/files/cover — serve a capa (inline)
+router.get('/cover', requirePerm('can_view'), (req, res) => {
+  const ev = db.prepare('SELECT cover_image FROM events WHERE id = ?').get(Number(req.params.id));
+  if (!ev || !ev.cover_image) return res.status(404).json({ error: 'Sem capa.' });
+  const filePath = path.join(uploadsDir, ev.cover_image);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado.' });
+  res.sendFile(filePath);
+});
+
+// DELETE /api/events/:id/files/cover
+router.delete('/cover', requirePerm('can_edit'), (req, res) => {
+  const eventId = Number(req.params.id);
+  const ev = db.prepare('SELECT cover_image FROM events WHERE id = ?').get(eventId);
+  if (ev && ev.cover_image) {
+    removeStoredFile(ev.cover_image);
+    db.prepare('UPDATE events SET cover_image = NULL WHERE id = ?').run(eventId);
+  }
+  res.json({ ok: true });
+});
+
+// GET /api/events/:id/files/:fid/view — pré-visualização inline (imagens e PDF)
+router.get('/:fid/view', requirePerm('can_view'), (req, res) => {
+  const f = db.prepare('SELECT * FROM event_files WHERE id = ? AND event_id = ?').get(
+    Number(req.params.fid), Number(req.params.id)
+  );
+  if (!f) return res.status(404).json({ error: 'Arquivo não encontrado.' });
+  const filePath = path.join(uploadsDir, f.stored_name);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: 'Arquivo não encontrado no servidor.' });
+  const mime = f.mime_type || 'application/octet-stream';
+  // Sandbox para neutralizar qualquer script embutido (defesa contra XSS).
+  res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; object-src 'none'; sandbox");
+  res.setHeader('Content-Type', mime);
+  res.setHeader('Content-Disposition', 'inline');
+  fs.createReadStream(filePath).pipe(res);
+});
+
 // GET /api/events/:id/files/:fid/download
 router.get('/:fid/download', requirePerm('can_view'), (req, res) => {
   const f = db.prepare('SELECT * FROM event_files WHERE id = ? AND event_id = ?').get(

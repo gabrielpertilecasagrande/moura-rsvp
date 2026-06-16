@@ -52,6 +52,9 @@
         </div>
       </div>
 
+      <div id="coverArea" style="margin-bottom:20px"></div>
+      <input type="file" id="coverInput" accept="image/*" style="display:none" />
+
       <div class="tab-bar" id="tabBar">
         <button class="active" data-tab="overview">Visão Geral</button>
         <button data-tab="contracts">Contratações <span id="contractsCount" class="nav-badge hidden"></span></button>
@@ -80,7 +83,7 @@
                 <th>Valor</th>
                 <th>Status</th>
                 <th>Pagamento</th>
-                <th>Prev. Pagto</th>
+                <th>Data pagto</th>
                 <th>Observações</th>
                 <th></th>
               </tr>
@@ -117,7 +120,10 @@
               <option value="responsible">Responsável</option>
             </select>
           </div>
-          <button class="btn btn-primary btn-sm" id="addTaskBtn">+ Nova tarefa</button>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-ghost btn-sm" id="applyTemplateBtn" title="Gerar as tarefas padrão do tipo do evento">✨ Gerar do modelo</button>
+            <button class="btn btn-primary btn-sm" id="addTaskBtn">+ Nova tarefa</button>
+          </div>
         </div>
         <div id="checklistList"></div>
       </div>

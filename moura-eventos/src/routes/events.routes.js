@@ -11,6 +11,26 @@ router.use(requireAuth);
 const EVENT_STATUS = ['Planejamento', 'Contratação', 'Produção', 'Evento realizado', 'Encerrado'];
 const EVENT_TYPES  = ['Social', 'Social corporativo', 'Fórum', 'Congresso', 'Convenção', 'Feira', 'Seminário', 'Jantar', 'Lançamento', 'Reunião'];
 
+// Insere as tarefas-modelo do tipo no checklist do evento. Retorna a quantidade.
+function applyTemplate(eventId, type) {
+  if (!type) return 0;
+  const templates = db.prepare(
+    'SELECT * FROM event_type_templates WHERE event_type = ? ORDER BY sort_order ASC'
+  ).all(type);
+  const insertTask = db.prepare(
+    `INSERT INTO checklist (event_id, title, priority, responsible, status) VALUES (?, ?, ?, ?, 'Pendente')`
+  );
+  const insertAll = db.transaction((rows) => { for (const t of rows) insertTask.run(eventId, t.title, t.priority, t.responsible); });
+  insertAll(templates);
+  return templates.length;
+}
+
+// Rótulos amigáveis para o log de alterações.
+const FIELD_LABELS = {
+  name: 'nome', client: 'cliente', event_date: 'data', event_time: 'horário',
+  location: 'local', city: 'cidade', responsible: 'responsável', status: 'status', event_type: 'tipo',
+};
+
 // GET /api/events
 router.get('/', (req, res) => {
   const isAdmin = normalizeRole(req.admin.role) === 'admin';
@@ -76,16 +96,7 @@ router.post('/', requireRole('admin', 'gestor'), (req, res) => {
     grantFullAccess(req.admin.id, event.id);
   }
 
-  if (event_type) {
-    const templates = db.prepare(
-      'SELECT * FROM event_type_templates WHERE event_type = ? ORDER BY sort_order ASC'
-    ).all(event_type);
-    const insertTask = db.prepare(
-      `INSERT INTO checklist (event_id, title, priority, responsible, status) VALUES (?, ?, ?, ?, 'Pendente')`
-    );
-    const insertAll = db.transaction((rows) => { for (const t of rows) insertTask.run(event.id, t.title, t.priority, t.responsible); });
-    insertAll(templates);
-  }
+  if (event_type) applyTemplate(event.id, event_type);
 
   logActivity(req.admin.name || req.admin.email, 'criou evento', event.name);
   res.status(201).json(event);
@@ -133,24 +144,50 @@ router.put('/:id', requirePerm('can_edit'), (req, res) => {
 
   const event_type = b.event_type != null ? (EVENT_TYPES.includes(b.event_type) ? b.event_type : null) : ev.event_type;
 
+  const next = {
+    name,
+    client:      b.client      != null ? (String(b.client).trim()      || null) : ev.client,
+    event_date:  b.event_date  != null ? (b.event_date                 || null) : ev.event_date,
+    event_time:  b.event_time  != null ? (b.event_time                 || null) : ev.event_time,
+    location:    b.location    != null ? (String(b.location).trim()    || null) : ev.location,
+    city:        b.city        != null ? (String(b.city).trim()        || null) : ev.city,
+    responsible: b.responsible != null ? (String(b.responsible).trim() || null) : ev.responsible,
+    status,
+    event_type,
+  };
+
   db.prepare(
     `UPDATE events SET name=?, client=?, event_date=?, event_time=?, location=?, city=?, responsible=?, status=?, event_type=?, updated_at=datetime('now')
      WHERE id=?`
-  ).run(
-    name,
-    b.client      != null ? (String(b.client).trim()      || null) : ev.client,
-    b.event_date  != null ? (b.event_date                 || null) : ev.event_date,
-    b.event_time  != null ? (b.event_time                 || null) : ev.event_time,
-    b.location    != null ? (String(b.location).trim()    || null) : ev.location,
-    b.city        != null ? (String(b.city).trim()        || null) : ev.city,
-    b.responsible != null ? (String(b.responsible).trim() || null) : ev.responsible,
-    status,
-    event_type,
-    id
-  );
+  ).run(next.name, next.client, next.event_date, next.event_time, next.location, next.city, next.responsible, next.status, next.event_type, id);
 
-  logActivity(req.admin.name || req.admin.email, 'editou evento', name);
+  // Se o tipo foi definido agora e o checklist está vazio, aplica o modelo.
+  if (next.event_type && !ev.event_type) {
+    const hasTasks = db.prepare('SELECT COUNT(*) AS n FROM checklist WHERE event_id = ?').get(id).n;
+    if (hasTasks === 0) applyTemplate(id, next.event_type);
+  }
+
+  // Monta o detalhe das mudanças para o log de auditoria.
+  const changes = [];
+  for (const k of Object.keys(FIELD_LABELS)) {
+    const before = ev[k] == null ? '' : String(ev[k]);
+    const after  = next[k] == null ? '' : String(next[k]);
+    if (before !== after) changes.push(`${FIELD_LABELS[k]}: "${before || '—'}" → "${after || '—'}"`);
+  }
+  const detail = changes.length ? `${name} (${changes.join('; ')})` : name;
+  logActivity(req.admin.name || req.admin.email, 'editou evento', detail);
   res.json(db.prepare('SELECT * FROM events WHERE id = ?').get(id));
+});
+
+// POST /api/events/:id/apply-template — gera as tarefas do modelo do tipo atual
+router.post('/:id/apply-template', requirePerm('can_checklist'), (req, res) => {
+  const id = Number(req.params.id);
+  const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+  if (!ev.event_type) return res.status(400).json({ error: 'Defina o tipo do evento antes de gerar as tarefas do modelo.' });
+  const n = applyTemplate(id, ev.event_type);
+  logActivity(req.admin.name || req.admin.email, 'gerou tarefas do modelo', `${ev.name} (${ev.event_type}): ${n} tarefa(s)`);
+  res.json({ ok: true, added: n });
 });
 
 // POST /api/events/:id/duplicate — duplica evento + checklist (status zerado)

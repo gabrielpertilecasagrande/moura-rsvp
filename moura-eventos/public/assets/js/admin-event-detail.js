@@ -69,6 +69,59 @@ async function load() {
   renderChecklist(d.checklist);
   renderFiles(d.files);
   renderDiary(d.diary);
+  loadCover(ev.cover_image);
+}
+
+// ── Imagem de capa ────────────────────────────────────────────────────────────
+const canEditEvent = () => ['admin', 'gestor'].includes(currentRole());
+
+async function loadCover(hasCover) {
+  const area = document.getElementById('coverArea');
+  if (hasCover) {
+    try {
+      const res = await fetch(`/api/events/${eventId}/files/cover`, { headers: { Authorization: `Bearer ${Api.token()}` } });
+      if (res.ok) {
+        const url = URL.createObjectURL(await res.blob());
+        area.innerHTML = `<div class="cover-area"><img src="${url}" alt="Capa do evento" /></div>
+          ${canEditEvent() ? `<div class="cover-actions">
+            <button class="btn btn-ghost btn-sm" id="changeCoverBtn">Trocar capa</button>
+            <button class="btn btn-ghost btn-sm" style="color:var(--danger)" id="removeCoverBtn">Remover capa</button>
+          </div>` : ''}`;
+        if (canEditEvent()) {
+          document.getElementById('changeCoverBtn').onclick = () => document.getElementById('coverInput').click();
+          document.getElementById('removeCoverBtn').onclick = removeCover;
+        }
+        return;
+      }
+    } catch { /* cai para o estado vazio */ }
+  }
+  area.innerHTML = canEditEvent()
+    ? `<div class="cover-empty" id="addCoverBtn">🖼️ Adicionar imagem de capa<div style="font-size:12px;margin-top:4px">JPG, PNG ou WebP</div></div>`
+    : '';
+  const add = document.getElementById('addCoverBtn');
+  if (add) add.onclick = () => document.getElementById('coverInput').click();
+}
+
+document.getElementById('coverInput').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const fd = new FormData();
+  fd.append('cover', file);
+  try {
+    await Api.postForm(`/api/events/${eventId}/files/cover`, fd);
+    toast('Capa atualizada.');
+    document.getElementById('coverInput').value = '';
+    await load();
+  } catch (err) { toast(err.message); }
+});
+
+async function removeCover() {
+  if (!confirm('Remover a imagem de capa?')) return;
+  try {
+    await Api.del(`/api/events/${eventId}/files/cover`);
+    toast('Capa removida.');
+    await load();
+  } catch (e) { toast(e.message); }
 }
 
 // ── Visão Geral ───────────────────────────────────────────────────────────────
@@ -207,41 +260,114 @@ document.getElementById('checklistFilter').addEventListener('change', (e) => {
   renderChecklist(eventData?.checklist);
 });
 
+let commentTid = null;
+let commentCache = [];
+
+function commentBlock(c, isReply) {
+  return `
+    <div style="padding:9px 10px;background:${isReply ? 'var(--gray-soft)' : 'var(--off-white)'};border-radius:6px;margin-bottom:6px;${isReply ? 'margin-left:22px' : ''}">
+      <div style="display:flex;justify-content:space-between;gap:8px;margin-bottom:4px">
+        <strong style="font-size:13px">${esc(c.author || '?')}</strong>
+        <span style="font-size:12px;color:var(--muted)">${fmtDateTimeBR(c.created_at)}${c.updated_at ? ' · editado' : ''}</span>
+      </div>
+      <div style="font-size:14px" id="ctext-${c.id}">${esc(c.comment)}</div>
+      <div style="display:flex;gap:10px;margin-top:5px">
+        ${!isReply ? `<button class="btn-link-sm" onclick="replyComment(${c.id})">Responder</button>` : ''}
+        <button class="btn-link-sm" onclick="editComment(${c.id})">Editar</button>
+        <button class="btn-link-sm" style="color:var(--danger)" onclick="deleteComment(${c.id})">Excluir</button>
+      </div>
+      <div id="creply-${c.id}"></div>
+    </div>`;
+}
+
+function renderComments() {
+  const list = document.getElementById('commentsList');
+  if (!commentCache.length) { list.innerHTML = '<p class="muted">Nenhum comentário ainda.</p>'; return; }
+  const parents = commentCache.filter((c) => !c.parent_id);
+  const repliesOf = (pid) => commentCache.filter((c) => c.parent_id === pid);
+  list.innerHTML = parents.map((p) => commentBlock(p, false) + repliesOf(p.id).map((r) => commentBlock(r, true)).join('')).join('');
+}
+
 async function openTaskComments(tid) {
   const task = eventData.checklist.find((t) => t.id === tid);
   if (!task) return;
-  const comments = await Api.get(`/api/events/${eventId}/checklist/${tid}/comments`);
+  commentTid = tid;
+  commentCache = await Api.get(`/api/events/${eventId}/checklist/${tid}/comments`);
   document.getElementById('modalSlot').innerHTML = `
     <div class="modal-bg" onclick="if(event.target===this)closeModal()">
       <div class="modal" style="max-width:520px">
         <h3 style="margin-bottom:4px;font-size:16px">${esc(task.title)}</h3>
         <div style="color:var(--muted);font-size:13px;margin-bottom:16px">Comentários da tarefa</div>
-        <div id="commentsList" style="max-height:260px;overflow-y:auto;margin-bottom:16px">
-          ${comments.length ? comments.map((c) => `
-            <div style="padding:10px;background:var(--off-white);border-radius:6px;margin-bottom:8px">
-              <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-                <strong style="font-size:13px">${esc(c.author || '?')}</strong>
-                <span style="font-size:12px;color:var(--muted)">${fmtDateTimeBR(c.created_at)}</span>
-              </div>
-              <div style="font-size:14px">${esc(c.comment)}</div>
-            </div>`).join('') : '<p class="muted">Nenhum comentário ainda.</p>'}
-        </div>
-        <textarea id="newComment" placeholder="Escreva um comentário..." style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:70px;margin-bottom:12px"></textarea>
+        <div id="commentsList" style="max-height:300px;overflow-y:auto;margin-bottom:16px"></div>
+        <textarea id="newComment" placeholder="Escreva um comentário..." style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:64px;margin-bottom:12px"></textarea>
         <div style="display:flex;gap:8px;justify-content:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="closeModal()">Fechar</button>
-          <button class="btn btn-primary btn-sm" onclick="saveComment(${tid})">Comentar</button>
+          <button class="btn btn-primary btn-sm" onclick="saveComment()">Comentar</button>
         </div>
       </div>
     </div>`;
+  renderComments();
 }
 
-async function saveComment(tid) {
+async function refreshComments() {
+  commentCache = await Api.get(`/api/events/${eventId}/checklist/${commentTid}/comments`);
+  renderComments();
+}
+
+async function saveComment() {
   const comment = document.getElementById('newComment').value.trim();
   if (!comment) { toast('Escreva um comentário.'); return; }
-  await Api.post(`/api/events/${eventId}/checklist/${tid}/comments`, { comment });
-  closeModal();
-  await load();
+  await Api.post(`/api/events/${eventId}/checklist/${commentTid}/comments`, { comment });
+  document.getElementById('newComment').value = '';
+  await refreshComments();
   toast('Comentário adicionado.');
+}
+
+function replyComment(cid) {
+  const slot = document.getElementById(`creply-${cid}`);
+  if (slot.innerHTML) { slot.innerHTML = ''; return; }
+  slot.innerHTML = `
+    <div style="margin:6px 0 0 22px">
+      <textarea id="replyText-${cid}" placeholder="Responder…" style="width:100%;padding:6px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:48px"></textarea>
+      <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px">
+        <button class="btn btn-ghost btn-sm" onclick="document.getElementById('creply-${cid}').innerHTML=''">Cancelar</button>
+        <button class="btn btn-primary btn-sm" onclick="sendReply(${cid})">Responder</button>
+      </div>
+    </div>`;
+  document.getElementById(`replyText-${cid}`).focus();
+}
+
+async function sendReply(cid) {
+  const text = document.getElementById(`replyText-${cid}`).value.trim();
+  if (!text) { toast('Escreva a resposta.'); return; }
+  await Api.post(`/api/events/${eventId}/checklist/${commentTid}/comments`, { comment: text, parent_id: cid });
+  await refreshComments();
+}
+
+function editComment(cid) {
+  const c = commentCache.find((x) => x.id === cid);
+  if (!c) return;
+  const box = document.getElementById(`ctext-${cid}`);
+  box.innerHTML = `
+    <textarea id="editC-${cid}" style="width:100%;padding:6px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit;min-height:48px">${esc(c.comment)}</textarea>
+    <div style="display:flex;gap:6px;justify-content:flex-end;margin-top:4px">
+      <button class="btn btn-ghost btn-sm" onclick="renderComments()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveCommentEdit(${cid})">Salvar</button>
+    </div>`;
+  document.getElementById(`editC-${cid}`).focus();
+}
+
+async function saveCommentEdit(cid) {
+  const text = document.getElementById(`editC-${cid}`).value.trim();
+  if (!text) { toast('O comentário não pode ficar vazio.'); return; }
+  await Api.put(`/api/events/${eventId}/checklist/${commentTid}/comments/${cid}`, { comment: text });
+  await refreshComments();
+}
+
+async function deleteComment(cid) {
+  if (!confirm('Excluir este comentário (e respostas)?')) return;
+  await Api.del(`/api/events/${eventId}/checklist/${commentTid}/comments/${cid}`);
+  await refreshComments();
 }
 
 async function toggleTask(tid, checked) {
@@ -260,7 +386,9 @@ function renderFiles(files) {
   if (fileFilter)      filtered = filtered.filter((f) => (f.category || 'Outros') === fileFilter);
   if (fileSearchQuery) filtered = filtered.filter((f) => (f.filename || '').toLowerCase().includes(fileSearchQuery.toLowerCase()));
   if (!filtered.length) { el.innerHTML = '<p class="muted">Nenhum arquivo encontrado.</p>'; return; }
-  el.innerHTML = filtered.map((f) => `
+  el.innerHTML = filtered.map((f) => {
+    const canView = (f.mime_type || '').startsWith('image/') && f.mime_type !== 'image/svg+xml' || f.mime_type === 'application/pdf';
+    return `
     <div class="file-row">
       <div class="file-icon">${fileIcon(f.mime_type)}</div>
       <div class="file-info">
@@ -270,10 +398,33 @@ function renderFiles(files) {
           ${fmtSize(f.size)} · ${esc(f.uploaded_by || '?')} · ${fmtDateTimeBR(f.created_at)}
         </div>
       </div>
+      ${canView ? `<button class="btn btn-ghost btn-sm" onclick="viewFile(${f.id}, '${esc(f.mime_type)}')">Visualizar</button>` : ''}
       <button class="btn btn-ghost btn-sm" onclick="downloadFile(${f.id}, '${esc(f.filename).replace(/'/g,"\\'")}')">Baixar</button>
       <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteFile(${f.id})">✕</button>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
+}
+
+// Pré-visualiza um arquivo (imagem/PDF) buscando com token e abrindo como blob.
+async function viewFile(fid, mime) {
+  try {
+    const res = await fetch(`/api/events/${eventId}/files/${fid}/view`, { headers: { Authorization: `Bearer ${Api.token()}` } });
+    if (!res.ok) { toast('Não foi possível abrir o arquivo.'); return; }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    if ((mime || '').startsWith('image/')) {
+      document.getElementById('modalSlot').innerHTML = `
+        <div class="modal-bg" onclick="if(event.target===this){closeModal();URL.revokeObjectURL('${url}')}">
+          <div class="modal" style="max-width:90vw;width:auto;padding:14px">
+            <img src="${url}" alt="Pré-visualização" style="max-width:86vw;max-height:80vh;border-radius:8px" />
+            <div style="margin-top:10px;text-align:right"><button class="btn btn-ghost btn-sm" onclick="closeModal()">Fechar</button></div>
+          </div>
+        </div>`;
+    } else {
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch { toast('Não foi possível abrir o arquivo.'); }
 }
 
 document.getElementById('fileFilter')?.addEventListener('change', (e) => {
@@ -350,12 +501,38 @@ function renderDiary(entries) {
   if (diarySearch) filtered = filtered.filter((e) => e.entry.toLowerCase().includes(diarySearch) || (e.author || '').toLowerCase().includes(diarySearch));
   if (!filtered.length) { el.innerHTML = '<p class="muted">Nenhum registro encontrado.</p>'; return; }
   el.innerHTML = filtered.map((e) => `
-    <div class="diary-entry">
-      <div class="diary-meta">${fmtDateTimeBR(e.created_at)} · <strong>${esc(e.author || '?')}</strong></div>
+    <div class="diary-entry" id="diary-${e.id}">
+      <div class="diary-meta">${fmtDateTimeBR(e.created_at)} · <strong>${esc(e.author || '?')}</strong>${e.updated_at ? ' · <em>editado</em>' : ''}</div>
       <div class="diary-text" style="margin-top:6px;white-space:pre-wrap">${esc(e.entry)}</div>
-      <button class="btn btn-ghost btn-sm" style="color:var(--danger);margin-top:6px" onclick="deleteDiary(${e.id})">Remover</button>
+      <div style="margin-top:6px;display:flex;gap:6px">
+        <button class="btn btn-ghost btn-sm" onclick="editDiary(${e.id})">Editar</button>
+        <button class="btn btn-ghost btn-sm" style="color:var(--danger)" onclick="deleteDiary(${e.id})">Remover</button>
+      </div>
     </div>
   `).join('');
+}
+
+function editDiary(did) {
+  const entry = eventData.diary.find((d) => d.id === did);
+  if (!entry) return;
+  const box = document.getElementById(`diary-${did}`);
+  box.innerHTML = `
+    <textarea id="editDiaryText" rows="3" style="width:100%;padding:8px;border:1px solid var(--gray-soft);border-radius:6px;font-family:inherit">${esc(entry.entry)}</textarea>
+    <div style="margin-top:6px;display:flex;gap:6px;justify-content:flex-end">
+      <button class="btn btn-ghost btn-sm" onclick="renderDiary(eventData.diary)">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="saveDiaryEdit(${did})">Salvar</button>
+    </div>`;
+  document.getElementById('editDiaryText').focus();
+}
+
+async function saveDiaryEdit(did) {
+  const text = document.getElementById('editDiaryText').value.trim();
+  if (!text) { toast('O registro não pode ficar vazio.'); return; }
+  try {
+    await Api.put(`/api/events/${eventId}/diary/${did}`, { entry: text });
+    toast('Registro atualizado.');
+    await load();
+  } catch (e) { toast(e.message); }
 }
 
 document.getElementById('diarySearchInput')?.addEventListener('input', (e) => {
@@ -439,11 +616,7 @@ function showContractModal(contract, suppliers) {
             </select>
           </div>
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px">
-          <div class="field"><label>Data da contratação</label><input type="date" id="mContractDate" value="${contract?.contract_date || ''}" /></div>
-          <div class="field"><label>Previsão de pagamento</label><input type="date" id="mPaymentDue" value="${contract?.payment_due_date || ''}" /></div>
-          <div class="field"><label>Data de pagamento</label><input type="date" id="mPaymentDate" value="${contract?.payment_date || ''}" /></div>
-        </div>
+        <div class="field"><label>Data de pagamento</label><input type="date" id="mPaymentDue" value="${contract?.payment_due_date || ''}" /></div>
         <div class="field"><label>Observações</label><textarea id="mNotes" rows="2">${esc(contract?.notes || '')}</textarea></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
           <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
@@ -457,9 +630,7 @@ function showContractModal(contract, suppliers) {
       value:            document.getElementById('mValue').value || null,
       status:           document.getElementById('mStatus').value,
       payment_status:   document.getElementById('mPayment').value,
-      contract_date:    document.getElementById('mContractDate').value || null,
       payment_due_date: document.getElementById('mPaymentDue').value || null,
-      payment_date:     document.getElementById('mPaymentDate').value || null,
       notes:            document.getElementById('mNotes').value.trim() || null,
     };
     if (!isEdit) body.supplier_id = document.getElementById('mSupplier').value;
@@ -548,6 +719,18 @@ function closeModal() {
 // Botões de adicionar
 document.getElementById('addContractBtn').addEventListener('click', openAddContract);
 document.getElementById('addTaskBtn').addEventListener('click', openAddTask);
+
+// Gerar tarefas do modelo (tipo do evento)
+document.getElementById('applyTemplateBtn').addEventListener('click', async () => {
+  const tipo = eventData?.event?.event_type;
+  if (!tipo) { toast('Defina o tipo do evento (em Editar) para gerar as tarefas do modelo.'); return; }
+  if (!confirm(`Gerar as tarefas padrão do tipo "${tipo}"? Elas serão adicionadas ao checklist atual.`)) return;
+  try {
+    const r = await Api.post(`/api/events/${eventId}/apply-template`, {});
+    toast(`${r.added} tarefa(s) adicionada(s).`);
+    await load();
+  } catch (e) { toast(e.message); }
+});
 
 // Duplicar evento
 document.getElementById('duplicateBtn').addEventListener('click', async () => {

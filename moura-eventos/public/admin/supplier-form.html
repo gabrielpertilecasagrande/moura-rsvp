@@ -39,8 +39,8 @@
           <div class="field"><label>E-mail</label><input type="email" id="email" /></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-          <div class="field"><label>Cidade</label><input type="text" id="city" /></div>
-          <div class="field"><label>Estado (UF)</label><input type="text" id="state" maxlength="2" placeholder="SP" /></div>
+          <div class="field"><label>Cidade</label><input type="text" id="city" list="cityList" autocomplete="off" /><datalist id="cityList"></datalist></div>
+          <div class="field"><label>Estado (UF)</label><input type="text" id="state" maxlength="2" placeholder="SP" list="ufList" autocomplete="off" /><datalist id="ufList"></datalist></div>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
           <div class="field"><label>Site</label><input type="url" id="website" placeholder="https://" /></div>

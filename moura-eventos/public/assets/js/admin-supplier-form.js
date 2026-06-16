@@ -23,6 +23,8 @@ setRating(0);
 
 function fmtBRL(v) { return new Intl.NumberFormat('pt-BR', { style:'currency', currency:'BRL' }).format(v || 0); }
 
+fillLocationDatalists();
+
 async function init() {
   if (isEdit) {
     document.getElementById('formEyebrow').textContent = 'Editar';

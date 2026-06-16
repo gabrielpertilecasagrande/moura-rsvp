@@ -83,21 +83,38 @@ router.get('/:tid/comments', requirePerm('can_view'), (req, res) => {
   res.json(rows);
 });
 
-// POST /api/events/:id/checklist/:tid/comments
+// POST /api/events/:id/checklist/:tid/comments  (aceita parent_id para respostas)
 router.post('/:tid/comments', requirePerm('can_checklist'), (req, res) => {
   const tid = Number(req.params.tid);
   const b = req.body || {};
   if (!b.comment) return res.status(400).json({ error: 'Informe o comentário.' });
+  let parentId = null;
+  if (b.parent_id != null) {
+    const parent = db.prepare('SELECT id FROM checklist_comments WHERE id = ? AND task_id = ?').get(Number(b.parent_id), tid);
+    if (parent) parentId = parent.id;
+  }
   const info = db.prepare(
-    `INSERT INTO checklist_comments (task_id, author, comment) VALUES (?, ?, ?)`
-  ).run(tid, req.admin.name || req.admin.email, String(b.comment).trim());
+    `INSERT INTO checklist_comments (task_id, author, comment, parent_id) VALUES (?, ?, ?, ?)`
+  ).run(tid, req.admin.name || req.admin.email, String(b.comment).trim(), parentId);
   touchEvent(Number(req.params.id));
   res.status(201).json(db.prepare('SELECT * FROM checklist_comments WHERE id = ?').get(info.lastInsertRowid));
 });
 
-// DELETE /api/events/:id/checklist/:tid/comments/:cid
+// PUT /api/events/:id/checklist/:tid/comments/:cid — edita um comentário
+router.put('/:tid/comments/:cid', requirePerm('can_checklist'), (req, res) => {
+  const cid = Number(req.params.cid);
+  const c = db.prepare('SELECT * FROM checklist_comments WHERE id = ? AND task_id = ?').get(cid, Number(req.params.tid));
+  if (!c) return res.status(404).json({ error: 'Comentário não encontrado.' });
+  const b = req.body || {};
+  if (!b.comment || !String(b.comment).trim()) return res.status(400).json({ error: 'Informe o comentário.' });
+  db.prepare("UPDATE checklist_comments SET comment = ?, updated_at = datetime('now') WHERE id = ?").run(String(b.comment).trim(), cid);
+  res.json(db.prepare('SELECT * FROM checklist_comments WHERE id = ?').get(cid));
+});
+
+// DELETE /api/events/:id/checklist/:tid/comments/:cid (remove o comentário e respostas)
 router.delete('/:tid/comments/:cid', requirePerm('can_checklist'), (req, res) => {
-  db.prepare('DELETE FROM checklist_comments WHERE id = ?').run(Number(req.params.cid));
+  const cid = Number(req.params.cid);
+  db.prepare('DELETE FROM checklist_comments WHERE id = ? OR parent_id = ?').run(cid, cid);
   res.json({ ok: true });
 });
 

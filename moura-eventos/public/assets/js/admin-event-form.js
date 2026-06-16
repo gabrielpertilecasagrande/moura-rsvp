@@ -26,6 +26,7 @@ function updateWeekday() {
 }
 
 document.getElementById('event_date').addEventListener('change', updateWeekday);
+fillLocationDatalists();
 
 async function loadTemplatePreview(type) {
   const preview = document.getElementById('templatePreview');

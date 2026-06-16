@@ -31,6 +31,21 @@ function requireSession() {
   if (!Api.token()) { location.href = '/admin/login.html'; }
 }
 
+// Preenche os datalists de UF (#ufList) e cidade (#cityList) quando presentes,
+// para autocompletar os campos ao digitar.
+const UF_LIST = ['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO'];
+async function fillLocationDatalists() {
+  const uf = document.getElementById('ufList');
+  if (uf) uf.innerHTML = UF_LIST.map((u) => `<option value="${u}"></option>`).join('');
+  const cityEl = document.getElementById('cityList');
+  if (cityEl) {
+    try {
+      const { cities } = await Api.get('/api/locations');
+      cityEl.innerHTML = (cities || []).map((c) => `<option value="${String(c).replace(/"/g, '&quot;')}"></option>`).join('');
+    } catch { /* silencioso */ }
+  }
+}
+
 function toast(msg) {
   let el = document.querySelector('.toast');
   if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }
