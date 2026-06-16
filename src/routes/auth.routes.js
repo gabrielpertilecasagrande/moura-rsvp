@@ -1,7 +1,8 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
 const db = require('../db');
-const { sign, requireAuth } = require('../middleware/auth');
+const { sign, requireAuth, SECRET } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 
 const router = express.Router();
@@ -31,6 +32,28 @@ router.post('/login', (req, res) => {
     token: sign(admin),
     admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role },
   });
+});
+
+// GET /api/auth/sso?token=TEMP_JWT&event=EVENT_ID
+// Login automático (SSO) vindo do Moura One. O `token` é um JWT temporário e
+// curto, assinado com o MESMO JWT_SECRET compartilhado entre os dois sistemas.
+// Reusa sign()/logActivity() já existentes; emite uma sessão normal do RSVP.
+router.get('/sso', (req, res) => {
+  const { token, event } = req.query || {};
+  const fail = () => res.redirect('/admin/login.html?sso=erro');
+  if (!token) return fail();
+  let payload;
+  try { payload = jwt.verify(String(token), SECRET); } catch { return fail(); }
+  // O token de handshake DEVE declarar target:'rsvp' (definido no Moura One).
+  if (payload.target !== 'rsvp') return fail();
+  const email = String(payload.email || '').toLowerCase().trim();
+  if (!email) return fail();
+  const admin = db.prepare('SELECT * FROM admins WHERE email = ?').get(email);
+  if (!admin || admin.status !== 'ativo') return fail();
+  db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
+  logActivity(admin.name || admin.email, 'entrou via Moura One (SSO)', null);
+  const ev = event ? `&event=${encodeURIComponent(String(event))}` : '';
+  return res.redirect(`/admin/sso-landing.html?token=${encodeURIComponent(sign(admin))}${ev}`);
 });
 
 // POST /api/auth/register  — solicitação de acesso (entra como 'pendente')
