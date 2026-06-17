@@ -8,16 +8,20 @@
 <body>
   <p style="font-family:system-ui,sans-serif;color:#2C427E;padding:24px">Entrando…</p>
   <script>
-    // Recebe a sessão emitida pelo SSO, grava sob a chave real do projeto
-    // (moura_token — ver public/assets/js/api.js) e segue para a área admin.
-    var p = new URLSearchParams(location.search), t = p.get('token');
-    if (t) {
-      localStorage.setItem('moura_token', t);
-      var ev = p.get('event');
-      location.replace(ev ? '/admin/event-detail.html?id=' + encodeURIComponent(ev)
-                          : '/admin/dashboard.html');
-    } else {
-      location.replace('/admin/login.html');
+    // Troca o ref opaco por um token de sessão via fetch.
+    // O JWT de sessão nunca aparece na URL nem no histórico do navegador.
+    var ref = new URLSearchParams(location.search).get('ref');
+    if (!ref) { location.replace('/admin/login.html'); }
+    else {
+      fetch('/api/auth/sso-session?ref=' + encodeURIComponent(ref))
+        .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function(d) {
+          localStorage.setItem('moura_token', d.token);
+          location.replace(d.event_id
+            ? '/admin/event-detail.html?id=' + encodeURIComponent(d.event_id)
+            : '/admin/dashboard.html');
+        })
+        .catch(function() { location.replace('/admin/login.html?sso=erro'); });
     }
   </script>
 </body>

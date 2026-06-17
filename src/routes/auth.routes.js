@@ -47,16 +47,15 @@ router.post('/login', (req, res) => {
 });
 
 // GET /api/auth/sso?token=TEMP_JWT&event=EVENT_ID
-// Login automático (SSO) vindo do Moura One. O `token` é um JWT temporário e
-// curto, assinado com o MESMO JWT_SECRET compartilhado entre os dois sistemas.
-// Reusa sign()/logActivity() já existentes; emite uma sessão normal do RSVP.
+// Login automático (SSO) vindo do Moura One. Valida o JWT de handshake,
+// gera a sessão e a guarda no banco sob um ref UUID de curta duração.
+// O JWT de sessão NUNCA aparece na URL do navegador — apenas o ref opaco.
 router.get('/sso', (req, res) => {
   const { token, event } = req.query || {};
   const fail = () => res.redirect('/admin/login.html?sso=erro');
   if (!token) return fail();
   let payload;
   try { payload = jwt.verify(String(token), SECRET); } catch { return fail(); }
-  // O token de handshake DEVE declarar target:'rsvp' (definido no Moura One).
   if (payload.target !== 'rsvp') return fail();
   const email = String(payload.email || '').toLowerCase().trim();
   if (!email) return fail();
@@ -64,8 +63,32 @@ router.get('/sso', (req, res) => {
   if (!admin || admin.status !== 'ativo') return fail();
   db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
   logActivity(admin.name || admin.email, 'entrou via Moura One (SSO)', null);
-  const ev = event ? `&event=${encodeURIComponent(String(event))}` : '';
-  return res.redirect(`/admin/sso-landing.html?token=${encodeURIComponent(sign(admin))}${ev}`);
+
+  const { randomUUID } = require('crypto');
+  const ref = randomUUID();
+  const sessionToken = sign(admin);
+  const expiresAt = new Date(Date.now() + 60_000).toISOString(); // 60 segundos
+  db.prepare(
+    'INSERT INTO sso_sessions (ref, token, event_id, expires_at) VALUES (?, ?, ?, ?)'
+  ).run(ref, sessionToken, event ? String(event) : null, expiresAt);
+
+  return res.redirect(`/admin/sso-landing.html?ref=${encodeURIComponent(ref)}`);
+});
+
+// GET /api/auth/sso-session?ref=UUID
+// Troca o ref opaco pelo token de sessão real (uso único, expira em 60 s).
+// Chamado pelo sso-landing.html via fetch — o JWT nunca entra em nenhuma URL.
+router.get('/sso-session', (req, res) => {
+  const ref = String(req.query.ref || '').trim();
+  if (!ref) return res.status(400).json({ error: 'ref ausente.' });
+
+  const row = db.prepare('SELECT * FROM sso_sessions WHERE ref = ?').get(ref);
+  if (!row) return res.status(404).json({ error: 'Sessão não encontrada.' });
+  if (row.used_at) return res.status(410).json({ error: 'Sessão já utilizada.' });
+  if (row.expires_at < new Date().toISOString()) return res.status(410).json({ error: 'Sessão expirada.' });
+
+  db.prepare("UPDATE sso_sessions SET used_at = datetime('now') WHERE ref = ?").run(ref);
+  res.json({ token: row.token, event_id: row.event_id || null });
 });
 
 // POST /api/auth/register  — solicitação de acesso (entra como 'pendente')

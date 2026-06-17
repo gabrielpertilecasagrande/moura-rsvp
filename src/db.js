@@ -64,6 +64,19 @@ addColumn('audit_log', 'actor', 'TEXT');
 addColumn('participants', 'extra', 'TEXT'); // respostas dos campos personalizados (JSON)
 addColumn('participants', 'notes', 'TEXT'); // observações internas (somente administrativo)
 
+// Sessões SSO temporárias: trocam um ref UUID pelo token de sessão real.
+// O JWT nunca aparece na URL do navegador — só o ref (opaco, curto prazo).
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sso_sessions (
+    ref        TEXT PRIMARY KEY,
+    token      TEXT NOT NULL,
+    event_id   TEXT,
+    expires_at TEXT NOT NULL,
+    used_at    TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
 // Controle de acesso por evento: cada linha libera um evento para um usuário,
 // com permissões granulares. Admin ignora esta tabela (vê tudo).
 db.exec(`
