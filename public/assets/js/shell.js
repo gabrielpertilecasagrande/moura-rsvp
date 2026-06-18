@@ -10,12 +10,14 @@ function currentUser() {
   try {
     const t = Api.token();
     const p = JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return { id: p.id, name: p.name || '', email: p.email || '', role: normRole(p.role) };
-  } catch { return { role: 'operador' }; }
+    return { id: p.id, name: p.name || '', email: p.email || '', role: normRole(p.role), isPlatformAdmin: !!p.is_platform_admin };
+  } catch { return { role: 'operador', isPlatformAdmin: false }; }
 }
 function currentRole() { return currentUser().role; }
 // Perfis que podem criar eventos.
 function canCreateEvents() { return ['admin', 'gestor'].includes(currentRole()); }
+// Admin do tenant padrão — pode gerenciar organizadores.
+function isPlatformAdmin() { return !!currentUser().isPlatformAdmin; }
 
 function renderShell(active) {
   const u = currentUser();
@@ -29,6 +31,7 @@ function renderShell(active) {
     canCreateEvents() ? item('/admin/event-form.html', 'new', 'Novo evento') : '',
     usersItem,
     isAdmin ? item('/admin/activity.html', 'activity', 'Atividades') : '',
+    isPlatformAdmin() ? item('/admin/platform.html', 'platform', 'Plataforma') : '',
   ].join('');
   const initials = (u.name || u.email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   return `
