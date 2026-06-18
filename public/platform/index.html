@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Plataforma — Moura RSVP</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+  <style>
+    .plat-wrap { max-width: 920px; margin: 0 auto; padding: 32px 20px 64px; }
+    .plat-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+    @media (min-width: 760px) { .plat-grid { grid-template-columns: 1fr 1fr; } }
+    .plat-card { background: #fff; border: 1px solid #e6e9f2; border-radius: 14px; padding: 22px; }
+    .plat-card h2 { margin: 0 0 4px; font-size: 16px; }
+    .plat-card .muted { margin: 0 0 16px; }
+    .field { margin-bottom: 12px; }
+    .field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; color: #344;}
+    .field input { width: 100%; padding: 9px 11px; border: 1px solid #d4d9e6; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+    table.cards { width: 100%; border-collapse: collapse; }
+    table.cards th, table.cards td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #eef0f6; font-size: 14px; }
+    table.cards th { font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: #8a93a8; }
+    .gate { max-width: 420px; margin: 80px auto; }
+    .hidden { display: none; }
+    .row-actions { text-align: right; white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <div class="plat-wrap">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+      <div>
+        <div class="eyebrow">Operação da plataforma</div>
+        <h1 style="margin:2px 0 0">Organizadores</h1>
+      </div>
+      <button class="btn btn-sm" id="logoutBtn" style="display:none">Sair</button>
+    </div>
+
+    <!-- Portão: token de plataforma -->
+    <div class="gate plat-card" id="gate">
+      <h2>Acesso da plataforma</h2>
+      <p class="muted">Informe o token de plataforma para gerenciar os organizadores.</p>
+      <p class="error-msg hidden" id="gateErr"></p>
+      <div class="field"><label>Token</label><input type="password" id="token" autocomplete="off" /></div>
+      <button class="btn btn-primary" id="gateBtn" style="width:100%">Entrar</button>
+    </div>
+
+    <!-- Painel -->
+    <div id="panel" class="hidden">
+      <div class="plat-grid">
+        <div class="plat-card">
+          <h2>Organizadores cadastrados</h2>
+          <p class="muted">Cada um tem banco de dados isolado.</p>
+          <div style="overflow:auto">
+            <table class="cards">
+              <thead><tr><th>Slug</th><th>Nome</th><th>Criado</th><th></th></tr></thead>
+              <tbody id="rows"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="plat-card">
+          <h2>Novo organizador</h2>
+          <p class="muted">Cria a organização e o primeiro administrador.</p>
+          <p class="error-msg hidden" id="formErr"></p>
+          <div class="field"><label>Nome da organização</label><input id="orgName" placeholder="ACME Eventos" /></div>
+          <div class="field"><label>Slug (opcional)</label><input id="orgSlug" placeholder="derivado do nome se vazio" /></div>
+          <div class="field"><label>Nome do admin (opcional)</label><input id="adminName" placeholder="Maria Silva" /></div>
+          <div class="field"><label>E-mail do admin</label><input id="adminEmail" type="email" placeholder="contato@acme.com" /></div>
+          <div class="field"><label>Senha do admin</label><input id="adminPassword" type="password" placeholder="mín. 8 caracteres" /></div>
+          <button class="btn btn-primary" id="createBtn" style="width:100%;margin-top:4px">Criar organizador</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const KEY = 'moura_platform_token';
+    const tk = () => sessionStorage.getItem(KEY) || '';
+    const gate  = document.getElementById('gate');
+    const panel = document.getElementById('panel');
+    const logoutBtn = document.getElementById('logoutBtn');
+
+    function show(err, msg) { err.textContent = msg; err.classList.remove('hidden'); }
+    function hide(err) { err.classList.add('hidden'); }
+
+    async function api(method, url, body) {
+      const headers = { 'Authorization': 'Bearer ' + tk() };
+      if (body) headers['Content-Type'] = 'application/json';
+      const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      const data = (res.headers.get('content-type') || '').includes('json') ? await res.json() : null;
+      if (!res.ok) throw new Error((data && data.error) || 'Erro na requisição.');
+      return data;
+    }
+
+    function esc(s) { return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c])); }
+
+    function enterPanel() {
+      gate.classList.add('hidden');
+      panel.classList.remove('hidden');
+      logoutBtn.style.display = '';
+      loadTenants();
+    }
+
+    function logout() {
+      sessionStorage.removeItem(KEY);
+      location.reload();
+    }
+
+    async function loadTenants() {
+      const rows = document.getElementById('rows');
+      rows.innerHTML = '<tr><td colspan="4" class="muted">Carregando…</td></tr>';
+      try {
+        const list = await api('GET', '/api/platform/tenants');
+        if (!list.length) { rows.innerHTML = '<tr><td colspan="4" class="muted">Nenhum organizador ainda.</td></tr>'; return; }
+        rows.innerHTML = list.map((o) => `
+          <tr>
+            <td><strong>${esc(o.slug)}</strong></td>
+            <td>${esc(o.name)}</td>
+            <td class="muted">${esc((o.created_at || '').slice(0,10))}</td>
+            <td class="row-actions"><button class="btn btn-sm" data-backup="${esc(o.slug)}">Backup</button></td>
+          </tr>`).join('');
+        rows.querySelectorAll('[data-backup]').forEach((b) =>
+          b.addEventListener('click', () => downloadBackup(b.getAttribute('data-backup'), b)));
+      } catch (e) {
+        rows.innerHTML = `<tr><td colspan="4" class="error-msg">${esc(e.message)}</td></tr>`;
+      }
+    }
+
+    async function downloadBackup(slug, btn) {
+      const old = btn.textContent; btn.disabled = true; btn.textContent = 'Gerando…';
+      try {
+        const res = await fetch(`/api/platform/tenants/${encodeURIComponent(slug)}/backup`, {
+          headers: { 'Authorization': 'Bearer ' + tk() },
+        });
+        if (!res.ok) throw new Error('Falha ao gerar backup.');
+        const blob = await res.blob();
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `rsvp-${slug}-${new Date().toISOString().slice(0,10)}.db`;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      } catch (e) {
+        alert(e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = old;
+      }
+    }
+
+    async function createTenant() {
+      const err = document.getElementById('formErr'); hide(err);
+      const btn = document.getElementById('createBtn'); btn.disabled = true; btn.textContent = 'Criando…';
+      try {
+        await api('POST', '/api/platform/tenants', {
+          orgName:       document.getElementById('orgName').value.trim(),
+          orgSlug:       document.getElementById('orgSlug').value.trim() || undefined,
+          adminName:     document.getElementById('adminName').value.trim() || undefined,
+          adminEmail:    document.getElementById('adminEmail').value.trim(),
+          adminPassword: document.getElementById('adminPassword').value,
+        });
+        ['orgName','orgSlug','adminName','adminEmail','adminPassword'].forEach((id) => document.getElementById(id).value = '');
+        await loadTenants();
+      } catch (e) {
+        show(err, e.message);
+      } finally {
+        btn.disabled = false; btn.textContent = 'Criar organizador';
+      }
+    }
+
+    // Gate: valida o token tentando listar tenants.
+    async function tryGate() {
+      const err = document.getElementById('gateErr'); hide(err);
+      const val = document.getElementById('token').value.trim();
+      if (!val) return;
+      sessionStorage.setItem(KEY, val);
+      try {
+        await api('GET', '/api/platform/tenants');
+        enterPanel();
+      } catch (e) {
+        sessionStorage.removeItem(KEY);
+        show(err, 'Token inválido ou plataforma sem PLATFORM_TOKEN configurado.');
+      }
+    }
+
+    document.getElementById('gateBtn').addEventListener('click', tryGate);
+    document.getElementById('token').addEventListener('keydown', (e) => { if (e.key === 'Enter') tryGate(); });
+    document.getElementById('createBtn').addEventListener('click', createTenant);
+    logoutBtn.addEventListener('click', logout);
+
+    // Se já há token na sessão, tenta entrar direto.
+    if (tk()) tryGate();
+  </script>
+</body>
+</html>

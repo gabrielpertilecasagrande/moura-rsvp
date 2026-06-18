@@ -7,7 +7,11 @@
 // ficam desativadas (respondem 404) — evita exposição acidental.
 
 const express = require('express');
+const fs   = require('fs');
+const os   = require('os');
+const path = require('path');
 const { provisionTenant, ProvisionError } = require('../provision');
+const { openTenantDb } = require('../db');
 const router = require('../router');
 
 const r = express.Router();
@@ -49,6 +53,28 @@ r.post('/tenants', (req, res) => {
     console.error('[platform] erro ao provisionar tenant:', e.message);
     res.status(500).json({ error: 'Erro ao provisionar organização.' });
   }
+});
+
+// GET /api/platform/tenants/:slug/backup — baixa um snapshot consistente do
+// banco de um tenant específico (VACUUM INTO gera cópia íntegra mesmo em uso).
+r.get('/tenants/:slug/backup', (req, res) => {
+  const slug = String(req.params.slug || '').toLowerCase().trim();
+  if (!router.organizationExists(slug)) {
+    return res.status(404).json({ error: 'Organização não encontrada.' });
+  }
+  const db = openTenantDb(slug);
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  const tmp = path.join(os.tmpdir(), `rsvp-${slug}-${stamp}-${Math.random().toString(36).slice(2, 7)}.db`);
+  try {
+    db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
+  } catch (e) {
+    console.error('[platform] erro ao gerar backup:', e.message);
+    return res.status(500).json({ error: 'Não foi possível gerar o backup.' });
+  }
+  res.download(tmp, `rsvp-${slug}-${stamp}.db`, (err) => {
+    fs.unlink(tmp, () => {});
+    if (err && !res.headersSent) res.status(500).json({ error: 'Falha ao enviar o backup.' });
+  });
 });
 
 module.exports = r;

@@ -115,6 +115,10 @@ app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 // Link público do evento: /rsvp/:slug  (o slug é lido pelo JS da página via API pública)
 app.get('/rsvp/:slug', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html')));
 
+// Painel de operação da plataforma (provisionamento de organizadores).
+// Acesso protegido no cliente e no servidor pelo PLATFORM_TOKEN.
+app.get('/platform', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'platform', 'index.html')));
+
 // ── Tratador de erros ──────────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
 app.use((err, _req, res, _next) => {
