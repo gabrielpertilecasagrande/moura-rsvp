@@ -4,7 +4,10 @@ const { openTenantDb, runWithDb } = require('../db');
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret';
 
+const DEFAULT_TENANT = process.env.DEFAULT_TENANT_SLUG || 'moura';
+
 // Emite um JWT de sessão que inclui o tenant do admin.
+// is_platform_admin: true para admins do tenant padrão — habilita acesso às rotas de plataforma.
 function sign(admin, tenantSlug) {
   return jwt.sign(
     {
@@ -13,6 +16,7 @@ function sign(admin, tenantSlug) {
       name: admin.name,
       role: admin.role || 'operador',
       tenant_slug: tenantSlug,
+      is_platform_admin: tenantSlug === DEFAULT_TENANT && admin.role === 'admin',
     },
     SECRET,
     { expiresIn: '12h' }
