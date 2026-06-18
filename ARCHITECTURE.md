@@ -172,7 +172,8 @@ env vars `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
 | `DEFAULT_TENANT_SLUG` | `moura` | Tenant padrão (seed, rotas de serviço/SSO legadas) |
 | `DEFAULT_TENANT_NAME` | `Organização` | Nome da organização padrão |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` / `ADMIN_NAME` | `admin@moura.com.br` / `moura2026` / `Administrador` | Admin inicial do tenant padrão |
-| `PLATFORM_TOKEN` | — | Habilita as rotas/painel de plataforma. Ausente → desativado |
+| `PLATFORM_TOKEN` | — | Habilita as rotas/painel de plataforma. Ausente → desativado (404) |
+| `PLATFORM_PATH` | `/platform` | Caminho da interface de plataforma. Em produção, use algo imprevisível (ex.: `/plat-x7k29`) |
 | `PORT` / `BASE_URL` | `3000` / — | Servidor HTTP |
 
 ---

@@ -116,8 +116,9 @@ app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 app.get('/rsvp/:slug', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html')));
 
 // Painel de operação da plataforma (provisionamento de organizadores).
-// Acesso protegido no cliente e no servidor pelo PLATFORM_TOKEN.
-app.get('/platform', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'platform', 'index.html')));
+// Caminho configurável via PLATFORM_PATH para não expor URL previsível em produção.
+const PLATFORM_PATH = (process.env.PLATFORM_PATH || '/platform').replace(/\/+$/, '');
+app.get(PLATFORM_PATH, (_req, res) => res.sendFile(path.join(__dirname, 'public', 'platform', 'index.html')));
 
 // ── Tratador de erros ──────────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
