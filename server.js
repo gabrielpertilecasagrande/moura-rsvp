@@ -105,6 +105,7 @@ app.use('/api/backup',                                      require('./src/route
 app.use('/api/events',                                      require('./src/routes/events.routes'));
 app.use('/api/events/:id/participants',                     require('./src/routes/participants.routes'));
 app.use('/api/public',                       publicLimiter, require('./src/routes/public.routes'));
+app.use('/api/platform',                                    require('./src/routes/platform.routes'));
 
 // ── Páginas ────────────────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.redirect('/admin/login.html'));
