@@ -4,10 +4,11 @@ const { openTenantDb, runWithDb } = require('../db');
 
 const SECRET = process.env.JWT_SECRET || 'dev-secret';
 
-// Emite um JWT de sessão que inclui o tenant do admin.
-// Sessão longa (30 dias) + renovação automática no cliente: a equipe usa o app no
-// celular e não deve relogar a cada turno. É seguro porque requireAuth recarrega o
-// usuário do banco a cada requisição — bloqueio/inativação têm efeito imediato.
+// Emite um JWT de acesso (curto: 12h) que inclui o tenant do admin. O login
+// persistente vem do refresh token (ver utils/sessions.js): o app troca o refresh
+// por um novo JWT sem pedir senha, então "sempre logado" não depende de um JWT
+// longo. Token curto limita o estrago de um vazamento; requireAuth ainda recarrega
+// o usuário do banco (por tenant) a cada requisição — bloqueio/inativação imediatos.
 function sign(admin, tenantSlug) {
   return jwt.sign(
     {
@@ -18,7 +19,7 @@ function sign(admin, tenantSlug) {
       tenant_slug: tenantSlug,
     },
     SECRET,
-    { expiresIn: '30d' }
+    { expiresIn: '12h' }
   );
 }
 

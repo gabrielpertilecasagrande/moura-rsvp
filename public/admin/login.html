@@ -52,7 +52,7 @@
           email: document.getElementById('email').value.trim(),
           password: document.getElementById('password').value,
         });
-        Api.setToken(r.token);
+        Api.setSession(r);
         location.href = '/admin/dashboard.html';
       } catch (e) {
         err.textContent = e.message; err.classList.remove('hidden');
