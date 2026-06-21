@@ -31,6 +31,62 @@ function requireSession() {
   if (!Api.token()) { location.href = '/admin/login.html'; }
 }
 
+// ── Sessão deslizante: renovação automática ("sempre logado") ─────────────────
+// O token vale 30 dias e o servidor (POST /api/auth/refresh) recarrega o usuário
+// do banco a cada chamada — bloqueio/inativação seguem imediatos. Enquanto o app
+// for aberto de tempos em tempos, renovamos o token antes de expirar, em silêncio:
+// o usuário não cai mais na tela de login só porque o app ficou fechado.
+Api.tokenExpMs = function () {
+  const t = Api.token();
+  if (!t) return null;
+  try {
+    const seg = t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(seg));
+    return payload && payload.exp ? payload.exp * 1000 : null;
+  } catch { return null; }
+};
+
+// Troca o token atual por um novo (validade recontada). Usa fetch cru (não
+// Api.req) para não disparar o redirecionamento automático de 401: se falhar,
+// mantém o token atual e tenta de novo no próximo gatilho.
+Api.refreshToken = async function () {
+  const t = Api.token();
+  if (!t) return false;
+  try {
+    const res = await fetch('/api/auth/refresh', { method: 'POST', headers: { Authorization: `Bearer ${t}` } });
+    if (!res.ok) return false;
+    const data = await res.json().catch(() => null);
+    if (data && data.token) {
+      Api.setToken(data.token);
+      localStorage.setItem('moura_token_renewed_at', String(Date.now()));
+      return true;
+    }
+  } catch { /* offline/instável: tenta de novo no próximo gatilho */ }
+  return false;
+};
+
+// Renova de forma proativa quando falta menos de RENEW_BELOW para expirar,
+// respeitando um intervalo mínimo para não renovar a cada navegação.
+const RENEW_BELOW = 25 * 24 * 60 * 60 * 1000;   // renova faltando < 25 dias
+const RENEW_MIN_INTERVAL = 6 * 60 * 60 * 1000;  // no máx. 1 renovação a cada 6h
+function maybeRenewSession() {
+  const exp = Api.tokenExpMs();
+  if (!exp) return;
+  const remaining = exp - Date.now();
+  if (remaining <= 0 || remaining > RENEW_BELOW) return; // expirado ou ainda longe
+  const last = Number(localStorage.getItem('moura_token_renewed_at') || 0);
+  if (Date.now() - last < RENEW_MIN_INTERVAL) return;
+  Api.refreshToken();
+}
+document.addEventListener('DOMContentLoaded', () => {
+  if (!Api.token() || location.pathname.endsWith('/login.html')) return;
+  maybeRenewSession();
+  // Ao voltar para a aba (app reaberto no celular), reavalia a renovação.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeRenewSession(); });
+  // Rede de segurança para abas abertas por muito tempo.
+  setInterval(maybeRenewSession, 30 * 60 * 1000);
+});
+
 function toast(msg) {
   let el = document.querySelector('.toast');
   if (!el) { el = document.createElement('div'); el.className = 'toast'; document.body.appendChild(el); }

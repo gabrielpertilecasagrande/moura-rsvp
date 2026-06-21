@@ -160,6 +160,17 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ admin: req.admin });
 });
 
+// POST /api/auth/refresh — renova o token (sessão deslizante / "sempre logado").
+// requireAuth já validou o token atual (não expirado) e recarregou o usuário do
+// banco no tenant correto — então bloqueio/inativação seguem imediatos. Reemite
+// o token com a validade recontada a partir de agora, no mesmo tenant.
+router.post('/refresh', requireAuth, (req, res) => {
+  res.json({
+    token: sign(req.admin, req.tenantSlug),
+    admin: { id: req.admin.id, name: req.admin.name, email: req.admin.email, role: req.admin.role },
+  });
+});
+
 // PUT /api/auth/profile — o próprio usuário edita nome e e-mail
 router.put('/profile', requireAuth, (req, res) => {
   const admin = db.prepare('SELECT * FROM admins WHERE id = ?').get(req.admin.id);
