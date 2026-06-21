@@ -85,9 +85,23 @@ async function loadSessions() {
         <span style="font-size:18px">${s.current ? '📱' : '💻'}</span>
         <span style="flex:1;min-width:0">
           <strong style="font-size:14px">${esc(deviceLabel(s.user_agent))}${s.current ? ' <span style="color:var(--cyan);font-weight:600">(este aparelho)</span>' : ''}</strong>
-          <span class="muted" style="display:block;font-size:12px">Última atividade: ${fmtDateTimeBR(s.last_used_at)}</span>
+          <span class="muted" style="display:block;font-size:12px">${s.city ? '📍 ' + esc(s.city) + ' · ' : ''}Última atividade: ${fmtDateTimeBR(s.last_used_at)}</span>
         </span>
+        ${s.current ? '' : `<button class="btn btn-ghost btn-sm sess-remove" data-id="${s.id}" title="Remover este aparelho">Remover</button>`}
       </div>`).join('');
+    // "Remover" individual de cada aparelho (exceto o atual).
+    box.querySelectorAll('.sess-remove').forEach((b) => b.addEventListener('click', async () => {
+      if (!confirm('Remover este aparelho?')) return;
+      b.disabled = true;
+      try {
+        const rr = await fetch(`/api/auth/sessions/${b.getAttribute('data-id')}/revoke`, {
+          method: 'POST', headers: { Authorization: `Bearer ${Api.token()}` },
+        });
+        if (!rr.ok) throw new Error();
+        toast('Aparelho removido.');
+        loadSessions();
+      } catch { toast('Não foi possível remover agora.'); b.disabled = false; }
+    }));
     revokeBtn.style.display = sessions.length > 1 ? '' : 'none';
   } catch {
     box.innerHTML = '<p class="muted" style="font-size:13px">Não foi possível carregar agora.</p>';

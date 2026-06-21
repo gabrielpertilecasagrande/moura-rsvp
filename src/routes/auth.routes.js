@@ -16,7 +16,12 @@ const {
   unregisterAdminEmail,
   updateAdminEmail,
 } = require('../router');
-const { createRefreshToken, useRefreshToken, revokeRefreshToken, listSessions, revokeOtherSessions, pruneExpiredSessions } = require('../utils/sessions');
+const { createRefreshToken, useRefreshToken, revokeRefreshToken, listSessions, enrichSessionsCity, revokeOtherSessions, revokeSessionById, pruneExpiredSessions } = require('../utils/sessions');
+
+// IP do cliente (atrás do proxy do Railway, o real vem no x-forwarded-for).
+function clientIp(req) {
+  return (req.headers['x-forwarded-for'] || '').split(',')[0].trim() || req.socket?.remoteAddress || req.ip || null;
+}
 
 const router = express.Router();
 
@@ -72,7 +77,7 @@ router.post('/login', (req, res) => {
     token: sign(admin, ref.tenant_slug),
     // Login persistente (app/PWA): o cliente guarda o refresh token e renova a
     // sessão sozinho, sem pedir senha de novo entre aberturas do app.
-    refresh_token: createRefreshToken(ref.tenant_slug, admin.id, req.headers['user-agent']),
+    refresh_token: createRefreshToken(ref.tenant_slug, admin.id, req.headers['user-agent'], clientIp(req)),
     admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role },
   });
 });
@@ -104,7 +109,7 @@ router.get('/sso', (req, res) => {
     const ref = randomUUID();
     const sessionToken = sign(admin, DEFAULT_TENANT);
     // Login persistente também para quem entra via SSO (integração Moura One).
-    const refreshToken = createRefreshToken(DEFAULT_TENANT, admin.id, req.headers['user-agent']);
+    const refreshToken = createRefreshToken(DEFAULT_TENANT, admin.id, req.headers['user-agent'], clientIp(req));
     const expiresAt = new Date(Date.now() + 60_000).toISOString();
     db.prepare(
       'INSERT INTO sso_sessions (ref, token, refresh_token, event_id, expires_at) VALUES (?, ?, ?, ?, ?)'
@@ -195,8 +200,18 @@ router.post('/logout', (req, res) => {
 // GET /api/auth/sessions — lista os aparelhos conectados (sessões ativas) do
 // usuário, no seu tenant. O cliente envia o refresh token no header
 // X-Refresh-Token para marcar "este aparelho" (o token nunca vai na URL).
-router.get('/sessions', requireAuth, (req, res) => {
-  res.json({ sessions: listSessions(req.admin.id, req.tenantSlug, req.headers['x-refresh-token'] || null) });
+router.get('/sessions', requireAuth, async (req, res) => {
+  const sessions = await enrichSessionsCity(listSessions(req.admin.id, req.tenantSlug, req.headers['x-refresh-token'] || null));
+  res.json({ sessions });
+});
+
+// POST /api/auth/sessions/:id/revoke — remove um aparelho específico da lista
+// (revoga o refresh token daquela sessão; ela some da lista na hora).
+router.post('/sessions/:id/revoke', requireAuth, (req, res) => {
+  const id = parseInt(req.params.id, 10);
+  if (!id) return res.status(400).json({ error: 'Sessão inválida.' });
+  revokeSessionById(req.admin.id, req.tenantSlug, id);
+  res.json({ ok: true });
 });
 
 // POST /api/auth/sessions/revoke-others — desconecta TODOS os outros aparelhos na
