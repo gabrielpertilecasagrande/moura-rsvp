@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Lixeira — Moura RSVP</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Administração</div>
+          <h1>Lixeira</h1>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span id="refreshSlot"></span>
+        </div>
+      </div>
+
+      <!-- Contagem no topo -->
+      <div class="trash-summary" id="trashSummary">
+        <span class="trash-summary-ico">🗑</span>
+        <span id="trashSummaryText" class="muted">Carregando…</span>
+      </div>
+
+      <p class="muted" style="margin:14px 0 16px;font-size:13.5px">
+        Itens excluídos ficam guardados aqui por <strong>90 dias</strong> e depois são apagados automaticamente para sempre.
+        Você pode <strong>visualizar</strong>, <strong>restaurar</strong> ou <strong>excluir permanentemente</strong> a qualquer momento.
+      </p>
+
+      <!-- Busca + Filtro rápido -->
+      <div class="toolbar">
+        <div class="search">
+          <input type="text" id="trashSearch" placeholder="🔎 Buscar…" autocomplete="off" />
+        </div>
+        <div class="seg" id="trashFilter" role="tablist">
+          <button data-filter="all" class="active">Todos</button>
+          <button data-filter="event">Eventos</button>
+          <button data-filter="participant">Convidados</button>
+          <button data-filter="user">Usuários</button>
+        </div>
+      </div>
+
+      <div class="card table-card" style="padding:0;overflow:hidden">
+        <table class="cards">
+          <thead><tr>
+            <th>Item</th>
+            <th>Tipo</th>
+            <th>Excluído por</th>
+            <th>Excluído em</th>
+            <th>Remoção automática</th>
+            <th style="text-align:right">Ações</th>
+          </tr></thead>
+          <tbody id="rows"><tr><td colspan="6" class="muted" style="padding:24px">Carregando…</td></tr></tbody>
+        </table>
+      </div>
+    </main>
+  </div>
+  <div id="modalSlot"></div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-trash.js"></script>
+</body>
+</html>

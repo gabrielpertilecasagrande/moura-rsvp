@@ -49,7 +49,7 @@ router.use(requireAuth);
 
 // Monta a consulta de participantes respeitando filtro de status e busca por nome.
 function queryParticipants(eventId, { filter, q, ids }) {
-  let sql = 'SELECT * FROM participants WHERE event_id = ?';
+  let sql = 'SELECT * FROM participants WHERE event_id = ? AND deleted_at IS NULL';
   const params = [eventId];
   if (filter === 'confirmado' || filter === 'recusado') {
     sql += ' AND response = ?';
@@ -74,12 +74,12 @@ function queryParticipants(eventId, { filter, q, ids }) {
 // GET /api/events/:id/participants?filter=&q=
 router.get('/', requirePerm('can_view'), (req, res) => {
   const eventId = req.params.id;
-  const e = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  const e = db.prepare('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
   const list = queryParticipants(eventId, req.query);
-  const confirmed = db.prepare("SELECT COUNT(*) c FROM participants WHERE event_id=? AND response='confirmado'").get(eventId).c;
-  const declined = db.prepare("SELECT COUNT(*) c FROM participants WHERE event_id=? AND response='recusado'").get(eventId).c;
+  const confirmed = db.prepare("SELECT COUNT(*) c FROM participants WHERE event_id=? AND deleted_at IS NULL AND response='confirmado'").get(eventId).c;
+  const declined = db.prepare("SELECT COUNT(*) c FROM participants WHERE event_id=? AND deleted_at IS NULL AND response='recusado'").get(eventId).c;
   const total = confirmed + declined;
   const rate = total ? Math.round((confirmed / total) * 100) : 0;
 
@@ -90,14 +90,15 @@ router.get('/', requirePerm('can_view'), (req, res) => {
   });
 });
 
-// DELETE /api/events/:id/participants/:pid — remove participante
+// DELETE /api/events/:id/participants/:pid — move o convidado para a LIXEIRA
 router.delete('/:pid', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
   const pid = Number(req.params.pid);
-  const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ?').get(pid, eventId);
+  const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ? AND deleted_at IS NULL').get(pid, eventId);
   if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
-  db.prepare('DELETE FROM participants WHERE id = ?').run(pid);
-  logActivity(req.admin.name || req.admin.email, 'removeu participante', `${p.name}`);
+  db.prepare("UPDATE participants SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?")
+    .run(req.admin.name || req.admin.email, pid);
+  logActivity(req.admin.name || req.admin.email, 'moveu convidado para a lixeira', `${p.name}`);
   res.json({ ok: true });
 });
 
@@ -113,7 +114,7 @@ router.post('/mass', requirePerm('can_participants'), (req, res) => {
   const actor = req.admin.name || req.admin.email || 'Administrador';
   const placeholders = ids.map(() => '?').join(',');
   // Garante que todos pertencem a este evento.
-  const rows = db.prepare(`SELECT id, name, response FROM participants WHERE event_id = ? AND id IN (${placeholders})`).all(eventId, ...ids);
+  const rows = db.prepare(`SELECT id, name, response FROM participants WHERE event_id = ? AND deleted_at IS NULL AND id IN (${placeholders})`).all(eventId, ...ids);
   if (!rows.length) return res.status(404).json({ error: 'Nenhum participante encontrado.' });
   const validIds = rows.map((r) => r.id);
   const ph2 = validIds.map(() => '?').join(',');
@@ -127,8 +128,8 @@ router.post('/mass', requirePerm('can_participants'), (req, res) => {
     return res.json({ ok: true, affected: validIds.length });
   }
   if (action === 'excluir') {
-    db.prepare(`DELETE FROM participants WHERE id IN (${ph2})`).run(...validIds);
-    logActivity(actor, `removeu ${validIds.length} participante(s)`, null);
+    db.prepare(`UPDATE participants SET deleted_at = datetime('now'), deleted_by = ? WHERE id IN (${ph2})`).run(actor, ...validIds);
+    logActivity(actor, `moveu ${validIds.length} convidado(s) para a lixeira`, null);
     return res.json({ ok: true, affected: validIds.length });
   }
   return res.status(400).json({ error: 'Ação inválida.' });
@@ -139,7 +140,7 @@ router.get('/:pid/audit', requirePerm('can_history'), (req, res) => {
   // Confere que o participante pertence ao evento da URL — sem isto, um usuário
   // com acesso a um evento poderia ler o histórico de participantes de OUTRO
   // evento (mesmo tenant) só trocando o id na URL.
-  const p = db.prepare('SELECT id FROM participants WHERE id = ? AND event_id = ?')
+  const p = db.prepare('SELECT id FROM participants WHERE id = ? AND event_id = ? AND deleted_at IS NULL')
     .get(Number(req.params.pid), Number(req.params.id));
   if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
   const rows = db.prepare(
@@ -152,7 +153,7 @@ router.get('/:pid/audit', requirePerm('can_history'), (req, res) => {
 router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
   const pid = Number(req.params.pid);
-  const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ?').get(pid, eventId);
+  const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ? AND deleted_at IS NULL').get(pid, eventId);
   if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
   const ev = db.prepare('SELECT form_config FROM events WHERE id = ?').get(eventId);
   const cfg = parseFormConfig(ev ? ev.form_config : '{}');
@@ -170,7 +171,7 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   const normalized = normalizeName(name);
   // Verifica conflito de nome com OUTRO participante do mesmo evento.
   const clash = db
-    .prepare('SELECT id FROM participants WHERE event_id = ? AND name_normalized = ? AND id <> ?')
+    .prepare('SELECT id FROM participants WHERE event_id = ? AND name_normalized = ? AND id <> ? AND deleted_at IS NULL')
     .get(eventId, normalized, pid);
   if (clash) {
     return res.status(409).json({ error: 'Já existe outro participante com este nome neste evento.' });
@@ -226,7 +227,7 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
 // POST /api/events/:id/participants — inclusão manual de um participante
 router.post('/', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
-  const e = db.prepare('SELECT id FROM events WHERE id = ?').get(eventId);
+  const e = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
   const b = req.body || {};
@@ -246,7 +247,8 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
     });
   }
   if (existing && b.force_update) {
-    db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, extra=?, updated_at=datetime('now') WHERE id=?`)
+    // Atualizar um cadastro existente também o restaura, caso estivesse na lixeira.
+    db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, extra=?, deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now') WHERE id=?`)
       .run(name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, mergeExtra(existing.extra, cfg, b.extra), existing.id);
     db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details) VALUES (?,?,'editou',?,?,?,?)`)
       .run(existing.id, eventId, req.admin.name || req.admin.email || 'Administrador', existing.response, response, 'Atualização de cadastro existente (inclusão manual)');
@@ -273,7 +275,7 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
 // Cada linha: Nome[ , email ][ , empresa ][ , cargo ][ , telefone ]  (vírgula, ponto-e-vírgula ou tab)
 router.post('/bulk', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
-  const e = db.prepare('SELECT id FROM events WHERE id = ?').get(eventId);
+  const e = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
   const text = String(req.body?.text || '');
@@ -313,7 +315,7 @@ const LOGO_PATH = require('path').join(__dirname, '..', '..', 'public', 'assets'
 
 router.get('/export', requirePerm('can_export'), async (req, res) => {
   const eventId = req.params.id;
-  const e = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+  const e = db.prepare('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL').get(eventId);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
   const cfg = parseFormConfig(e.form_config);
@@ -334,7 +336,7 @@ router.get('/export', requirePerm('can_export'), async (req, res) => {
   }
   cols.push({ key: 'date', header: 'Data da resposta', width: 20, get: (r) => fmtDateTime(r.updated_at) });
   // Observações internas (uso administrativo): só entram se houver alguma preenchida.
-  const hasNotes = db.prepare("SELECT COUNT(*) c FROM participants WHERE event_id = ? AND notes IS NOT NULL AND notes <> ''").get(eventId).c > 0;
+  const hasNotes = db.prepare("SELECT COUNT(*) c FROM participants WHERE event_id = ? AND deleted_at IS NULL AND notes IS NOT NULL AND notes <> ''").get(eventId).c > 0;
   if (hasNotes) cols.push({ key: 'notes', header: 'Observações internas', width: 30, get: (r) => r.notes || '' });
 
   const rows = queryParticipants(eventId, req.query);

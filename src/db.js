@@ -65,6 +65,19 @@ function applyMigrations(db) {
   addColumn('participants', 'terms_version', 'TEXT');
   addColumn('participants', 'privacy_version', 'TEXT');
 
+  // Lixeira (soft-delete): itens excluídos ficam guardados por um período antes
+  // da remoção definitiva. deleted_at = quando foi para a lixeira; deleted_by =
+  // quem moveu (auditoria). NULL = item ativo (não está na lixeira).
+  addColumn('events',       'deleted_at', 'TEXT');
+  addColumn('events',       'deleted_by', 'TEXT');
+  addColumn('participants', 'deleted_at', 'TEXT');
+  addColumn('participants', 'deleted_by', 'TEXT');
+  addColumn('admins',       'deleted_at', 'TEXT');
+  addColumn('admins',       'deleted_by', 'TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_events_deleted       ON events(deleted_at)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_participants_deleted ON participants(deleted_at)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_admins_deleted       ON admins(deleted_at)');
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS data_erasures (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,

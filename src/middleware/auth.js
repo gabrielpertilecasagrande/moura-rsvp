@@ -57,8 +57,8 @@ function requireAuth(req, res, next) {
   }
 
   const tenantDb = openTenantDb(tenantSlug);
-  const u = tenantDb.prepare('SELECT id, name, email, role, status, sessions_invalidated_at FROM admins WHERE id = ?').get(payload.id);
-  if (!u) return res.status(401).json({ error: 'Conta não encontrada. Entre novamente.' });
+  const u = tenantDb.prepare('SELECT id, name, email, role, status, sessions_invalidated_at, deleted_at FROM admins WHERE id = ?').get(payload.id);
+  if (!u || u.deleted_at) return res.status(401).json({ error: 'Conta não encontrada. Entre novamente.' });
   // "Sair de todos os outros aparelhos": recusa, na hora, JWTs emitidos antes da
   // invalidação. O aparelho atual recebe um token novo e segue logado.
   if (u.sessions_invalidated_at && payload.iat && payload.iat < u.sessions_invalidated_at) {

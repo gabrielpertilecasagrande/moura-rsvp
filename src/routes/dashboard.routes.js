@@ -10,8 +10,10 @@ router.use(requireAuth);
 router.get('/', (req, res) => {
   const ids = authorizedEventIds(req.admin); // null = admin (todos)
   // Cláusula de filtro reutilizável para events (alias e) e participants (alias p).
-  let evWhere = '';
-  let pWhere = '';
+  // Sempre ignora itens na lixeira (deleted_at IS NOT NULL).
+  let evWhere = 'WHERE e.deleted_at IS NULL';
+  // Convidados contam apenas se NÃO estão na lixeira e o evento também não está.
+  let pWhere = 'WHERE p.deleted_at IS NULL AND e.deleted_at IS NULL';
   let params = [];
   if (ids !== null) {
     if (!ids.length) {
@@ -19,20 +21,20 @@ router.get('/', (req, res) => {
         totalResponses: 0, totalExpected: 0, responseRate: null });
     }
     const ph = ids.map(() => '?').join(',');
-    evWhere = `WHERE e.id IN (${ph})`;
-    pWhere = `WHERE p.event_id IN (${ph})`;
+    evWhere += ` AND e.id IN (${ph})`;
+    pWhere += ` AND p.event_id IN (${ph})`;
     params = ids;
   }
 
   const totalEvents = db.prepare(`SELECT COUNT(*) c FROM events e ${evWhere}`).get(...params).c;
-  const activeEvents = db.prepare(`SELECT COUNT(*) c FROM events e ${evWhere}${evWhere ? ' AND' : ' WHERE'} e.status='ativo'`).get(...params).c;
-  const confirmed = db.prepare(`SELECT COUNT(*) c FROM participants p ${pWhere}${pWhere ? ' AND' : ' WHERE'} p.response='confirmado'`).get(...params).c;
-  const declined = db.prepare(`SELECT COUNT(*) c FROM participants p ${pWhere}${pWhere ? ' AND' : ' WHERE'} p.response='recusado'`).get(...params).c;
+  const activeEvents = db.prepare(`SELECT COUNT(*) c FROM events e ${evWhere} AND e.status='ativo'`).get(...params).c;
+  const confirmed = db.prepare(`SELECT COUNT(*) c FROM participants p JOIN events e ON e.id = p.event_id ${pWhere} AND p.response='confirmado'`).get(...params).c;
+  const declined = db.prepare(`SELECT COUNT(*) c FROM participants p JOIN events e ON e.id = p.event_id ${pWhere} AND p.response='recusado'`).get(...params).c;
 
   const perEvent = db.prepare(`
     SELECT e.expected_guests AS exp,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id=e.id) AS resp
-    FROM events e ${evWhere}${evWhere ? ' AND' : ' WHERE'} e.expected_guests > 0
+      (SELECT COUNT(*) FROM participants p WHERE p.event_id=e.id AND p.deleted_at IS NULL) AS resp
+    FROM events e ${evWhere} AND e.expected_guests > 0
   `).all(...params);
   const pending = perEvent.reduce((acc, r) => acc + Math.max(0, r.exp - r.resp), 0);
 

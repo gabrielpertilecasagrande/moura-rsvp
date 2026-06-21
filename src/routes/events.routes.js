@@ -53,14 +53,14 @@ function metricsAuth(req, res, next) {
 }
 
 router.get('/:id/metrics', metricsAuth, (req, res) => {
-  const e = db.prepare('SELECT id, name, expected_guests FROM events WHERE id = ?').get(req.params.id);
+  const e = db.prepare('SELECT id, name, expected_guests FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const row = db.prepare(`
     SELECT
       COUNT(*) AS total_responses,
       SUM(CASE WHEN response = 'confirmado' THEN 1 ELSE 0 END) AS confirmed,
       SUM(CASE WHEN response = 'recusado'   THEN 1 ELSE 0 END) AS declined
-    FROM participants WHERE event_id = ?
+    FROM participants WHERE event_id = ? AND deleted_at IS NULL
   `).get(e.id);
   const confirmed = Number(row.confirmed || 0);
   const declined  = Number(row.declined  || 0);
@@ -121,17 +121,17 @@ function publicUrl(req, slug) {
 // GET /api/events — lista os eventos que o usuário pode visualizar
 router.get('/', (req, res) => {
   const ids = authorizedEventIds(req.admin);
-  let where = '', params = [];
+  let where = 'WHERE e.deleted_at IS NULL', params = [];
   if (ids !== null) {
     if (!ids.length) return res.json([]);
-    where  = `WHERE e.id IN (${ids.map(() => '?').join(',')})`;
+    where += ` AND e.id IN (${ids.map(() => '?').join(',')})`;
     params = ids;
   }
   const rows = db.prepare(`
     SELECT e.*,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS total_responses,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.response='confirmado') AS confirmed,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.response='recusado') AS declined
+      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL) AS total_responses,
+      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='confirmado') AS confirmed,
+      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='recusado') AS declined
     FROM events e ${where} ORDER BY e.created_at DESC
   `).all(...params);
   res.json(rows.map((r) => ({ ...r, public_url: publicUrl(req, r.slug), _perms: permsFor(req.admin, r.id) })));
@@ -139,7 +139,7 @@ router.get('/', (req, res) => {
 
 // GET /api/events/:id
 router.get('/:id', requirePerm('can_view'), (req, res) => {
-  const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  const e = db.prepare('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   e.form_config = parseFormConfig(e.form_config);
   e.public_url  = publicUrl(req, e.slug);
@@ -186,7 +186,7 @@ router.post('/', requireRole('admin', 'gestor'), upload, (req, res) => {
 
 // PUT /api/events/:id
 router.put('/:id', requirePerm('can_edit'), upload, (req, res) => {
-  const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  const e = db.prepare('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const b = req.body;
 
@@ -267,7 +267,7 @@ router.put('/:id', requirePerm('can_edit'), upload, (req, res) => {
 
 // PATCH /api/events/:id/reopen
 router.patch('/:id/reopen', requirePerm('can_edit'), (req, res) => {
-  const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  const e = db.prepare('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const open = req.body?.open ? 1 : 0;
   db.prepare("UPDATE events SET force_open=?, updated_at=datetime('now') WHERE id=?").run(open, e.id);
@@ -276,7 +276,7 @@ router.patch('/:id/reopen', requirePerm('can_edit'), (req, res) => {
 
 // POST /api/events/:id/duplicate
 router.post('/:id/duplicate', requirePerm('can_duplicate'), (req, res) => {
-  const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  const e = db.prepare('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const slug = uniqueSlug(db, `${e.name} copia`);
   const info = db.prepare(`
@@ -299,24 +299,21 @@ router.post('/:id/duplicate', requirePerm('can_duplicate'), (req, res) => {
   res.status(201).json(created);
 });
 
-// DELETE /api/events/:id
+// DELETE /api/events/:id — move o evento para a LIXEIRA (soft-delete).
+// O evento fica guardado por 90 dias antes da remoção definitiva. O link público
+// para de funcionar (filtro deleted_at), mas nada é apagado: dá para restaurar.
 router.delete('/:id', requirePerm('can_delete'), (req, res) => {
-  const e = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id);
+  const e = db.prepare('SELECT * FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
-  removeUpload(e.cover_image);
-  removeUpload(e.client_logo);
-  db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id);
-  db.prepare('DELETE FROM event_access WHERE event_id = ?').run(req.params.id);
-
-  unregisterEventSlug(e.slug);
-
-  logActivity(req.admin.name || req.admin.email, 'excluiu evento', e.name);
+  db.prepare("UPDATE events SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?")
+    .run(req.admin.name || req.admin.email, e.id);
+  logActivity(req.admin.name || req.admin.email, 'moveu evento para a lixeira', e.name);
   res.json({ ok: true });
 });
 
 // GET /api/events/:id/qrcode?format=png|jpg|svg|pdf
 router.get('/:id/qrcode', requirePerm('can_view'), async (req, res) => {
-  const e = db.prepare('SELECT slug, name FROM events WHERE id = ?').get(req.params.id);
+  const e = db.prepare('SELECT slug, name FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const url  = publicUrl(req, e.slug);
   const fmt  = (req.query.format || 'png').toLowerCase();

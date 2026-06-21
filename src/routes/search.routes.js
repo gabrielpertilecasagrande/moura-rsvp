@@ -26,13 +26,13 @@ router.get('/', (req, res) => {
   }
 
   const events = db.prepare(
-    `SELECT id, slug, name, event_date, location FROM events WHERE (name LIKE ? OR location LIKE ?)${evScope} ORDER BY created_at DESC LIMIT 10`
+    `SELECT id, slug, name, event_date, location FROM events WHERE deleted_at IS NULL AND (name LIKE ? OR location LIKE ?)${evScope} ORDER BY created_at DESC LIMIT 10`
   ).all(like, like, ...scopeParams);
 
   const participants = db.prepare(`
     SELECT p.id, p.name, p.email, p.phone, p.response, p.event_id, e.name AS event_name
     FROM participants p JOIN events e ON e.id = p.event_id
-    WHERE (p.name LIKE ? OR p.email LIKE ? OR p.phone LIKE ?)${pScope}
+    WHERE p.deleted_at IS NULL AND e.deleted_at IS NULL AND (p.name LIKE ? OR p.email LIKE ? OR p.phone LIKE ?)${pScope}
     ORDER BY p.updated_at DESC LIMIT 20
   `).all(like, like, like, ...scopeParams);
 

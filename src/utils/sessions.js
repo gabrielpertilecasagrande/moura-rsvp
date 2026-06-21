@@ -82,10 +82,10 @@ function useRefreshToken(plain) {
   let user;
   try {
     user = openTenantDb(row.tenant_slug)
-      .prepare('SELECT id, name, email, role, status FROM admins WHERE id = ?')
+      .prepare('SELECT id, name, email, role, status, deleted_at FROM admins WHERE id = ?')
       .get(row.user_id);
   } catch { return null; }
-  if (!user || user.status !== 'ativo') return null;
+  if (!user || user.deleted_at || user.status !== 'ativo') return null;
   // Renova: estende a expiração e marca o último uso (mantém a sessão viva).
   routerDb.prepare("UPDATE auth_sessions SET last_used_at = datetime('now'), expires_at = ? WHERE id = ?")
     .run(expiryFromNow(), row.id);

@@ -531,7 +531,7 @@ tbody tr:hover { background: var(--off-white); }
 .icon-btn:hover { background: var(--off-white); border-color: var(--navy); }
 .icon-btn.icon-wa { color: #1a8f4c; border-color: #bfe6cd; text-decoration: none; }
 .icon-btn.icon-wa:hover { background: #e8f7ee; }
-.cell-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.cell-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
 .participants-table .p-name { font-weight: 600; font-size: 15px; color: var(--charcoal); }
 .participants-table .p-sub { font-size: 12.5px; margin-top: 2px; }
 .participants-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 22px 0 12px; }
@@ -691,3 +691,11 @@ tbody tr:hover { background: var(--off-white); }
 /* ---- Observação interna na lista de participantes ---- */
 .p-note { font-size: 12.5px; color: #8a6d00; background: #fdf6e3; border-radius: 6px;
   padding: 3px 8px; margin-top: 4px; display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
+
+/* ---- Lixeira (soft-delete) ---- */
+.trash-summary { display: flex; align-items: center; gap: 12px; background: var(--white);
+  border: 1px solid var(--gray); border-radius: var(--radius-sm); padding: 14px 18px; }
+.trash-summary-ico { font-size: 22px; line-height: 1; }
+.trash-days { display: inline-block; font-size: 11.5px; font-weight: 700; padding: 2px 8px;
+  border-radius: 999px; background: var(--cyan-soft); color: #0f8a93; white-space: nowrap; }
+.trash-days-soon { background: #f7ebe7; color: var(--danger); }
