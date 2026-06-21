@@ -73,11 +73,26 @@ const PORT    = process.env.PORT || 3000;
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
+// Content-Security-Policy: bloqueia carregar scripts de outros domínios (mitiga
+// XSS). Mantém 'unsafe-inline' porque as telas usam estilos/handlers inline.
+const CSP = [
+  "default-src 'self'",
+  "img-src 'self' data: blob:",
+  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline'",
+  "connect-src 'self'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'self'",
+].join('; ');
+
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  res.setHeader('Content-Security-Policy', CSP);
   next();
 });
 
@@ -106,6 +121,7 @@ app.use('/api/events',                                      require('./src/route
 app.use('/api/events/:id/participants',                     require('./src/routes/participants.routes'));
 app.use('/api/public',                       publicLimiter, require('./src/routes/public.routes'));
 app.use('/api/platform',                                    require('./src/routes/platform.routes'));
+app.use('/api/lgpd',                                        require('./src/routes/lgpd.routes'));
 
 // ── Páginas ────────────────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.redirect('/admin/login.html'));
@@ -114,6 +130,9 @@ app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 
 // Link público do evento: /rsvp/:slug  (o slug é lido pelo JS da página via API pública)
 app.get('/rsvp/:slug', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html')));
+
+// Página pública de Privacidade/LGPD (rodapé).
+app.get(['/legal.html', '/privacidade', '/termos', '/cookies', '/lgpd'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
 
 // Painel de operação da plataforma (provisionamento de organizadores).
 // Caminho configurável via PLATFORM_PATH para não expor URL previsível em produção.

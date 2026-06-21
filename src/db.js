@@ -56,6 +56,29 @@ function applyMigrations(db) {
   addColumn('audit_log', 'actor', 'TEXT');
   addColumn('participants', 'extra', 'TEXT');
   addColumn('participants', 'notes', 'TEXT');
+  // LGPD — registro de consentimento do participante (no ato da inscrição).
+  addColumn('participants', 'accepted_terms', 'INTEGER DEFAULT 0');
+  addColumn('participants', 'accepted_privacy_policy', 'INTEGER DEFAULT 0');
+  addColumn('participants', 'accepted_data_processing', 'INTEGER DEFAULT 0');
+  addColumn('participants', 'consent_date', 'TEXT');
+  addColumn('participants', 'consent_ip', 'TEXT');
+  addColumn('participants', 'terms_version', 'TEXT');
+  addColumn('participants', 'privacy_version', 'TEXT');
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS data_erasures (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      receipt_no   TEXT NOT NULL,
+      subject_name  TEXT,
+      subject_email TEXT,
+      reason       TEXT,
+      summary      TEXT,
+      item_count   INTEGER NOT NULL DEFAULT 0,
+      performed_by TEXT,
+      performed_ip TEXT,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS sso_sessions (
@@ -96,8 +119,15 @@ function applyMigrations(db) {
   } catch { /* banco ainda vazio */ }
 }
 
+// Formato válido de slug de tenant: minúsculas, números e hífen (1–40).
+// Impede travessia de caminho (ex.: "../../etc") e nomes de pasta inesperados.
+const VALID_TENANT_SLUG = /^[a-z0-9-]{1,40}$/;
+
 // Abre (ou retorna do cache) o banco SQLite do tenant.
 function openTenantDb(tenantSlug) {
+  if (!tenantSlug || !VALID_TENANT_SLUG.test(tenantSlug)) {
+    throw new Error(`[tenant] slug inválido: "${String(tenantSlug)}"`);
+  }
   if (dbCache.has(tenantSlug)) return dbCache.get(tenantSlug);
 
   const dir = path.join(DATA_DIR, 'tenants', tenantSlug);

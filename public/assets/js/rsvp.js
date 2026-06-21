@@ -156,6 +156,21 @@ function renderForm() {
         <span>Não poderei comparecer</span>
       </label>
     </div>
+    <div class="divider"></div>
+    <div class="consent-box">
+      <label class="consent-item">
+        <input type="checkbox" id="cs-terms" />
+        <span>Li e concordo com os <a href="/legal.html#terms" target="_blank" rel="noopener">Termos de Uso</a>.</span>
+      </label>
+      <label class="consent-item">
+        <input type="checkbox" id="cs-privacy" />
+        <span>Li e concordo com a <a href="/legal.html#privacy" target="_blank" rel="noopener">Política de Privacidade</a>.</span>
+      </label>
+      <label class="consent-item">
+        <input type="checkbox" id="cs-data" />
+        <span>Autorizo o tratamento dos meus dados pessoais para fins de organização do evento, credenciamento, comunicação e execução dos serviços, conforme a LGPD.</span>
+      </label>
+    </div>
     <p class="error-msg hidden" id="err"></p>
     <button class="btn btn-primary" id="submit" style="width:100%;margin-top:18px">Enviar resposta</button>
     ${whatsappButton('Falar com a organização')}`;
@@ -171,7 +186,9 @@ async function submit() {
   const err = document.getElementById('err');
   err.classList.add('hidden');
   const get = (n) => (document.querySelector(`[name="${n}"]`)?.value || '').trim();
-  const body = { name: get('name'), company: get('company'), role: get('role'), email: get('email'), phone: get('phone'), response: choice, website: get('website') };
+  const checked = (id) => !!document.getElementById(id)?.checked;
+  const body = { name: get('name'), company: get('company'), role: get('role'), email: get('email'), phone: get('phone'), response: choice, website: get('website'),
+    accepted_terms: checked('cs-terms'), accepted_privacy_policy: checked('cs-privacy'), accepted_data_processing: checked('cs-data') };
 
   // Respostas dos campos personalizados.
   const fc = EVENT.form_config || { fields: [] };
@@ -180,11 +197,14 @@ async function submit() {
   body.extra = extra;
 
   const filled = (v) => (Array.isArray(v) ? v.length > 0 : !!String(v || '').trim());
-  if (!body.name) return showErr('Por favor, informe seu nome completo.');
-  // Exige nome + sobrenome (ao menos duas palavras com 2+ letras).
-  const nameParts = body.name.split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, '').length >= 2);
-  if (nameParts.length < 2) return showErr('Por favor, informe seu nome completo (nome e sobrenome).');
+  if (!body.name) return showErr('Por favor, informe seu nome.');
+  // Aceita nomes de uma palavra (mononímicos/estrangeiros). Exige só que tenha
+  // sentido (ao menos 2 letras) — não obriga sobrenome.
+  if (body.name.replace(/[^\p{L}]/gu, '').length < 2) return showErr('Por favor, informe seu nome.');
   if (!body.response) return showErr('Selecione se você participará ou não do evento.');
+  if (!body.accepted_terms || !body.accepted_privacy_policy || !body.accepted_data_processing) {
+    return showErr('Para enviar, é necessário aceitar os Termos, a Política de Privacidade e autorizar o tratamento dos dados.');
+  }
   for (const f of (fc.fields || [])) {
     if (!f.enabled || !f.required) continue;
     const val = f.builtin ? body[f.key] : extra[f.key];

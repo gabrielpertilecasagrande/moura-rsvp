@@ -9,6 +9,39 @@ const { parseFormConfig, customFields, sanitizeAnswer, isFilled } = require('../
 
 const router = express.Router();
 
+// Config pública para a página de privacidade (/legal.html): base da Central de
+// Privacidade do Moura One (se configurada) e e-mail do canal LGPD.
+router.get('/legal-config', async (_req, res) => {
+  res.json({
+    base: (process.env.LEGAL_BASE_URL || '').replace(/\/+$/, ''),
+    scope: 'rsvp',
+    email: process.env.LGPD_EMAIL || 'rp@mouracom.com.br',
+    version: await currentConsentVersion(),
+  });
+});
+
+// Versão de aceite vigente, definida no Moura One. O convidado preenche o
+// formulário uma única vez (sem login recorrente), então usamos a versão apenas
+// para CARIMBAR o consentimento na auditoria. Cache curto + timeout; se o Moura
+// One estiver indisponível, segue sem carimbo de versão (não bloqueia a inscrição).
+let _verCache = { value: null, at: 0 };
+async function currentConsentVersion() {
+  const now = Date.now();
+  if (_verCache.value != null && now - _verCache.at < 60000) return _verCache.value;
+  const base = (process.env.LEGAL_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (!base) return null;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);
+    const r = await fetch(`${base}/api/legal/public/version`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return _verCache.value;
+    const d = await r.json();
+    _verCache = { value: String(d.version || '1'), at: now };
+    return _verCache.value;
+  } catch { return _verCache.value; }
+}
+
 function collectExtra(cfg, rawExtra) {
   const out = {};
   const src = (rawExtra && typeof rawExtra === 'object') ? rawExtra : {};
@@ -21,7 +54,9 @@ function collectExtra(cfg, rawExtra) {
 
 function deadlinePassed(deadline) {
   if (!deadline) return false;
-  return Date.now() > new Date(`${deadline}T23:59:59`).getTime();
+  // Fim do dia no horário do Brasil (UTC-3, sem horário de verão atualmente).
+  // Sem o fuso explícito, o prazo era interpretado em UTC e encerrava ~3h cedo.
+  return Date.now() > new Date(`${deadline}T23:59:59-03:00`).getTime();
 }
 
 function isClosed(e) {
@@ -35,8 +70,11 @@ function personalize(msg, name) {
   return String(msg || '').replace(/\{nome\}|\{primeiro_nome\}/gi, first);
 }
 
-// Localiza participante por prioridade: e-mail > telefone > nome normalizado.
-function findExisting(eventId, { email, phone, normalized }) {
+// Localiza participante existente APENAS por identificador forte (e-mail ou
+// telefone). O nome sozinho NÃO é chave segura: como o formulário é público,
+// qualquer pessoa que soubesse o nome de um convidado poderia sobrescrever a
+// resposta dele. A colisão por nome (homônimos) é tratada no handler.
+function findByContact(eventId, { email, phone }) {
   if (email && email.trim()) {
     const r = db.prepare('SELECT * FROM participants WHERE event_id = ? AND lower(email) = lower(?)').get(eventId, email.trim());
     if (r) return r;
@@ -46,7 +84,7 @@ function findExisting(eventId, { email, phone, normalized }) {
     const r = db.prepare("SELECT * FROM participants WHERE event_id = ? AND replace(replace(replace(replace(phone,' ',''),'-',''),'(',''),')','') = ?").get(eventId, digits);
     if (r) return r;
   }
-  return db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_normalized = ?').get(eventId, normalized);
+  return null;
 }
 
 // Resolve o tenant a partir do slug e executa fn() no contexto do banco correto.
@@ -84,7 +122,7 @@ router.get('/events/:slug', (req, res) => {
 
 // POST /api/public/events/:slug/rsvp  — registra ou atualiza resposta
 router.post('/events/:slug/rsvp', (req, res) => {
-  withTenantForSlug(req.params.slug, res, () => {
+  withTenantForSlug(req.params.slug, res, async () => {
     const e = db.prepare('SELECT * FROM events WHERE slug = ?').get(req.params.slug);
     if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
@@ -99,15 +137,29 @@ router.post('/events/:slug/rsvp', (req, res) => {
 
     const { name, company, role, email, phone, response } = req.body || {};
     if (!name || !String(name).trim()) {
-      return res.status(400).json({ error: 'Informe seu nome completo.' });
+      return res.status(400).json({ error: 'Informe seu nome.' });
     }
-    const parts = String(name).trim().split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, '').length >= 2);
-    if (parts.length < 2) {
-      return res.status(400).json({ error: 'Por favor, informe seu nome completo (nome e sobrenome).' });
+    // Exige um nome com sentido (ao menos 2 letras), sem obrigar sobrenome —
+    // nomes de uma palavra/estrangeiros são legítimos e não devem ser barrados.
+    if (String(name).replace(/[^\p{L}]/gu, '').length < 2) {
+      return res.status(400).json({ error: 'Por favor, informe seu nome.' });
     }
     if (response !== 'confirmado' && response !== 'recusado') {
       return res.status(400).json({ error: 'Selecione uma opção de presença.' });
     }
+
+    // LGPD — consentimento obrigatório (Termos + Privacidade + tratamento de dados).
+    const aceitaTermos   = req.body.accepted_terms === true || req.body.accepted_terms === 1 || req.body.accepted_terms === '1';
+    const aceitaPriv     = req.body.accepted_privacy_policy === true || req.body.accepted_privacy_policy === 1 || req.body.accepted_privacy_policy === '1';
+    const aceitaDados    = req.body.accepted_data_processing === true || req.body.accepted_data_processing === 1 || req.body.accepted_data_processing === '1';
+    if (!aceitaTermos || !aceitaPriv || !aceitaDados) {
+      return res.status(400).json({ error: 'É necessário aceitar os Termos, a Política de Privacidade e autorizar o tratamento dos dados.' });
+    }
+    const consentIp      = req.ip || null;
+    // Carimba a versão de aceite vigente (do Moura One) quando o cliente não a envia.
+    const curVer         = await currentConsentVersion();
+    const termsVersion   = req.body.terms_version ? String(req.body.terms_version).slice(0, 40) : curVer;
+    const privacyVersion = req.body.privacy_version ? String(req.body.privacy_version).slice(0, 40) : curVer;
 
     const cfg = parseFormConfig(e.form_config);
     const builtinVal = { company, role, email, phone };
@@ -120,46 +172,72 @@ router.post('/events/:slug/rsvp', (req, res) => {
     const extraJson = Object.keys(extra).length ? JSON.stringify(extra) : null;
 
     const normalized = normalizeName(name);
-    const existing = findExisting(e.id, { email, phone, normalized });
 
-    if (existing) {
+    // Aplica UPDATE em um registro existente (correção da própria resposta).
+    const doUpdate = (target) => {
       db.prepare(`
         UPDATE participants SET name=?, company=?, role=?, email=?,
-          phone=?, response=?, name_normalized=?, extra=?, updated_at=datetime('now')
+          phone=?, response=?, name_normalized=?, extra=?,
+          accepted_terms=1, accepted_privacy_policy=1, accepted_data_processing=1,
+          consent_date=datetime('now'), consent_ip=?, terms_version=?, privacy_version=?,
+          updated_at=datetime('now')
         WHERE id=?
       `).run(String(name).trim(), company || null, role || null, email || null,
-             phone || null, response, normalized, extraJson, existing.id);
+             phone || null, response, normalized, extraJson,
+             consentIp, termsVersion, privacyVersion, target.id);
 
       db.prepare(`
         INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
         VALUES (?,?,?,?,?,?,?)
-      `).run(existing.id, e.id, 'atualizou', 'Participante (formulário)', existing.response, response,
-        existing.response === response ? 'Dados atualizados' : `Alterou de "${existing.response}" para "${response}"`);
+      `).run(target.id, e.id, 'atualizou', 'Participante (formulário)', target.response, response,
+        target.response === response ? 'Dados atualizados' : `Alterou de "${target.response}" para "${response}"`);
 
       return res.json({
         updated: true,
         message: personalize(response === 'confirmado' ? e.confirm_message : e.decline_message, name),
         response,
       });
+    };
+
+    // Casa apenas por e-mail/telefone (identificador forte). Se casar, é a própria
+    // pessoa corrigindo a resposta.
+    const existing = findByContact(e.id, { email, phone });
+    if (existing) return doUpdate(existing);
+
+    // Sem correspondência por contato → novo registro. Pode colidir com o índice
+    // único (event_id, name_normalized) se já houver alguém com o mesmo nome.
+    try {
+      const info = db.prepare(`
+        INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra,
+          accepted_terms, accepted_privacy_policy, accepted_data_processing, consent_date, consent_ip, terms_version, privacy_version)
+        VALUES (?,?,?,?,?,?,?,?,?, 1, 1, 1, datetime('now'), ?, ?, ?)
+      `).run(e.id, String(name).trim(), normalized, company || null, role || null,
+             email || null, phone || null, response, extraJson,
+             consentIp, termsVersion, privacyVersion);
+
+      db.prepare(`
+        INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
+        VALUES (?,?,?,?,?,?,?)
+      `).run(info.lastInsertRowid, e.id, 'criou', 'Participante (formulário)', null, response,
+        response === 'confirmado' ? 'Confirmou presença' : 'Informou que não comparecerá');
+
+      return res.status(201).json({
+        updated: false,
+        message: personalize(response === 'confirmado' ? e.confirm_message : e.decline_message, name),
+        response,
+      });
+    } catch (err) {
+      if (!/UNIQUE/i.test(String(err && err.message))) throw err;
+      // Já existe alguém com este nome neste evento (e não casou por contato).
+      const sameName = db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_normalized = ?').get(e.id, normalized);
+      // Mesma pessoa anônima reenviando (nenhum dos dois lados tem contato) → atualiza.
+      if (sameName && !sameName.email && !sameName.phone && !email && !phone) return doUpdate(sameName);
+      // Pessoas diferentes com o mesmo nome → NÃO sobrescreve ninguém.
+      // (O índice único por nome impede dois registros homônimos no mesmo evento.)
+      return res.status(409).json({
+        error: 'Já existe uma confirmação com este nome neste evento. Se foi você que já confirmou, reenvie usando o mesmo e-mail ou telefone do cadastro. Se você é outra pessoa com o mesmo nome, fale com a organização para registrar sua presença.',
+      });
     }
-
-    const info = db.prepare(`
-      INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra)
-      VALUES (?,?,?,?,?,?,?,?,?)
-    `).run(e.id, String(name).trim(), normalized, company || null, role || null,
-           email || null, phone || null, response, extraJson);
-
-    db.prepare(`
-      INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
-      VALUES (?,?,?,?,?,?,?)
-    `).run(info.lastInsertRowid, e.id, 'criou', 'Participante (formulário)', null, response,
-      response === 'confirmado' ? 'Confirmou presença' : 'Informou que não comparecerá');
-
-    res.status(201).json({
-      updated: false,
-      message: personalize(response === 'confirmado' ? e.confirm_message : e.decline_message, name),
-      response,
-    });
   });
 });
 
