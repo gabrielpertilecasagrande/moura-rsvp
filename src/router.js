@@ -65,6 +65,16 @@ routerDb.exec(`
   CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(tenant_slug, user_id);
 `);
 
+// Migração idempotente: IP de origem e cidade aproximada das sessões (para a tela
+// "Aparelhos conectados"). O IP fica só no servidor; ao usuário mostramos a cidade.
+(function ensureAuthSessionColumns() {
+  try {
+    const cols = routerDb.prepare('PRAGMA table_info(auth_sessions)').all().map((c) => c.name);
+    if (!cols.includes('ip')) routerDb.exec('ALTER TABLE auth_sessions ADD COLUMN ip TEXT');
+    if (!cols.includes('city')) routerDb.exec('ALTER TABLE auth_sessions ADD COLUMN city TEXT');
+  } catch { /* ignora */ }
+})();
+
 // ── Organizações ──────────────────────────────────────────────────────────────
 
 function organizationExists(slug) {
