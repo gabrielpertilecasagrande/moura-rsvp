@@ -9,6 +9,16 @@ const { parseFormConfig, customFields, sanitizeAnswer, isFilled } = require('../
 
 const router = express.Router();
 
+// Config pública para a página de privacidade (/legal.html): base da Central de
+// Privacidade do Moura One (se configurada) e e-mail do canal LGPD.
+router.get('/legal-config', (_req, res) => {
+  res.json({
+    base: (process.env.LEGAL_BASE_URL || '').replace(/\/+$/, ''),
+    scope: 'rsvp',
+    email: process.env.LGPD_EMAIL || 'rp@mouracom.com.br',
+  });
+});
+
 function collectExtra(cfg, rawExtra) {
   const out = {};
   const src = (rawExtra && typeof rawExtra === 'object') ? rawExtra : {};
@@ -109,6 +119,17 @@ router.post('/events/:slug/rsvp', (req, res) => {
       return res.status(400).json({ error: 'Selecione uma opção de presença.' });
     }
 
+    // LGPD — consentimento obrigatório (Termos + Privacidade + tratamento de dados).
+    const aceitaTermos   = req.body.accepted_terms === true || req.body.accepted_terms === 1 || req.body.accepted_terms === '1';
+    const aceitaPriv     = req.body.accepted_privacy_policy === true || req.body.accepted_privacy_policy === 1 || req.body.accepted_privacy_policy === '1';
+    const aceitaDados    = req.body.accepted_data_processing === true || req.body.accepted_data_processing === 1 || req.body.accepted_data_processing === '1';
+    if (!aceitaTermos || !aceitaPriv || !aceitaDados) {
+      return res.status(400).json({ error: 'É necessário aceitar os Termos, a Política de Privacidade e autorizar o tratamento dos dados.' });
+    }
+    const consentIp      = req.ip || null;
+    const termsVersion   = req.body.terms_version ? String(req.body.terms_version).slice(0, 40) : null;
+    const privacyVersion = req.body.privacy_version ? String(req.body.privacy_version).slice(0, 40) : null;
+
     const cfg = parseFormConfig(e.form_config);
     const builtinVal = { company, role, email, phone };
     const extra = collectExtra(cfg, req.body.extra);
@@ -125,10 +146,14 @@ router.post('/events/:slug/rsvp', (req, res) => {
     if (existing) {
       db.prepare(`
         UPDATE participants SET name=?, company=?, role=?, email=?,
-          phone=?, response=?, name_normalized=?, extra=?, updated_at=datetime('now')
+          phone=?, response=?, name_normalized=?, extra=?,
+          accepted_terms=1, accepted_privacy_policy=1, accepted_data_processing=1,
+          consent_date=datetime('now'), consent_ip=?, terms_version=?, privacy_version=?,
+          updated_at=datetime('now')
         WHERE id=?
       `).run(String(name).trim(), company || null, role || null, email || null,
-             phone || null, response, normalized, extraJson, existing.id);
+             phone || null, response, normalized, extraJson,
+             consentIp, termsVersion, privacyVersion, existing.id);
 
       db.prepare(`
         INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
@@ -144,10 +169,12 @@ router.post('/events/:slug/rsvp', (req, res) => {
     }
 
     const info = db.prepare(`
-      INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra)
-      VALUES (?,?,?,?,?,?,?,?,?)
+      INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra,
+        accepted_terms, accepted_privacy_policy, accepted_data_processing, consent_date, consent_ip, terms_version, privacy_version)
+      VALUES (?,?,?,?,?,?,?,?,?, 1, 1, 1, datetime('now'), ?, ?, ?)
     `).run(e.id, String(name).trim(), normalized, company || null, role || null,
-           email || null, phone || null, response, extraJson);
+           email || null, phone || null, response, extraJson,
+           consentIp, termsVersion, privacyVersion);
 
     db.prepare(`
       INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)

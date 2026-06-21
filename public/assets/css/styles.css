@@ -280,6 +280,15 @@ tbody tr:hover { background: var(--off-white); }
 .closed-box h2 { font-size: 22px; margin-bottom: 8px; }
 
 .rsvp-footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 26px; }
+.rsvp-footer .footer-links { margin: 10px 0; font-size: 12px; line-height: 1.8; }
+.rsvp-footer .footer-links a { color: var(--navy); text-decoration: none; }
+.rsvp-footer .footer-links a:hover { text-decoration: underline; }
+
+/* Consentimento LGPD no formulário de inscrição */
+.consent-box { display: flex; flex-direction: column; gap: 12px; margin: 4px 0 2px; }
+.consent-item { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.5; color: var(--charcoal); cursor: pointer; }
+.consent-item input[type="checkbox"] { width: 18px; height: 18px; margin-top: 1px; flex: none; accent-color: var(--cyan); }
+.consent-item a { color: var(--navy); font-weight: 600; }
 
 /* ============================================================
    RESPONSIVO — abordagem mobile-first
