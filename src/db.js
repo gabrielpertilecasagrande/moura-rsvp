@@ -66,6 +66,21 @@ function applyMigrations(db) {
   addColumn('participants', 'privacy_version', 'TEXT');
 
   db.exec(`
+    CREATE TABLE IF NOT EXISTS data_erasures (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      receipt_no   TEXT NOT NULL,
+      subject_name  TEXT,
+      subject_email TEXT,
+      reason       TEXT,
+      summary      TEXT,
+      item_count   INTEGER NOT NULL DEFAULT 0,
+      performed_by TEXT,
+      performed_ip TEXT,
+      created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+
+  db.exec(`
     CREATE TABLE IF NOT EXISTS sso_sessions (
       ref        TEXT PRIMARY KEY,
       token      TEXT NOT NULL,

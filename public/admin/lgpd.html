@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>LGPD — Moura RSVP</title>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+  <style>
+    .erase-row { display:flex; gap:10px; align-items:flex-start; padding:10px 8px; border-radius:9px; cursor:pointer; }
+    .erase-row:hover { background:var(--off-white,#f5f6f8); }
+    .erase-row input[type=checkbox] { width:18px; height:18px; margin-top:3px; flex:none; accent-color:#c0392b; }
+    .erase-info { flex:1; }
+    .erase-name { font-size:14px; font-weight:600; color:var(--charcoal,#333); }
+    .erase-meta { font-size:12px; color:var(--muted,#8a9098); margin-top:2px; }
+    .erase-badge { display:inline-block; font-size:11px; padding:2px 7px; border-radius:20px; font-weight:600; margin-left:6px; }
+    .erase-badge.confirmado { background:#d4f7e8; color:#1a7a50; }
+    .erase-badge.recusado { background:#fde8e8; color:#b01c1c; }
+    .hist-row { display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:12px 0; border-bottom:1px solid var(--gray-soft,#e5e7eb); flex-wrap:wrap; }
+    .hist-row:last-child { border-bottom:none; }
+    .hist-info { flex:1; min-width:180px; }
+    .hist-receipt { font-size:12px; font-weight:700; color:var(--navy,#152C6B); font-family:monospace; }
+    .hist-meta { font-size:12px; color:var(--muted,#8a9098); margin-top:2px; }
+    .hist-items { font-size:12px; color:var(--charcoal,#333); margin-top:6px; }
+    .hist-item { padding:2px 0; }
+    .hist-item::before { content:"• "; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Administração</div>
+          <h1>LGPD — Exclusão de dados</h1>
+        </div>
+      </div>
+      <p class="muted" style="margin:-6px 0 22px;font-size:13px">
+        Direito ao esquecimento: localize e exclua permanentemente dados pessoais de participantes, com comprovante em PDF para auditoria.
+      </p>
+
+      <!-- ── Busca e exclusão ── -->
+      <div class="card" style="margin-bottom:16px">
+        <h2 style="font-size:16px;margin:0 0 14px">Localizar participante</h2>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:4px">
+          <input type="text" id="eraseSearch"
+            placeholder="Buscar por nome, e-mail ou telefone…"
+            style="flex:1;min-width:220px;padding:9px 12px;border:1px solid var(--gray-soft,#e5e7eb);border-radius:9px;font-size:14px" />
+          <button class="btn btn-primary btn-sm" id="eraseSearchBtn">🔎 Buscar</button>
+        </div>
+        <p class="muted" style="font-size:12px;margin:0 0 14px">A busca percorre todos os eventos deste organizador.</p>
+
+        <div id="eraseResults"></div>
+
+        <div id="eraseActions" style="display:none;margin-top:14px;border-top:1px solid var(--gray-soft,#e5e7eb);padding-top:14px">
+          <p class="muted" style="font-size:13px;margin:0 0 12px">Preencha as informações abaixo antes de confirmar a exclusão:</p>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Nome do titular <span class="muted" style="font-weight:400">(opcional — para o comprovante)</span></label>
+            <input type="text" id="eraseSubjectName" maxlength="160" placeholder="Ex.: João da Silva" style="width:100%;padding:8px 10px;border:1px solid var(--gray-soft,#e5e7eb);border-radius:8px;font-size:14px;box-sizing:border-box" />
+          </div>
+          <div class="field" style="margin-bottom:10px">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">E-mail do titular <span class="muted" style="font-weight:400">(opcional)</span></label>
+            <input type="email" id="eraseSubjectEmail" maxlength="160" placeholder="Ex.: joao@email.com" style="width:100%;padding:8px 10px;border:1px solid var(--gray-soft,#e5e7eb);border-radius:8px;font-size:14px;box-sizing:border-box" />
+          </div>
+          <div class="field" style="margin-bottom:14px">
+            <label style="font-size:13px;font-weight:600;display:block;margin-bottom:4px">Motivo da exclusão <span class="muted" style="font-weight:400">(opcional)</span></label>
+            <textarea id="eraseReason" rows="2" maxlength="500" placeholder="Ex.: Solicitação do titular via e-mail em 20/06/2026." style="width:100%;padding:8px 10px;border:1px solid var(--gray-soft,#e5e7eb);border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical"></textarea>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span class="muted" id="eraseSelCount" style="font-size:13px">0 selecionado(s)</span>
+            <button class="btn btn-sm" id="eraseBtn" style="background:#c0392b;color:#fff;border-color:#c0392b">🗑 Excluir permanentemente</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Histórico de exclusões ── -->
+      <div class="page-head" style="margin-bottom:12px">
+        <h2 style="font-size:16px;margin:0">Histórico de exclusões (auditoria)</h2>
+      </div>
+      <div class="card" id="erasuresCard"><p class="muted">Carregando…</p></div>
+    </main>
+  </div>
+
+  <div id="modalSlot"></div>
+
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script src="/assets/js/admin-lgpd.js"></script>
+</body>
+</html>

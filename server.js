@@ -106,6 +106,7 @@ app.use('/api/events',                                      require('./src/route
 app.use('/api/events/:id/participants',                     require('./src/routes/participants.routes'));
 app.use('/api/public',                       publicLimiter, require('./src/routes/public.routes'));
 app.use('/api/platform',                                    require('./src/routes/platform.routes'));
+app.use('/api/lgpd',                                        require('./src/routes/lgpd.routes'));
 
 // ── Páginas ────────────────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.redirect('/admin/login.html'));
