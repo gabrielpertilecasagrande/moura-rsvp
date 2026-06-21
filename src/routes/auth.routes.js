@@ -61,7 +61,7 @@ router.post('/login', (req, res) => {
 
   const tenantDb = openTenantDb(ref.tenant_slug);
   const admin = tenantDb.prepare('SELECT * FROM admins WHERE email = ?').get(mail);
-  if (!admin || !bcrypt.compareSync(String(password), admin.password_hash)) {
+  if (!admin || admin.deleted_at || !bcrypt.compareSync(String(password), admin.password_hash)) {
     return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
   }
   if (admin.status === 'pendente') {
@@ -107,7 +107,7 @@ router.get('/sso', (req, res) => {
 
   const tenantDb = openTenantDb(DEFAULT_TENANT);
   const admin = tenantDb.prepare('SELECT * FROM admins WHERE email = ?').get(email);
-  if (!admin || admin.status !== 'ativo') return fail();
+  if (!admin || admin.deleted_at || admin.status !== 'ativo') return fail();
 
   runWithDb(DEFAULT_TENANT, () => {
     db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);

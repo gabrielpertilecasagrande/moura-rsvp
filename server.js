@@ -122,6 +122,7 @@ app.use('/api/events/:id/participants',                     require('./src/route
 app.use('/api/public',                       publicLimiter, require('./src/routes/public.routes'));
 app.use('/api/platform',                                    require('./src/routes/platform.routes'));
 app.use('/api/lgpd',                                        require('./src/routes/lgpd.routes'));
+app.use('/api/trash',                                       require('./src/routes/trash.routes'));
 
 // ── Páginas ────────────────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.redirect('/admin/login.html'));
@@ -158,4 +159,8 @@ process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e)
 app.listen(PORT, () => {
   console.log(`\n  Moura RSVP rodando em ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
   console.log(`  Área administrativa: /admin/login.html\n`);
+
+  // Robô diário da Lixeira: apaga definitivamente itens guardados há mais de 90 dias.
+  try { require('./src/utils/trash').scheduleTrashCleanup(); }
+  catch (e) { console.error('[trash] não foi possível agendar a limpeza:', e.message); }
 });

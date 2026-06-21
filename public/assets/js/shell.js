@@ -30,6 +30,7 @@ function renderShell(active) {
     usersItem,
     isAdmin ? item('/admin/activity.html', 'activity', 'Atividades') : '',
     isAdmin ? item('/admin/lgpd.html', 'lgpd', 'LGPD') : '',
+    isAdmin ? item('/admin/trash.html', 'trash', 'Lixeira') : '',
   ].join('');
   const initials = (u.name || u.email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   return `

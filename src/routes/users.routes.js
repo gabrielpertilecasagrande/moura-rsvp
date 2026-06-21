@@ -20,18 +20,18 @@ const VALID_ROLES  = ['admin', 'gestor', 'operador'];
 const VALID_STATUS = ['pendente', 'ativo', 'recusado', 'inativo', 'bloqueado'];
 
 function countActiveAdmins() {
-  return db.prepare("SELECT COUNT(*) AS n FROM admins WHERE role = 'admin' AND status = 'ativo'").get().n;
+  return db.prepare("SELECT COUNT(*) AS n FROM admins WHERE role = 'admin' AND status = 'ativo' AND deleted_at IS NULL").get().n;
 }
 
 // GET /api/users/pending-count
 router.get('/pending-count', (_req, res) => {
-  const count = db.prepare("SELECT COUNT(*) AS n FROM admins WHERE status = 'pendente'").get().n;
+  const count = db.prepare("SELECT COUNT(*) AS n FROM admins WHERE status = 'pendente' AND deleted_at IS NULL").get().n;
   res.json({ count });
 });
 
 // GET /api/users
 router.get('/', (_req, res) => {
-  const rows = db.prepare("SELECT * FROM admins ORDER BY (status = 'pendente') DESC, name COLLATE NOCASE").all();
+  const rows = db.prepare("SELECT * FROM admins WHERE deleted_at IS NULL ORDER BY (status = 'pendente') DESC, name COLLATE NOCASE").all();
   res.json(rows.map(publicView));
 });
 
@@ -43,7 +43,9 @@ router.post('/', (req, res) => {
   }
   const r    = VALID_ROLES.includes(role) ? role : 'operador';
   const mail = String(email).toLowerCase().trim();
-  if (db.prepare('SELECT id FROM admins WHERE email = ?').get(mail)) {
+  const dupe = db.prepare('SELECT id, deleted_at FROM admins WHERE email = ?').get(mail);
+  if (dupe) {
+    if (dupe.deleted_at) return res.status(409).json({ error: 'Há uma conta com este e-mail na lixeira. Restaure-a ou exclua-a permanentemente para reutilizar o e-mail.' });
     return res.status(409).json({ error: 'Já existe uma conta com este e-mail.' });
   }
   if (String(password).length < 8) {
@@ -65,7 +67,7 @@ router.post('/', (req, res) => {
 // PUT /api/users/:id
 router.put('/:id', (req, res) => {
   const id   = Number(req.params.id);
-  const user = db.prepare('SELECT * FROM admins WHERE id = ?').get(id);
+  const user = db.prepare('SELECT * FROM admins WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
   const b      = req.body || {};
@@ -100,9 +102,9 @@ router.put('/:id', (req, res) => {
 // GET /api/users/:id/access
 router.get('/:id/access', (req, res) => {
   const id   = Number(req.params.id);
-  const user = db.prepare('SELECT * FROM admins WHERE id = ?').get(id);
+  const user = db.prepare('SELECT * FROM admins WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
-  const events     = db.prepare('SELECT id, name, event_date, status FROM events ORDER BY created_at DESC').all();
+  const events     = db.prepare('SELECT id, name, event_date, status FROM events WHERE deleted_at IS NULL ORDER BY created_at DESC').all();
   const accessRows = db.prepare('SELECT * FROM event_access WHERE user_id = ?').all(id);
   const byEvent    = new Map(accessRows.map((a) => [a.event_id, a]));
   const list = events.map((e) => {
@@ -117,11 +119,11 @@ router.get('/:id/access', (req, res) => {
 // PUT /api/users/:id/access
 router.put('/:id/access', (req, res) => {
   const id   = Number(req.params.id);
-  const user = db.prepare('SELECT * FROM admins WHERE id = ?').get(id);
+  const user = db.prepare('SELECT * FROM admins WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
 
   const items        = Array.isArray(req.body?.items) ? req.body.items : [];
-  const validEventIds = new Set(db.prepare('SELECT id FROM events').all().map((e) => e.id));
+  const validEventIds = new Set(db.prepare('SELECT id FROM events WHERE deleted_at IS NULL').all().map((e) => e.id));
 
   const replace = db.transaction(() => {
     db.prepare('DELETE FROM event_access WHERE user_id = ?').run(id);
@@ -148,7 +150,7 @@ router.put('/:id/access', (req, res) => {
 // POST /api/users/:id/approve
 router.post('/:id/approve', (req, res) => {
   const id   = Number(req.params.id);
-  const info = db.prepare("UPDATE admins SET status = 'ativo' WHERE id = ?").run(id);
+  const info = db.prepare("UPDATE admins SET status = 'ativo' WHERE id = ? AND deleted_at IS NULL").run(id);
   if (!info.changes) return res.status(404).json({ error: 'Usuário não encontrado.' });
   res.json(publicView(db.prepare('SELECT * FROM admins WHERE id = ?').get(id)));
 });
@@ -156,7 +158,7 @@ router.post('/:id/approve', (req, res) => {
 // POST /api/users/:id/reject
 router.post('/:id/reject', (req, res) => {
   const id   = Number(req.params.id);
-  const info = db.prepare("UPDATE admins SET status = 'recusado' WHERE id = ?").run(id);
+  const info = db.prepare("UPDATE admins SET status = 'recusado' WHERE id = ? AND deleted_at IS NULL").run(id);
   if (!info.changes) return res.status(404).json({ error: 'Usuário não encontrado.' });
   const user = db.prepare('SELECT * FROM admins WHERE id = ?').get(id);
   // Remove do índice global (conta recusada não deve conseguir login).
@@ -172,30 +174,34 @@ router.post('/:id/password', (req, res) => {
     return res.status(400).json({ error: 'A nova senha deve ter ao menos 8 caracteres.' });
   }
   const hash = bcrypt.hashSync(String(password), 10);
-  const info = db.prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, id);
+  const info = db.prepare('UPDATE admins SET password_hash = ? WHERE id = ? AND deleted_at IS NULL').run(hash, id);
   if (!info.changes) return res.status(404).json({ error: 'Usuário não encontrado.' });
   const alvo = db.prepare('SELECT name FROM admins WHERE id = ?').get(id);
   logActivity(req.admin.name || req.admin.email, 'alterou senha de usuário', alvo ? alvo.name : `#${id}`);
   res.json({ ok: true, message: 'Senha redefinida.' });
 });
 
-// DELETE /api/users/:id
+// DELETE /api/users/:id — move o usuário para a LIXEIRA (soft-delete).
+// A conta fica guardada por 90 dias antes da remoção definitiva. O login é
+// bloqueado na hora (e-mail sai do índice global), mas dá para restaurar.
+// As permissões por evento (event_access) são preservadas para a restauração.
 router.delete('/:id', (req, res) => {
   const id = Number(req.params.id);
   if (id === req.admin.id) {
     return res.status(409).json({ error: 'Você não pode excluir a própria conta.' });
   }
-  const user = db.prepare('SELECT * FROM admins WHERE id = ?').get(id);
+  const user = db.prepare('SELECT * FROM admins WHERE id = ? AND deleted_at IS NULL').get(id);
   if (!user) return res.status(404).json({ error: 'Usuário não encontrado.' });
   if (user.role === 'admin' && user.status === 'ativo' && countActiveAdmins() <= 1) {
     return res.status(409).json({ error: 'Não é possível excluir o último administrador ativo.' });
   }
-  db.prepare('DELETE FROM admins WHERE id = ?').run(id);
-  db.prepare('DELETE FROM event_access WHERE user_id = ?').run(id);
+  db.prepare("UPDATE admins SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?")
+    .run(req.admin.name || req.admin.email, id);
 
+  // Bloqueia o login imediatamente: tira o e-mail do índice global de roteamento.
   unregisterAdminEmail(user.email);
 
-  logActivity(req.admin.name || req.admin.email, 'excluiu usuário', user.name);
+  logActivity(req.admin.name || req.admin.email, 'moveu usuário para a lixeira', user.name);
   res.json({ ok: true });
 });
 

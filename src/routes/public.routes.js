@@ -97,7 +97,7 @@ function withTenantForSlug(slug, res, fn) {
 // GET /api/public/events/:slug  — dados públicos do evento
 router.get('/events/:slug', (req, res) => {
   withTenantForSlug(req.params.slug, res, () => {
-    const e = db.prepare('SELECT * FROM events WHERE slug = ?').get(req.params.slug);
+    const e = db.prepare('SELECT * FROM events WHERE slug = ? AND deleted_at IS NULL').get(req.params.slug);
     if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
     const closed = isClosed(e);
     res.json({
@@ -123,7 +123,7 @@ router.get('/events/:slug', (req, res) => {
 // POST /api/public/events/:slug/rsvp  — registra ou atualiza resposta
 router.post('/events/:slug/rsvp', (req, res) => {
   withTenantForSlug(req.params.slug, res, async () => {
-    const e = db.prepare('SELECT * FROM events WHERE slug = ?').get(req.params.slug);
+    const e = db.prepare('SELECT * FROM events WHERE slug = ? AND deleted_at IS NULL').get(req.params.slug);
     if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
     if (isClosed(e)) {
@@ -180,7 +180,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
           phone=?, response=?, name_normalized=?, extra=?,
           accepted_terms=1, accepted_privacy_policy=1, accepted_data_processing=1,
           consent_date=datetime('now'), consent_ip=?, terms_version=?, privacy_version=?,
-          updated_at=datetime('now')
+          deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now')
         WHERE id=?
       `).run(String(name).trim(), company || null, role || null, email || null,
              phone || null, response, normalized, extraJson,
@@ -230,6 +230,8 @@ router.post('/events/:slug/rsvp', (req, res) => {
       if (!/UNIQUE/i.test(String(err && err.message))) throw err;
       // Já existe alguém com este nome neste evento (e não casou por contato).
       const sameName = db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_normalized = ?').get(e.id, normalized);
+      // Registro com este nome estava na lixeira → reinscrição o traz de volta.
+      if (sameName && sameName.deleted_at) return doUpdate(sameName);
       // Mesma pessoa anônima reenviando (nenhum dos dois lados tem contato) → atualiza.
       if (sameName && !sameName.email && !sameName.phone && !email && !phone) return doUpdate(sameName);
       // Pessoas diferentes com o mesmo nome → NÃO sobrescreve ninguém.

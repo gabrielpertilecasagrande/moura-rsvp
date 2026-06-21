@@ -27,8 +27,9 @@ router.get('/search', (req, res) => {
     `SELECT p.id, p.name, p.email, p.phone, p.company, p.response,
             e.name AS event_name, e.id AS event_id
        FROM participants p JOIN events e ON e.id = p.event_id
-      WHERE lower(p.name) LIKE ? OR lower(IFNULL(p.email,'')) LIKE ?
-         OR lower(IFNULL(p.phone,'')) LIKE ?
+      WHERE p.deleted_at IS NULL AND e.deleted_at IS NULL
+        AND (lower(p.name) LIKE ? OR lower(IFNULL(p.email,'')) LIKE ?
+         OR lower(IFNULL(p.phone,'')) LIKE ?)
       ORDER BY p.name COLLATE NOCASE ASC
       LIMIT 100`
   ).all(term, term, term);
