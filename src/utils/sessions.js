@@ -54,6 +54,34 @@ function revokeRefreshToken(plain) {
     .run(sha256(plain));
 }
 
+// Lista as sessões ativas (aparelhos conectados) de um usuário, dentro do seu
+// tenant. Marca como `current` a sessão do refresh token informado. Nunca devolve
+// o hash do token ao cliente.
+function listSessions(userId, tenantSlug, currentPlain) {
+  const currentHash = currentPlain ? sha256(currentPlain) : null;
+  return routerDb.prepare(
+    `SELECT id, user_agent, created_at, last_used_at, token_hash
+       FROM auth_sessions
+      WHERE user_id = ? AND tenant_slug = ? AND revoked_at IS NULL AND expires_at > datetime('now')
+      ORDER BY last_used_at DESC`
+  ).all(userId, tenantSlug).map((r) => ({
+    id: r.id,
+    user_agent: r.user_agent,
+    created_at: r.created_at,
+    last_used_at: r.last_used_at,
+    current: currentHash != null && r.token_hash === currentHash,
+  }));
+}
+
+// Revoga todas as sessões do usuário (no seu tenant) EXCETO a do refresh token
+// informado (mantém o aparelho atual logado). Sem keepPlain, revoga todas.
+function revokeOtherSessions(userId, tenantSlug, keepPlain) {
+  const keepHash = keepPlain ? sha256(keepPlain) : null;
+  routerDb.prepare(
+    "UPDATE auth_sessions SET revoked_at = datetime('now') WHERE user_id = ? AND tenant_slug = ? AND revoked_at IS NULL AND token_hash IS NOT ?"
+  ).run(userId, tenantSlug, keepHash);
+}
+
 // Limpeza preguiçosa: remove sessões expiradas/revogadas antigas (chamada no login).
 function pruneExpiredSessions() {
   try {
@@ -63,4 +91,4 @@ function pruneExpiredSessions() {
   } catch { /* não bloqueia o fluxo de login */ }
 }
 
-module.exports = { createRefreshToken, useRefreshToken, revokeRefreshToken, pruneExpiredSessions, REFRESH_TTL_DAYS };
+module.exports = { createRefreshToken, useRefreshToken, revokeRefreshToken, listSessions, revokeOtherSessions, pruneExpiredSessions, REFRESH_TTL_DAYS };

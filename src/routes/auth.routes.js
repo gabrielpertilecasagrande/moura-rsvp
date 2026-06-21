@@ -16,7 +16,7 @@ const {
   unregisterAdminEmail,
   updateAdminEmail,
 } = require('../router');
-const { createRefreshToken, useRefreshToken, revokeRefreshToken, pruneExpiredSessions } = require('../utils/sessions');
+const { createRefreshToken, useRefreshToken, revokeRefreshToken, listSessions, revokeOtherSessions, pruneExpiredSessions } = require('../utils/sessions');
 
 const router = express.Router();
 
@@ -190,6 +190,24 @@ router.post('/logout', (req, res) => {
   const plain = String((req.body || {}).refresh_token || '').trim();
   if (plain) revokeRefreshToken(plain);
   res.json({ ok: true });
+});
+
+// GET /api/auth/sessions — lista os aparelhos conectados (sessões ativas) do
+// usuário, no seu tenant. O cliente envia o refresh token no header
+// X-Refresh-Token para marcar "este aparelho" (o token nunca vai na URL).
+router.get('/sessions', requireAuth, (req, res) => {
+  res.json({ sessions: listSessions(req.admin.id, req.tenantSlug, req.headers['x-refresh-token'] || null) });
+});
+
+// POST /api/auth/sessions/revoke-others — desconecta TODOS os outros aparelhos na
+// hora: revoga os refresh tokens deles e invalida os JWTs de acesso já emitidos.
+// Mantém este aparelho logado (preserva o refresh token enviado e reemite o JWT).
+router.post('/sessions/revoke-others', requireAuth, (req, res) => {
+  const keep = String((req.body || {}).refresh_token || '').trim() || null;
+  revokeOtherSessions(req.admin.id, req.tenantSlug, keep);
+  db.prepare("UPDATE admins SET sessions_invalidated_at = strftime('%s','now') WHERE id = ?").run(req.admin.id);
+  logActivity(req.admin.name || req.admin.email, 'desconectou os outros aparelhos', null);
+  res.json({ ok: true, token: sign(req.admin, req.tenantSlug) });
 });
 
 // PUT /api/auth/profile — o próprio usuário edita nome e e-mail
