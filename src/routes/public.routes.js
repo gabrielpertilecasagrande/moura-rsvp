@@ -11,13 +11,36 @@ const router = express.Router();
 
 // Config pública para a página de privacidade (/legal.html): base da Central de
 // Privacidade do Moura One (se configurada) e e-mail do canal LGPD.
-router.get('/legal-config', (_req, res) => {
+router.get('/legal-config', async (_req, res) => {
   res.json({
     base: (process.env.LEGAL_BASE_URL || '').replace(/\/+$/, ''),
     scope: 'rsvp',
     email: process.env.LGPD_EMAIL || 'rp@mouracom.com.br',
+    version: await currentConsentVersion(),
   });
 });
+
+// Versão de aceite vigente, definida no Moura One. O convidado preenche o
+// formulário uma única vez (sem login recorrente), então usamos a versão apenas
+// para CARIMBAR o consentimento na auditoria. Cache curto + timeout; se o Moura
+// One estiver indisponível, segue sem carimbo de versão (não bloqueia a inscrição).
+let _verCache = { value: null, at: 0 };
+async function currentConsentVersion() {
+  const now = Date.now();
+  if (_verCache.value != null && now - _verCache.at < 60000) return _verCache.value;
+  const base = (process.env.LEGAL_BASE_URL || '').trim().replace(/\/+$/, '');
+  if (!base) return null;
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 3000);
+    const r = await fetch(`${base}/api/legal/public/version`, { signal: ctrl.signal });
+    clearTimeout(t);
+    if (!r.ok) return _verCache.value;
+    const d = await r.json();
+    _verCache = { value: String(d.version || '1'), at: now };
+    return _verCache.value;
+  } catch { return _verCache.value; }
+}
 
 function collectExtra(cfg, rawExtra) {
   const out = {};
@@ -94,7 +117,7 @@ router.get('/events/:slug', (req, res) => {
 
 // POST /api/public/events/:slug/rsvp  — registra ou atualiza resposta
 router.post('/events/:slug/rsvp', (req, res) => {
-  withTenantForSlug(req.params.slug, res, () => {
+  withTenantForSlug(req.params.slug, res, async () => {
     const e = db.prepare('SELECT * FROM events WHERE slug = ?').get(req.params.slug);
     if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
 
@@ -127,8 +150,10 @@ router.post('/events/:slug/rsvp', (req, res) => {
       return res.status(400).json({ error: 'É necessário aceitar os Termos, a Política de Privacidade e autorizar o tratamento dos dados.' });
     }
     const consentIp      = req.ip || null;
-    const termsVersion   = req.body.terms_version ? String(req.body.terms_version).slice(0, 40) : null;
-    const privacyVersion = req.body.privacy_version ? String(req.body.privacy_version).slice(0, 40) : null;
+    // Carimba a versão de aceite vigente (do Moura One) quando o cliente não a envia.
+    const curVer         = await currentConsentVersion();
+    const termsVersion   = req.body.terms_version ? String(req.body.terms_version).slice(0, 40) : curVer;
+    const privacyVersion = req.body.privacy_version ? String(req.body.privacy_version).slice(0, 40) : curVer;
 
     const cfg = parseFormConfig(e.form_config);
     const builtinVal = { company, role, email, phone };
