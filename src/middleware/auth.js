@@ -2,6 +2,13 @@
 const jwt = require('jsonwebtoken');
 const { openTenantDb, runWithDb } = require('../db');
 
+// Em produção exigimos um JWT_SECRET forte. Sem ele, qualquer pessoa poderia
+// forjar tokens de sessão (e as rotas de serviço que usam o mesmo segredo).
+// Falha imediata e explícita no boot em vez de cair num segredo padrão público.
+const isProd = process.env.NODE_ENV === 'production';
+if (isProd && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 16)) {
+  throw new Error('JWT_SECRET ausente ou fraco. Defina um valor com pelo menos 16 caracteres em produção.');
+}
 const SECRET = process.env.JWT_SECRET || 'dev-secret';
 
 // Emite um JWT de acesso (curto: 12h) que inclui o tenant do admin. O login

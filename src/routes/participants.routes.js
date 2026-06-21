@@ -136,6 +136,12 @@ router.post('/mass', requirePerm('can_participants'), (req, res) => {
 
 // GET /api/events/:id/participants/:pid/audit — histórico de alterações
 router.get('/:pid/audit', requirePerm('can_history'), (req, res) => {
+  // Confere que o participante pertence ao evento da URL — sem isto, um usuário
+  // com acesso a um evento poderia ler o histórico de participantes de OUTRO
+  // evento (mesmo tenant) só trocando o id na URL.
+  const p = db.prepare('SELECT id FROM participants WHERE id = ? AND event_id = ?')
+    .get(Number(req.params.pid), Number(req.params.id));
+  if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
   const rows = db.prepare(
     'SELECT * FROM audit_log WHERE participant_id = ? ORDER BY created_at ASC'
   ).all(req.params.pid);
@@ -343,7 +349,13 @@ router.get('/export', requirePerm('can_export'), async (req, res) => {
 
   if (format === 'csv') {
     const colsCsv = [...cols, { header: 'Status', get: (r) => (r.response === 'confirmado' ? 'Confirmado' : 'Recusado') }];
-    const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    // Neutraliza injeção de fórmula: células iniciadas por = + - @ (ou tab/CR)
+    // são executadas como fórmula no Excel/Sheets. Prefixamos com aspa simples.
+    const esc = (v) => {
+      let s = String(v ?? '');
+      if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+      return `"${s.replace(/"/g, '""')}"`;
+    };
     const lines = [colsCsv.map((c) => esc(c.header)).join(';')];
     for (const r of rows) lines.push(colsCsv.map((c) => esc(c.get(r))).join(';'));
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');

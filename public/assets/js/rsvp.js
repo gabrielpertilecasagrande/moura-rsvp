@@ -197,10 +197,10 @@ async function submit() {
   body.extra = extra;
 
   const filled = (v) => (Array.isArray(v) ? v.length > 0 : !!String(v || '').trim());
-  if (!body.name) return showErr('Por favor, informe seu nome completo.');
-  // Exige nome + sobrenome (ao menos duas palavras com 2+ letras).
-  const nameParts = body.name.split(/\s+/).filter((w) => w.replace(/[^\p{L}]/gu, '').length >= 2);
-  if (nameParts.length < 2) return showErr('Por favor, informe seu nome completo (nome e sobrenome).');
+  if (!body.name) return showErr('Por favor, informe seu nome.');
+  // Aceita nomes de uma palavra (mononímicos/estrangeiros). Exige só que tenha
+  // sentido (ao menos 2 letras) — não obriga sobrenome.
+  if (body.name.replace(/[^\p{L}]/gu, '').length < 2) return showErr('Por favor, informe seu nome.');
   if (!body.response) return showErr('Selecione se você participará ou não do evento.');
   if (!body.accepted_terms || !body.accepted_privacy_policy || !body.accepted_data_processing) {
     return showErr('Para enviar, é necessário aceitar os Termos, a Política de Privacidade e autorizar o tratamento dos dados.');
