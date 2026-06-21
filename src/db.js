@@ -53,6 +53,14 @@ function applyMigrations(db) {
   addColumn('audit_log', 'actor', 'TEXT');
   addColumn('participants', 'extra', 'TEXT');
   addColumn('participants', 'notes', 'TEXT');
+  // LGPD — registro de consentimento do participante (no ato da inscrição).
+  addColumn('participants', 'accepted_terms', 'INTEGER DEFAULT 0');
+  addColumn('participants', 'accepted_privacy_policy', 'INTEGER DEFAULT 0');
+  addColumn('participants', 'accepted_data_processing', 'INTEGER DEFAULT 0');
+  addColumn('participants', 'consent_date', 'TEXT');
+  addColumn('participants', 'consent_ip', 'TEXT');
+  addColumn('participants', 'terms_version', 'TEXT');
+  addColumn('participants', 'privacy_version', 'TEXT');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS sso_sessions (

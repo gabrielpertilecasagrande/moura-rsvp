@@ -115,6 +115,9 @@ app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 // Link público do evento: /rsvp/:slug  (o slug é lido pelo JS da página via API pública)
 app.get('/rsvp/:slug', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html')));
 
+// Página pública de Privacidade/LGPD (rodapé).
+app.get(['/legal.html', '/privacidade', '/termos', '/cookies', '/lgpd'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'legal.html')));
+
 // Painel de operação da plataforma (provisionamento de organizadores).
 // Caminho configurável via PLATFORM_PATH para não expor URL previsível em produção.
 const PLATFORM_PATH = (process.env.PLATFORM_PATH || '/platform').replace(/\/+$/, '');
