@@ -58,7 +58,7 @@ function renderShell(active) {
 
 function mountShell(active) {
   document.getElementById('shell').innerHTML = renderShell(active);
-  document.getElementById('logoutBtn').addEventListener('click', () => { Api.clear(); location.href = '/admin/login.html'; });
+  document.getElementById('logoutBtn').addEventListener('click', async () => { await Api.logout(); location.href = '/admin/login.html'; });
 
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('sidebarOverlay');

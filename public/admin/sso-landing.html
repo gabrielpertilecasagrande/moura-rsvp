@@ -17,6 +17,7 @@
         .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
         .then(function(d) {
           localStorage.setItem('moura_token', d.token);
+          if (d.refresh_token) localStorage.setItem('moura_refresh', d.refresh_token);
           location.replace(d.event_id
             ? '/admin/event-detail.html?id=' + encodeURIComponent(d.event_id)
             : '/admin/dashboard.html');

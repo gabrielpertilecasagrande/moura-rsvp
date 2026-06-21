@@ -80,6 +80,9 @@ function applyMigrations(db) {
     );
   `);
 
+  // Refresh token entregue junto do JWT de sessão no SSO (login persistente do app).
+  addColumn('sso_sessions', 'refresh_token', 'TEXT');
+
   // Normaliza papéis legados.
   try { db.exec("UPDATE admins SET role = 'gestor' WHERE role = 'editor'"); } catch { /* sem ação */ }
 

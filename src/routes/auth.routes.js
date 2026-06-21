@@ -16,6 +16,7 @@ const {
   unregisterAdminEmail,
   updateAdminEmail,
 } = require('../router');
+const { createRefreshToken, useRefreshToken, revokeRefreshToken, pruneExpiredSessions } = require('../utils/sessions');
 
 const router = express.Router();
 
@@ -65,9 +66,13 @@ router.post('/login', (req, res) => {
     db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
     logActivity(admin.name || admin.email, 'fez login', null);
   });
+  pruneExpiredSessions();
 
   res.json({
     token: sign(admin, ref.tenant_slug),
+    // Login persistente (app/PWA): o cliente guarda o refresh token e renova a
+    // sessão sozinho, sem pedir senha de novo entre aberturas do app.
+    refresh_token: createRefreshToken(ref.tenant_slug, admin.id, req.headers['user-agent']),
     admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role },
   });
 });
@@ -98,10 +103,12 @@ router.get('/sso', (req, res) => {
     const { randomUUID } = require('crypto');
     const ref = randomUUID();
     const sessionToken = sign(admin, DEFAULT_TENANT);
+    // Login persistente também para quem entra via SSO (integração Moura One).
+    const refreshToken = createRefreshToken(DEFAULT_TENANT, admin.id, req.headers['user-agent']);
     const expiresAt = new Date(Date.now() + 60_000).toISOString();
     db.prepare(
-      'INSERT INTO sso_sessions (ref, token, event_id, expires_at) VALUES (?, ?, ?, ?)'
-    ).run(ref, sessionToken, event ? String(event) : null, expiresAt);
+      'INSERT INTO sso_sessions (ref, token, refresh_token, event_id, expires_at) VALUES (?, ?, ?, ?, ?)'
+    ).run(ref, sessionToken, refreshToken, event ? String(event) : null, expiresAt);
 
     return res.redirect(`/admin/sso-landing.html?ref=${encodeURIComponent(ref)}`);
   });
@@ -121,7 +128,7 @@ router.get('/sso-session', (req, res) => {
   if (row.expires_at < new Date().toISOString()) return res.status(410).json({ error: 'Sessão expirada.' });
 
   tenantDb.prepare("UPDATE sso_sessions SET used_at = datetime('now') WHERE ref = ?").run(ref);
-  res.json({ token: row.token, event_id: row.event_id || null });
+  res.json({ token: row.token, refresh_token: row.refresh_token || null, event_id: row.event_id || null });
 });
 
 // POST /api/auth/register — solicitação de acesso (conta fica como 'pendente')
@@ -160,15 +167,29 @@ router.get('/me', requireAuth, (req, res) => {
   res.json({ admin: req.admin });
 });
 
-// POST /api/auth/refresh — renova o token (sessão deslizante / "sempre logado").
-// requireAuth já validou o token atual (não expirado) e recarregou o usuário do
-// banco no tenant correto — então bloqueio/inativação seguem imediatos. Reemite
-// o token com a validade recontada a partir de agora, no mesmo tenant.
-router.post('/refresh', requireAuth, (req, res) => {
+// POST /api/auth/refresh — troca o refresh token por um novo JWT de acesso.
+// Mantém o usuário logado entre sessões sem digitar senha. NÃO usa requireAuth:
+// valida o próprio refresh token (o JWT de acesso pode já ter expirado). O tenant
+// é descoberto pela própria linha do refresh token (índice global).
+router.post('/refresh', (req, res) => {
+  const plain = String((req.body || {}).refresh_token || '').trim();
+  if (!plain) return res.status(401).json({ error: 'Sessão encerrada. Entre novamente.' });
+  const result = useRefreshToken(plain);
+  if (!result) return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
   res.json({
-    token: sign(req.admin, req.tenantSlug),
-    admin: { id: req.admin.id, name: req.admin.name, email: req.admin.email, role: req.admin.role },
+    token: sign(result.user, result.tenantSlug),
+    // Mesmo refresh token (não rotaciona) — devolvido por conveniência do cliente.
+    refresh_token: plain,
+    admin: { id: result.user.id, name: result.user.name, email: result.user.email, role: result.user.role },
   });
+});
+
+// POST /api/auth/logout — encerra a sessão persistente (revoga o refresh token).
+// Idempotente: sempre responde ok, mesmo sem token (logout local já basta).
+router.post('/logout', (req, res) => {
+  const plain = String((req.body || {}).refresh_token || '').trim();
+  if (plain) revokeRefreshToken(plain);
+  res.json({ ok: true });
 });
 
 // PUT /api/auth/profile — o próprio usuário edita nome e e-mail

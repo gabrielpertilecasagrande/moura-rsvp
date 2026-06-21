@@ -1,18 +1,69 @@
 // Helpers de chamada à API + sessão do admin (frontend).
 const Api = {
   token: () => localStorage.getItem('moura_token'),
+  refreshToken: () => localStorage.getItem('moura_refresh'),
   setToken: (t) => localStorage.setItem('moura_token', t),
-  clear: () => localStorage.removeItem('moura_token'),
+  // Guarda a sessão completa (JWT de acesso + refresh token de login persistente).
+  setSession: (s) => {
+    if (!s) return;
+    if (s.token) localStorage.setItem('moura_token', s.token);
+    if (s.refresh_token) localStorage.setItem('moura_refresh', s.refresh_token);
+  },
+  clear: () => { localStorage.removeItem('moura_token'); localStorage.removeItem('moura_refresh'); },
 
-  async req(method, url, body, isForm) {
+  // Renovação silenciosa: troca o refresh token por um novo JWT de acesso sem
+  // pedir senha. "Single-flight": chamadas concorrentes reaproveitam a mesma
+  // promessa, evitando várias renovações em paralelo (abas/requisições simultâneas).
+  _refreshing: null,
+  tryRefresh() {
+    const rt = Api.refreshToken();
+    if (!rt) return Promise.resolve(false);
+    if (Api._refreshing) return Api._refreshing;
+    Api._refreshing = fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: rt }),
+    })
+      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+      .then((d) => { Api.setSession(d); return true; })
+      .catch(() => { Api.clear(); return false; })
+      .finally(() => { Api._refreshing = null; });
+    return Api._refreshing;
+  },
+
+  // Logout consciente: revoga a sessão persistente no servidor e limpa o local.
+  async logout() {
+    const rt = Api.refreshToken();
+    if (rt) {
+      try {
+        await fetch('/api/auth/logout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: rt }),
+        });
+      } catch { /* mesmo offline, o logout local abaixo basta */ }
+    }
+    Api.clear();
+  },
+
+  _toLogin() { Api.clear(); location.href = '/admin/login.html'; },
+
+  async req(method, url, body, isForm, _retried) {
     const headers = {};
     const t = Api.token();
     if (t) headers['Authorization'] = `Bearer ${t}`;
     let payload = body;
     if (body && !isForm) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
     const res = await fetch(url, { method, headers, body: payload });
-    if (res.status === 401 && !url.includes('/auth/login')) {
-      Api.clear(); location.href = '/admin/login.html'; return;
+    if (res.status === 401 && !url.includes('/auth/login') && !url.includes('/auth/refresh')) {
+      // JWT expirado: tenta renovar silenciosamente UMA vez e refaz a chamada.
+      // Só desloga se não houver refresh token ou se a renovação falhar.
+      if (!_retried && Api.refreshToken()) {
+        const ok = await Api.tryRefresh();
+        if (ok) return Api.req(method, url, body, isForm, true);
+      }
+      Api._toLogin();
+      return;
     }
     const ct = res.headers.get('content-type') || '';
     const data = ct.includes('json') ? await res.json() : res;
@@ -31,11 +82,11 @@ function requireSession() {
   if (!Api.token()) { location.href = '/admin/login.html'; }
 }
 
-// ── Sessão deslizante: renovação automática ("sempre logado") ─────────────────
-// O token vale 30 dias e o servidor (POST /api/auth/refresh) recarrega o usuário
-// do banco a cada chamada — bloqueio/inativação seguem imediatos. Enquanto o app
-// for aberto de tempos em tempos, renovamos o token antes de expirar, em silêncio:
-// o usuário não cai mais na tela de login só porque o app ficou fechado.
+// ── Sessão persistente: renovação automática via refresh token ────────────────
+// Mantém o usuário "sempre logado" como um app nativo. O JWT de acesso é curto
+// (12h); o refresh token (em localStorage) é trocado por um novo JWT em silêncio,
+// ~5 min antes de expirar — e também sob demanda quando uma chamada volta 401
+// (ver Api.req). Sem refresh token (sessão antiga), o próximo 401 leva ao login.
 Api.tokenExpMs = function () {
   const t = Api.token();
   if (!t) return null;
@@ -46,45 +97,24 @@ Api.tokenExpMs = function () {
   } catch { return null; }
 };
 
-// Troca o token atual por um novo (validade recontada). Usa fetch cru (não
-// Api.req) para não disparar o redirecionamento automático de 401: se falhar,
-// mantém o token atual e tenta de novo no próximo gatilho.
-Api.refreshToken = async function () {
-  const t = Api.token();
-  if (!t) return false;
-  try {
-    const res = await fetch('/api/auth/refresh', { method: 'POST', headers: { Authorization: `Bearer ${t}` } });
-    if (!res.ok) return false;
-    const data = await res.json().catch(() => null);
-    if (data && data.token) {
-      Api.setToken(data.token);
-      localStorage.setItem('moura_token_renewed_at', String(Date.now()));
-      return true;
-    }
-  } catch { /* offline/instável: tenta de novo no próximo gatilho */ }
-  return false;
-};
-
-// Renova de forma proativa quando falta menos de RENEW_BELOW para expirar,
-// respeitando um intervalo mínimo para não renovar a cada navegação.
-const RENEW_BELOW = 25 * 24 * 60 * 60 * 1000;   // renova faltando < 25 dias
-const RENEW_MIN_INTERVAL = 6 * 60 * 60 * 1000;  // no máx. 1 renovação a cada 6h
-function maybeRenewSession() {
+// Login persistente: com refresh token, a sessão se renova sozinha ~5 min antes
+// do JWT expirar — o usuário NUNCA vê a tela de login só porque o app ficou
+// fechado. Se a renovação falhar (refresh expirado/revogado), para de reagendar;
+// a próxima chamada à API cai no fluxo de 401 → login.
+function scheduleAutoRefresh() {
   const exp = Api.tokenExpMs();
-  if (!exp) return;
-  const remaining = exp - Date.now();
-  if (remaining <= 0 || remaining > RENEW_BELOW) return; // expirado ou ainda longe
-  const last = Number(localStorage.getItem('moura_token_renewed_at') || 0);
-  if (Date.now() - last < RENEW_MIN_INTERVAL) return;
-  Api.refreshToken();
+  if (!exp) { Api.tryRefresh(); return; } // sem JWT legível: tenta renovar já
+  const LEAD = 5 * 60 * 1000;
+  const wait = Math.max(0, exp - LEAD - Date.now());
+  setTimeout(async () => {
+    const ok = await Api.tryRefresh();
+    if (ok) scheduleAutoRefresh(); // reagenda com a nova expiração
+  }, Math.min(wait, 11.5 * 60 * 60 * 1000));
 }
+
 document.addEventListener('DOMContentLoaded', () => {
-  if (!Api.token() || location.pathname.endsWith('/login.html')) return;
-  maybeRenewSession();
-  // Ao voltar para a aba (app reaberto no celular), reavalia a renovação.
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) maybeRenewSession(); });
-  // Rede de segurança para abas abertas por muito tempo.
-  setInterval(maybeRenewSession, 30 * 60 * 1000);
+  if (location.pathname.endsWith('/login.html') || !Api.token()) return;
+  if (Api.refreshToken()) scheduleAutoRefresh();
 });
 
 function toast(msg) {
