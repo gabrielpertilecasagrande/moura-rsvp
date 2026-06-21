@@ -29,6 +29,7 @@ function renderShell(active) {
     canCreateEvents() ? item('/admin/event-form.html', 'new', 'Novo evento') : '',
     usersItem,
     isAdmin ? item('/admin/activity.html', 'activity', 'Atividades') : '',
+    isAdmin ? item('/admin/lgpd.html', 'lgpd', 'LGPD') : '',
   ].join('');
   const initials = (u.name || u.email || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   return `
