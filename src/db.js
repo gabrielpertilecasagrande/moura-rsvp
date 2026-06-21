@@ -119,8 +119,15 @@ function applyMigrations(db) {
   } catch { /* banco ainda vazio */ }
 }
 
+// Formato válido de slug de tenant: minúsculas, números e hífen (1–40).
+// Impede travessia de caminho (ex.: "../../etc") e nomes de pasta inesperados.
+const VALID_TENANT_SLUG = /^[a-z0-9-]{1,40}$/;
+
 // Abre (ou retorna do cache) o banco SQLite do tenant.
 function openTenantDb(tenantSlug) {
+  if (!tenantSlug || !VALID_TENANT_SLUG.test(tenantSlug)) {
+    throw new Error(`[tenant] slug inválido: "${String(tenantSlug)}"`);
+  }
   if (dbCache.has(tenantSlug)) return dbCache.get(tenantSlug);
 
   const dir = path.join(DATA_DIR, 'tenants', tenantSlug);

@@ -15,6 +15,7 @@ const {
   registerAdminEmail,
   unregisterAdminEmail,
   updateAdminEmail,
+  organizationExists,
 } = require('../router');
 const { createRefreshToken, useRefreshToken, revokeRefreshToken, listSessions, enrichSessionsCity, revokeOtherSessions, revokeSessionById, pruneExpiredSessions } = require('../utils/sessions');
 
@@ -24,6 +25,10 @@ function clientIp(req) {
 }
 
 const router = express.Router();
+
+// Hash fixo (de uma senha aleatória) usado só para gastar o mesmo tempo de
+// verificação quando o e-mail não existe — defesa contra enumeração por timing.
+const DUMMY_HASH = bcrypt.hashSync('senha-inexistente-para-timing', 10);
 
 function safeEqual(a, b) {
   const ba = Buffer.from(String(a));
@@ -47,6 +52,9 @@ router.post('/login', (req, res) => {
   // Descobre a qual organização este admin pertence.
   const ref = findTenantByEmail(mail);
   if (!ref) {
+    // Roda um bcrypt "no vazio" para igualar o tempo de resposta ao do caminho
+    // com e-mail existente — evita descobrir contas por diferença de tempo.
+    bcrypt.compareSync(String(password), DUMMY_HASH);
     // Resposta genérica: não revela se o e-mail existe.
     return res.status(401).json({ error: 'E-mail ou senha incorretos.' });
   }
@@ -147,7 +155,14 @@ router.post('/register', (req, res) => {
     return res.status(400).json({ error: 'A senha deve ter ao menos 8 caracteres.' });
   }
   const mail = String(email).toLowerCase().trim();
-  const tenantSlug = String(req.headers['x-tenant-slug'] || DEFAULT_TENANT);
+  const tenantSlug = String(req.headers['x-tenant-slug'] || DEFAULT_TENANT).toLowerCase().trim();
+
+  // Só aceita solicitação para uma organização que JÁ existe. Sem isto, qualquer
+  // pessoa poderia criar bancos de tenant arbitrários (enchendo o disco) só
+  // mandando um header X-Tenant-Slug diferente.
+  if (!organizationExists(tenantSlug)) {
+    return res.status(400).json({ error: 'Organização inválida.' });
+  }
 
   const tenantDb = openTenantDb(tenantSlug);
   if (tenantDb.prepare('SELECT id FROM admins WHERE email = ?').get(mail)) {
@@ -324,7 +339,13 @@ router.post('/provision-event', (req, res) => {
   }
   const b = req.body || {};
   if (!b.name) return res.status(400).json({ error: 'O nome do evento é obrigatório.' });
-  const tenantSlug = String(b.tenant_slug || DEFAULT_TENANT);
+  const tenantSlug = String(b.tenant_slug || DEFAULT_TENANT).toLowerCase().trim();
+
+  // O tenant precisa já existir — provisionar evento não cria organização nova
+  // (isso é papel das rotas de plataforma). Evita criar bancos arbitrários.
+  if (!organizationExists(tenantSlug)) {
+    return res.status(404).json({ error: 'Organização não encontrada.' });
+  }
 
   const { registerEventSlug } = require('../router');
 

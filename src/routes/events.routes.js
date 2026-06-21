@@ -18,7 +18,7 @@ const {
   authorizedEventIds, permsFor, grantFullAccess, normalizeRole, requireRole, requirePerm,
 } = require('../utils/permissions');
 const {
-  registerEventSlug, unregisterEventSlug,
+  registerEventSlug, unregisterEventSlug, organizationExists,
 } = require('../router');
 
 const router = express.Router();
@@ -39,7 +39,12 @@ function metricsAuth(req, res, next) {
       const payload = jwt.verify(token, SECRET);
       if (payload && payload.target === 'rsvp') {
         req.serviceCall = true;
-        const tenantSlug = req.headers['x-tenant-slug'] || DEFAULT_TENANT;
+        const tenantSlug = String(req.headers['x-tenant-slug'] || DEFAULT_TENANT).toLowerCase().trim();
+        // Só aceita um tenant que já existe (evita criar bancos arbitrários e
+        // travessia de caminho via header).
+        if (!organizationExists(tenantSlug)) {
+          return res.status(404).json({ error: 'Organização não encontrada.' });
+        }
         return runWithDb(tenantSlug, () => next());
       }
     } catch { /* signature inválida → tenta sessão normal */ }
@@ -82,7 +87,9 @@ const storage = multer.diskStorage({
     cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
   },
 });
-const ACCEPTED = /image\/(png|jpe?g|webp|gif|svg\+xml)/;
+// SVG fora de propósito: pode conter script e ser servido inline a partir de
+// /uploads (mesma origem) — risco de XSS. Aceitamos só imagens rasterizadas.
+const ACCEPTED = /image\/(png|jpe?g|webp|gif)/;
 const uploadFields = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -93,7 +100,7 @@ function upload(req, res, next) {
   uploadFields(req, res, (err) => {
     if (!err) return next();
     if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'A imagem ultrapassa o limite de 10 MB.' });
-    if (err.message === 'FORMATO') return res.status(400).json({ error: 'Formato não aceito. Use JPG, PNG, WEBP ou SVG.' });
+    if (err.message === 'FORMATO') return res.status(400).json({ error: 'Formato não aceito. Use JPG, PNG, WEBP ou GIF.' });
     return res.status(400).json({ error: 'Não foi possível enviar a imagem.' });
   });
 }
