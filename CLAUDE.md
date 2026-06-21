@@ -11,6 +11,6 @@
 
 ## Prévias visuais
 
-- Sempre que a tarefa alterar a interface (telas — HTML/CSS/JS), ao final **suba o app localmente, capture prints das telas afetadas** (navegador headless) e **envie as imagens** ao usuário antes de concluir a tarefa.
-- Quando fizer sentido, mostre o **antes e depois**.
-- Mudanças apenas de backend (sem efeito visual) não precisam de print.
+- **Não envie prints por padrão.** Capturas de tela consomem tokens e o usuário não quer isso como rotina.
+- Envie print **somente** quando houver dúvida real sobre o resultado visual (ex.: layout quebrado, resultado ambíguo) — e justifique brevemente o motivo.
+- Mudanças apenas de backend (sem efeito visual) nunca precisam de print.
