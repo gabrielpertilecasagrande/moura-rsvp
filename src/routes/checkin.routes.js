@@ -105,15 +105,15 @@ router.get('/events/:id/participants', (req, res) => {
   if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
 
   const q = String(req.query.q || '').trim();
-  let sql = `SELECT id, name, company, role, checked_in_at, qr_token
+  let sql = `SELECT id, name, company, role, phone, checked_in_at, qr_token, table_number, category_id
              FROM participants
              WHERE event_id = ? AND response = 'confirmado' AND deleted_at IS NULL`;
   const params = [reqId];
   if (q) {
-    sql += ' AND name LIKE ?';
-    params.push(`%${q}%`);
+    sql += ' AND (name LIKE ? OR company LIKE ? OR table_number LIKE ? OR phone LIKE ?)';
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
   }
-  sql += ' ORDER BY name COLLATE NOCASE ASC LIMIT 100';
+  sql += ' ORDER BY name COLLATE NOCASE ASC LIMIT 2000';
 
   res.json(db.prepare(sql).all(...params));
 });
@@ -182,6 +182,210 @@ router.post('/unregister', (req, res) => {
 
   db.prepare("UPDATE participants SET checked_in_at = NULL WHERE id = ?").run(p.id);
   res.json({ ok: true, was_checked_in: true, participant_id: p.id, name: p.name });
+});
+
+// ── Helper: valida que o evento existe e que o token tem acesso a ele ──────────
+function resolveEvent(req, res) {
+  const reqId = Number(req.params.id);
+  const { event_id } = req.operatorToken;
+  if (event_id && event_id !== reqId) { res.status(403).json({ error: 'Acesso negado a este evento.' }); return null; }
+  const ev = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(reqId);
+  if (!ev) { res.status(404).json({ error: 'Evento não encontrado.' }); return null; }
+  return reqId;
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  MESAS (checkin_tables)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── GET /api/checkin/events/:id/tables ────────────────────────────────────────
+// Lista as mesas configuradas + ocupação calculada a partir dos convidados.
+router.get('/events/:id/tables', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const tables = db.prepare(
+    'SELECT id, name, capacity, sort_order FROM checkin_tables WHERE event_id = ? ORDER BY sort_order, id'
+  ).all(reqId);
+  // Conta convidados (alocados e presentes) por nome de mesa.
+  const counts = db.prepare(`
+    SELECT table_number AS name,
+           COUNT(*) AS allocated,
+           SUM(CASE WHEN checked_in_at IS NOT NULL THEN 1 ELSE 0 END) AS present
+    FROM participants
+    WHERE event_id = ? AND response = 'confirmado' AND deleted_at IS NULL
+      AND table_number IS NOT NULL AND table_number <> ''
+    GROUP BY table_number
+  `).all(reqId);
+  const byName = {};
+  counts.forEach(c => { byName[String(c.name).toLowerCase()] = c; });
+  const out = tables.map(t => {
+    const c = byName[String(t.name).toLowerCase()] || { allocated: 0, present: 0 };
+    return { ...t, allocated: Number(c.allocated || 0), present: Number(c.present || 0) };
+  });
+  res.json(out);
+});
+
+// ── POST /api/checkin/events/:id/tables/generate ──────────────────────────────
+// Gera N mesas numeradas (1..N) com a capacidade informada. Não duplica nomes.
+router.post('/events/:id/tables/generate', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const count    = Math.max(1, Math.min(500, Number(req.body?.count    || 0)));
+  const capacity = Math.max(1, Math.min(100, Number(req.body?.capacity || 8)));
+  if (!count) return res.status(400).json({ error: 'Informe a quantidade de mesas.' });
+  const existing = new Set(db.prepare('SELECT name FROM checkin_tables WHERE event_id = ?').all(reqId).map(r => String(r.name)));
+  const ins = db.prepare('INSERT INTO checkin_tables (event_id, name, capacity, sort_order) VALUES (?, ?, ?, ?)');
+  const tx = db.transaction(() => {
+    for (let i = 1; i <= count; i++) {
+      if (existing.has(String(i))) continue;
+      ins.run(reqId, String(i), capacity, i);
+    }
+  });
+  tx();
+  res.json({ ok: true });
+});
+
+// ── POST /api/checkin/events/:id/tables ───────────────────────────────────────
+// Adiciona uma mesa avulsa.
+router.post('/events/:id/tables', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const name = String(req.body?.name || '').trim();
+  const capacity = Math.max(1, Math.min(100, Number(req.body?.capacity || 8)));
+  if (!name) return res.status(400).json({ error: 'Informe o nome da mesa.' });
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order),0) AS m FROM checkin_tables WHERE event_id = ?').get(reqId).m;
+  const info = db.prepare('INSERT INTO checkin_tables (event_id, name, capacity, sort_order) VALUES (?, ?, ?, ?)')
+    .run(reqId, name, capacity, maxOrder + 1);
+  res.json({ ok: true, id: info.lastInsertRowid });
+});
+
+// ── PATCH /api/checkin/tables/:tid ────────────────────────────────────────────
+router.patch('/tables/:tid', (req, res) => {
+  const { event_id } = req.operatorToken;
+  const t = db.prepare('SELECT id, event_id, name FROM checkin_tables WHERE id = ?').get(Number(req.params.tid));
+  if (!t) return res.status(404).json({ error: 'Mesa não encontrada.' });
+  if (event_id && t.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado.' });
+  const name = req.body?.name != null ? String(req.body.name).trim() : t.name;
+  const capacity = req.body?.capacity != null ? Math.max(1, Math.min(100, Number(req.body.capacity))) : null;
+  if (!name) return res.status(400).json({ error: 'Informe o nome da mesa.' });
+  if (capacity != null) db.prepare('UPDATE checkin_tables SET name = ?, capacity = ? WHERE id = ?').run(name, capacity, t.id);
+  else db.prepare('UPDATE checkin_tables SET name = ? WHERE id = ?').run(name, t.id);
+  res.json({ ok: true });
+});
+
+// ── DELETE /api/checkin/tables/:tid ───────────────────────────────────────────
+router.delete('/tables/:tid', (req, res) => {
+  const { event_id } = req.operatorToken;
+  const t = db.prepare('SELECT id, event_id FROM checkin_tables WHERE id = ?').get(Number(req.params.tid));
+  if (!t) return res.status(404).json({ error: 'Mesa não encontrada.' });
+  if (event_id && t.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado.' });
+  db.prepare('DELETE FROM checkin_tables WHERE id = ?').run(t.id);
+  res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+//  CATEGORIAS (checkin_categories)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── GET /api/checkin/events/:id/categories ────────────────────────────────────
+router.get('/events/:id/categories', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const cats = db.prepare(
+    'SELECT id, name, color, sort_order FROM checkin_categories WHERE event_id = ? ORDER BY sort_order, id'
+  ).all(reqId);
+  const counts = db.prepare(`
+    SELECT category_id AS id, COUNT(*) AS total
+    FROM participants
+    WHERE event_id = ? AND response = 'confirmado' AND deleted_at IS NULL AND category_id IS NOT NULL
+    GROUP BY category_id
+  `).all(reqId);
+  const byId = {}; counts.forEach(c => { byId[c.id] = Number(c.total || 0); });
+  res.json(cats.map(c => ({ ...c, total: byId[c.id] || 0 })));
+});
+
+// ── POST /api/checkin/events/:id/categories ───────────────────────────────────
+router.post('/events/:id/categories', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const name  = String(req.body?.name  || '').trim();
+  const color = String(req.body?.color || '#2C427E').trim();
+  if (!name) return res.status(400).json({ error: 'Informe o nome da categoria.' });
+  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order),0) AS m FROM checkin_categories WHERE event_id = ?').get(reqId).m;
+  const info = db.prepare('INSERT INTO checkin_categories (event_id, name, color, sort_order) VALUES (?, ?, ?, ?)')
+    .run(reqId, name, color, maxOrder + 1);
+  res.json({ ok: true, id: info.lastInsertRowid });
+});
+
+// ── POST /api/checkin/events/:id/categories/seed ──────────────────────────────
+// Cria o conjunto padrão de categorias (VIP, Imprensa, etc.) se ainda não houver.
+router.post('/events/:id/categories/seed', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const has = db.prepare('SELECT COUNT(*) AS n FROM checkin_categories WHERE event_id = ?').get(reqId).n;
+  if (has > 0) return res.json({ ok: true, skipped: true });
+  const DEFAULTS = [
+    ['VIP', '#B57614'], ['Imprensa', '#2C427E'], ['Patrocinador', '#15795B'],
+    ['Expositor', '#7A2733'], ['Convidado', '#2BC2CE'], ['Equipe', '#6E6F72'],
+    ['Organização', '#A4343A'], ['Fornecedor', '#5B4B8A'],
+  ];
+  const ins = db.prepare('INSERT INTO checkin_categories (event_id, name, color, sort_order) VALUES (?, ?, ?, ?)');
+  const tx = db.transaction(() => DEFAULTS.forEach((c, i) => ins.run(reqId, c[0], c[1], i)));
+  tx();
+  res.json({ ok: true });
+});
+
+// ── PATCH /api/checkin/categories/:cid ────────────────────────────────────────
+router.patch('/categories/:cid', (req, res) => {
+  const { event_id } = req.operatorToken;
+  const c = db.prepare('SELECT id, event_id, name, color FROM checkin_categories WHERE id = ?').get(Number(req.params.cid));
+  if (!c) return res.status(404).json({ error: 'Categoria não encontrada.' });
+  if (event_id && c.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado.' });
+  const name  = req.body?.name  != null ? String(req.body.name).trim()  : c.name;
+  const color = req.body?.color != null ? String(req.body.color).trim() : c.color;
+  if (!name) return res.status(400).json({ error: 'Informe o nome da categoria.' });
+  db.prepare('UPDATE checkin_categories SET name = ?, color = ? WHERE id = ?').run(name, color, c.id);
+  res.json({ ok: true });
+});
+
+// ── DELETE /api/checkin/categories/:cid ───────────────────────────────────────
+router.delete('/categories/:cid', (req, res) => {
+  const { event_id } = req.operatorToken;
+  const c = db.prepare('SELECT id, event_id FROM checkin_categories WHERE id = ?').get(Number(req.params.cid));
+  if (!c) return res.status(404).json({ error: 'Categoria não encontrada.' });
+  if (event_id && c.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado.' });
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE participants SET category_id = NULL WHERE category_id = ?').run(c.id);
+    db.prepare('DELETE FROM checkin_categories WHERE id = ?').run(c.id);
+  });
+  tx();
+  res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+//  ATRIBUIÇÃO (mesa / categoria de um convidado)
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── POST /api/checkin/participant/:pid/assign ─────────────────────────────────
+// Define a mesa e/ou a categoria de um convidado. Campos ausentes não mudam.
+router.post('/participant/:pid/assign', (req, res) => {
+  const { event_id } = req.operatorToken;
+  const p = db.prepare(
+    'SELECT id, event_id, table_number, category_id FROM participants WHERE id = ? AND deleted_at IS NULL'
+  ).get(Number(req.params.pid));
+  if (!p) return res.status(404).json({ error: 'Convidado não encontrado.' });
+  if (event_id && p.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado a este evento.' });
+
+  const sets = [], vals = [];
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'table_number')) {
+    const tn = req.body.table_number;
+    sets.push('table_number = ?');
+    vals.push(tn == null || String(tn).trim() === '' ? null : String(tn).trim());
+  }
+  if (Object.prototype.hasOwnProperty.call(req.body || {}, 'category_id')) {
+    const cid = req.body.category_id;
+    sets.push('category_id = ?');
+    vals.push(cid == null || cid === '' ? null : Number(cid));
+  }
+  if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar.' });
+  vals.push(p.id);
+  db.prepare(`UPDATE participants SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  const updated = db.prepare('SELECT id, table_number, category_id FROM participants WHERE id = ?').get(p.id);
+  res.json({ ok: true, ...updated });
 });
 
 module.exports = router;
