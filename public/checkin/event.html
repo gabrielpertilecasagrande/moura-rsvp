@@ -34,9 +34,14 @@
     .topbar {
       position: sticky; top: 0; z-index: 30;
       background: var(--card); border-bottom: 3px solid var(--teal);
-      padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top, 0));
+      padding-top: env(safe-area-inset-top, 0);
+    }
+    .topbar-inner {
+      max-width: 780px; margin: 0 auto; padding: 10px 16px;
       display: flex; align-items: center; gap: 10px;
     }
+    /* Coluna central — tudo alinhado como no sistema original */
+    .page { max-width: 780px; margin: 0 auto; }
     .topbar-back {
       color: var(--navy); font-size: 20px; text-decoration: none; flex-shrink: 0;
       line-height: 1; padding: 2px 4px; border-radius: 6px; transition: background .12s;
@@ -213,7 +218,10 @@
     .syncbar {
       position: fixed; bottom: 0; left: 0; right: 0; z-index: 25;
       background: var(--card); border-top: 1px solid var(--line-soft);
-      padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0));
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+    .syncbar-inner {
+      max-width: 780px; margin: 0 auto; padding: 8px 16px;
       display: flex; align-items: center; gap: 10px;
     }
     .sync-label { flex: 1; font-size: 11.5px; color: var(--ink-soft); }
@@ -415,14 +423,19 @@
 
 <!-- ── Topbar ── -->
 <div class="topbar">
-  <a class="topbar-back" id="backLink" href="./">‹</a>
-  <div class="topbar-ev">
-    <div class="topbar-ev-name" id="evName">Carregando…</div>
-    <div class="topbar-ev-meta" id="evMeta"></div>
+  <div class="topbar-inner">
+    <a class="topbar-back" id="backLink" href="./">‹</a>
+    <div class="topbar-ev">
+      <div class="topbar-ev-name" id="evName">Carregando…</div>
+      <div class="topbar-ev-meta" id="evMeta"></div>
+    </div>
+    <img class="topbar-logo" src="logo-moura.png" alt="Moura" onerror="this.style.display='none'" />
+    <button class="topbar-logout" id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
   </div>
-  <img class="topbar-logo" src="logo-moura.png" alt="Moura" onerror="this.style.display='none'" />
-  <button class="topbar-logout" id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
 </div>
+
+<!-- ── Conteúdo centralizado ── -->
+<div class="page">
 
 <!-- ── Stats ── -->
 <div class="stats">
@@ -459,10 +472,14 @@
   <div class="spinner"></div>
 </div>
 
+</div><!-- /.page -->
+
 <!-- ── Syncbar ── -->
 <div class="syncbar">
-  <span class="sync-label" id="syncLabel">Última atualização: —</span>
-  <button class="sync-btn" onclick="refreshStats()">↻ Atualizar</button>
+  <div class="syncbar-inner">
+    <span class="sync-label" id="syncLabel">Última atualização: —</span>
+    <button class="sync-btn" onclick="refreshStats()">↻ Atualizar</button>
+  </div>
 </div>
 
 <!-- ── QR Scanner overlay ── -->

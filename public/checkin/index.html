@@ -33,8 +33,10 @@
       position: sticky; top: 0; z-index: 30;
       background: var(--card);
       border-bottom: 3px solid var(--teal);
-      padding: 10px 16px;
-      padding-top: calc(10px + env(safe-area-inset-top, 0));
+      padding-top: env(safe-area-inset-top, 0);
+    }
+    .topbar-inner {
+      max-width: 780px; margin: 0 auto; padding: 10px 16px;
       display: flex; align-items: center; gap: 12px;
     }
     .topbar-logo { height: 26px; flex-shrink: 0; }
@@ -163,13 +165,15 @@
 
 <!-- ── Topbar ── -->
 <div class="topbar">
-  <img class="topbar-logo" src="logo-moura.png" alt="Moura" onerror="this.style.display='none'" />
-  <span class="topbar-appname">Check-in</span>
-  <div class="topbar-spacer"></div>
-  <span class="pill ok" id="connPill">Online</span>
-  <span class="operator-badge" id="operatorLabel" style="display:none">Operador</span>
-  <button class="userbtn" id="userBtn" style="display:none" title="Usuário" onclick="logout()">–</button>
-  <button class="logout-link" id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
+  <div class="topbar-inner">
+    <img class="topbar-logo" src="logo-moura.png" alt="Moura" onerror="this.style.display='none'" />
+    <span class="topbar-appname">Check-in</span>
+    <div class="topbar-spacer"></div>
+    <span class="pill ok" id="connPill">Online</span>
+    <span class="operator-badge" id="operatorLabel" style="display:none">Operador</span>
+    <button class="userbtn" id="userBtn" style="display:none" title="Usuário" onclick="logout()">–</button>
+    <button class="logout-link" id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
+  </div>
 </div>
 
 <!-- ── Content ── -->
