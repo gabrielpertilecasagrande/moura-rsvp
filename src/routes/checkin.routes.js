@@ -162,4 +162,26 @@ router.post('/register', (req, res) => {
   res.json({ ok: true, already_checked_in: false, participant_id: p.id, name: p.name, checked_in_at: now });
 });
 
+// ── POST /api/checkin/unregister ──────────────────────────────────────────────
+// Desfaz a chegada de um participante (desmarca o check-in).
+router.post('/unregister', (req, res) => {
+  const { participant_id } = req.body || {};
+  if (!participant_id) return res.status(400).json({ error: 'Informe participant_id.' });
+
+  const { event_id } = req.operatorToken;
+  const p = db.prepare(
+    'SELECT id, name, event_id, response, checked_in_at FROM participants WHERE id = ? AND deleted_at IS NULL'
+  ).get(Number(participant_id));
+
+  if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
+  if (event_id && p.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado a este evento.' });
+
+  if (!p.checked_in_at) {
+    return res.json({ ok: true, was_checked_in: false, participant_id: p.id, name: p.name });
+  }
+
+  db.prepare("UPDATE participants SET checked_in_at = NULL WHERE id = ?").run(p.id);
+  res.json({ ok: true, was_checked_in: true, participant_id: p.id, name: p.name });
+});
+
 module.exports = router;
