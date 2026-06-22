@@ -66,10 +66,37 @@ router.get('/events', (req, res) => {
     return res.json([ev]);
   }
   const evs = db.prepare(`
-    SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories
-    FROM events WHERE deleted_at IS NULL ORDER BY event_date DESC LIMIT 50
+    SELECT e.id, e.name, e.slug, e.event_date, e.event_time, e.location, e.city,
+           e.has_tables, e.use_categories,
+           (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.response = 'confirmado' AND p.deleted_at IS NULL) AS total_confirmed,
+           (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.response = 'confirmado' AND p.deleted_at IS NULL AND p.checked_in_at IS NOT NULL) AS checked_in
+    FROM events e WHERE e.deleted_at IS NULL ORDER BY e.event_date DESC LIMIT 50
   `).all();
   res.json(evs);
+});
+
+// ── POST /api/checkin/events ──────────────────────────────────────────────────
+// Cria um evento (usado pelo botão "+ Novo evento" do app de check-in).
+router.post('/events', (req, res) => {
+  // Operadores com link de 1 evento não criam eventos.
+  if (req.operatorToken && req.operatorToken.event_id) return res.status(403).json({ error: 'Sem permissão para criar eventos.' });
+  const b = req.body || {};
+  const name = String(b.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Informe o nome do evento.' });
+
+  // Gera um slug único a partir do nome.
+  const base = name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'evento';
+  let slug = base, n = 1;
+  while (db.prepare('SELECT 1 FROM events WHERE slug = ?').get(slug)) { slug = `${base}-${++n}`; }
+
+  const info = db.prepare(`
+    INSERT INTO events (slug, name, event_date, location, has_tables, use_categories)
+    VALUES (?, ?, ?, ?, ?, ?)
+  `).run(slug, name, String(b.event_date || '').trim() || null, String(b.location || '').trim() || null,
+         b.has_tables ? 1 : 0, b.use_categories ? 1 : 0);
+  const ev = db.prepare('SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories FROM events WHERE id = ?').get(info.lastInsertRowid);
+  res.json({ ok: true, event: ev });
 });
 
 // ── GET /api/checkin/events/:id/stats ────────────────────────────────────────
@@ -557,6 +584,18 @@ router.get('/participant/:pid/history', (req, res) => {
   if (event_id && p.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado a este evento.' });
   const log = db.prepare('SELECT action, actor, details, created_at FROM audit_log WHERE participant_id = ? ORDER BY created_at DESC LIMIT 50').all(p.id);
   res.json({ participant: p, log });
+});
+
+// ── GET /api/checkin/events/:id/activity ──────────────────────────────────────
+// Feed de atividades do evento (quem fez o quê) — usado no relatório.
+router.get('/events/:id/activity', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const rows = db.prepare(`
+    SELECT a.action, a.actor, a.details, a.created_at, p.name AS participant_name
+    FROM audit_log a LEFT JOIN participants p ON p.id = a.participant_id
+    WHERE a.event_id = ? ORDER BY a.created_at DESC LIMIT 200
+  `).all(reqId);
+  res.json(rows);
 });
 
 module.exports = router;
