@@ -87,6 +87,9 @@ function applyMigrations(db) {
   // Check-in: mesa e categoria por convidado (recursos do módulo de credenciamento).
   addColumn('participants', 'table_number', 'TEXT');
   addColumn('participants', 'category_id',  'INTEGER');
+  // Toggles por evento: habilitam o recurso de mesas e de categorias no check-in.
+  addColumn('events', 'has_tables',     'INTEGER DEFAULT 0');
+  addColumn('events', 'use_categories', 'INTEGER DEFAULT 0');
   db.exec(`
     CREATE TABLE IF NOT EXISTS checkin_tables (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,

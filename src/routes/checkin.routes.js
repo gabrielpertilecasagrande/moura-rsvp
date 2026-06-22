@@ -6,6 +6,8 @@ const { runWithDb }  = require('../db');
 const { routerDb }   = require('../router');
 const { rateLimit }  = require('../middleware/rateLimit');
 const { SECRET }     = require('../middleware/auth');
+const { normalizeName } = require('../utils/normalize');
+const { genQrToken }    = require('../utils/qrToken');
 
 const router = express.Router();
 
@@ -57,14 +59,14 @@ router.get('/events', (req, res) => {
   const { event_id } = req.operatorToken;
   if (event_id) {
     const ev = db.prepare(`
-      SELECT id, name, slug, event_date, event_time, location, city
+      SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories
       FROM events WHERE id = ? AND deleted_at IS NULL
     `).get(event_id);
     if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
     return res.json([ev]);
   }
   const evs = db.prepare(`
-    SELECT id, name, slug, event_date, event_time, location, city
+    SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories
     FROM events WHERE deleted_at IS NULL ORDER BY event_date DESC LIMIT 50
   `).all();
   res.json(evs);
@@ -386,6 +388,175 @@ router.post('/participant/:pid/assign', (req, res) => {
   db.prepare(`UPDATE participants SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
   const updated = db.prepare('SELECT id, table_number, category_id FROM participants WHERE id = ?').get(p.id);
   res.json({ ok: true, ...updated });
+});
+
+// Nome de quem está operando (admin via JWT ou operador via link), p/ auditoria.
+function actorName(req) {
+  if (req.admin && (req.admin.name || req.admin.email)) return req.admin.name || req.admin.email;
+  return 'Operador (check-in)';
+}
+function logAudit(participantId, eventId, action, actor, details) {
+  try {
+    db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, details) VALUES (?, ?, ?, ?, ?)`)
+      .run(participantId || null, eventId, action, actor, details || null);
+  } catch { /* auditoria não deve quebrar a operação */ }
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+//  EVENTO — editar configurações do check-in / excluir
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── PATCH /api/checkin/events/:id ─────────────────────────────────────────────
+// Edita nome, data, local e os toggles de mesas/categorias. Campos ausentes não mudam.
+router.patch('/events/:id', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const b = req.body || {};
+  const sets = [], vals = [];
+  if (b.name        != null) { const n = String(b.name).trim(); if (!n) return res.status(400).json({ error: 'O nome não pode ficar vazio.' }); sets.push('name = ?'); vals.push(n); }
+  if (b.event_date  != null) { sets.push('event_date = ?'); vals.push(String(b.event_date).trim() || null); }
+  if (b.location    != null) { sets.push('location = ?');   vals.push(String(b.location).trim() || null); }
+  if (b.has_tables     != null) { sets.push('has_tables = ?');     vals.push(b.has_tables ? 1 : 0); }
+  if (b.use_categories != null) { sets.push('use_categories = ?'); vals.push(b.use_categories ? 1 : 0); }
+  if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar.' });
+  sets.push("updated_at = datetime('now')");
+  vals.push(reqId);
+  db.prepare(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  const ev = db.prepare('SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories FROM events WHERE id = ?').get(reqId);
+  res.json({ ok: true, event: ev });
+});
+
+// ── DELETE /api/checkin/events/:id ────────────────────────────────────────────
+// Move o evento para a lixeira (soft-delete, recuperável).
+router.delete('/events/:id', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  // Operadores com link de 1 evento não podem excluir o evento.
+  if (req.operatorToken && req.operatorToken.event_id) return res.status(403).json({ error: 'Sem permissão para excluir o evento.' });
+  db.prepare("UPDATE events SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?").run(actorName(req), reqId);
+  res.json({ ok: true });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+//  CONVIDADOS — adicionar / editar / remover / importar / histórico
+// ════════════════════════════════════════════════════════════════════════════
+
+// ── POST /api/checkin/events/:id/participants ─────────────────────────────────
+// Adiciona um convidado confirmado ao evento.
+router.post('/events/:id/participants', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const b = req.body || {};
+  const name = String(b.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'Informe o nome do convidado.' });
+  const normalized = normalizeName(name);
+
+  const existing = db.prepare('SELECT id, deleted_at FROM participants WHERE event_id = ? AND name_normalized = ?').get(reqId, normalized);
+  if (existing && !existing.deleted_at) return res.status(409).json({ error: 'Já existe um convidado com esse nome neste evento.' });
+
+  const company = b.company != null ? String(b.company).trim() || null : null;
+  const phone   = b.phone   != null ? String(b.phone).trim()   || null : null;
+  const notes   = b.notes   != null ? String(b.notes).trim()   || null : null;
+  const tableNo = b.table_number != null && String(b.table_number).trim() !== '' ? String(b.table_number).trim() : null;
+  const catId   = b.category_id != null && b.category_id !== '' ? Number(b.category_id) : null;
+
+  let id;
+  if (existing) {
+    // Reaproveita o registro que estava na lixeira.
+    db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, phone=?, notes=?, table_number=?, category_id=?, response='confirmado', qr_token=COALESCE(qr_token, ?), checked_in_at=NULL, deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now') WHERE id=?`)
+      .run(name, normalized, company, phone, notes, tableNo, catId, genQrToken(), existing.id);
+    id = existing.id;
+  } else {
+    const info = db.prepare(`INSERT INTO participants (event_id, name, name_normalized, company, phone, notes, table_number, category_id, response, qr_token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmado', ?)`)
+      .run(reqId, name, normalized, company, phone, notes, tableNo, catId, genQrToken());
+    id = info.lastInsertRowid;
+  }
+  logAudit(id, reqId, 'criou', actorName(req), 'Convidado adicionado pelo check-in');
+  const p = db.prepare('SELECT id, name, company, role, phone, checked_in_at, qr_token, table_number, category_id FROM participants WHERE id = ?').get(id);
+  res.json({ ok: true, participant: p });
+});
+
+// ── PATCH /api/checkin/participant/:pid ───────────────────────────────────────
+// Edita os dados de um convidado.
+router.patch('/participant/:pid', (req, res) => {
+  const { event_id } = req.operatorToken;
+  const p = db.prepare('SELECT id, event_id, name FROM participants WHERE id = ? AND deleted_at IS NULL').get(Number(req.params.pid));
+  if (!p) return res.status(404).json({ error: 'Convidado não encontrado.' });
+  if (event_id && p.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado a este evento.' });
+
+  const b = req.body || {};
+  const sets = [], vals = [];
+  if (b.name != null) {
+    const n = String(b.name).trim();
+    if (!n) return res.status(400).json({ error: 'O nome não pode ficar vazio.' });
+    const normalized = normalizeName(n);
+    const dup = db.prepare('SELECT id FROM participants WHERE event_id = ? AND name_normalized = ? AND id <> ? AND deleted_at IS NULL').get(p.event_id, normalized, p.id);
+    if (dup) return res.status(409).json({ error: 'Já existe outro convidado com esse nome.' });
+    sets.push('name = ?', 'name_normalized = ?'); vals.push(n, normalized);
+  }
+  if (b.company != null)      { sets.push('company = ?');      vals.push(String(b.company).trim() || null); }
+  if (b.phone != null)        { sets.push('phone = ?');        vals.push(String(b.phone).trim() || null); }
+  if (b.notes != null)        { sets.push('notes = ?');        vals.push(String(b.notes).trim() || null); }
+  if (Object.prototype.hasOwnProperty.call(b, 'table_number')) { sets.push('table_number = ?'); vals.push(b.table_number == null || String(b.table_number).trim() === '' ? null : String(b.table_number).trim()); }
+  if (Object.prototype.hasOwnProperty.call(b, 'category_id'))  { sets.push('category_id = ?');  vals.push(b.category_id == null || b.category_id === '' ? null : Number(b.category_id)); }
+  if (!sets.length) return res.status(400).json({ error: 'Nada para atualizar.' });
+  sets.push("updated_at = datetime('now')");
+  vals.push(p.id);
+  db.prepare(`UPDATE participants SET ${sets.join(', ')} WHERE id = ?`).run(...vals);
+  logAudit(p.id, p.event_id, 'editou', actorName(req), 'Convidado editado pelo check-in');
+  const out = db.prepare('SELECT id, name, company, role, phone, checked_in_at, qr_token, table_number, category_id FROM participants WHERE id = ?').get(p.id);
+  res.json({ ok: true, participant: out });
+});
+
+// ── DELETE /api/checkin/participant/:pid ──────────────────────────────────────
+// Remove um convidado (lixeira / soft-delete, recuperável).
+router.delete('/participant/:pid', (req, res) => {
+  const { event_id } = req.operatorToken;
+  const p = db.prepare('SELECT id, event_id, name FROM participants WHERE id = ? AND deleted_at IS NULL').get(Number(req.params.pid));
+  if (!p) return res.status(404).json({ error: 'Convidado não encontrado.' });
+  if (event_id && p.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado a este evento.' });
+  db.prepare("UPDATE participants SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?").run(actorName(req), p.id);
+  logAudit(p.id, p.event_id, 'removeu', actorName(req), 'Convidado removido pelo check-in');
+  res.json({ ok: true });
+});
+
+// ── POST /api/checkin/events/:id/participants/bulk ────────────────────────────
+// Importa uma lista de convidados. Body: { rows: [{ name, company?, phone?, table_number? }] }
+router.post('/events/:id/participants/bulk', (req, res) => {
+  const reqId = resolveEvent(req, res); if (reqId === null) return;
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ error: 'Nenhuma linha para importar.' });
+
+  let added = 0, skipped = 0;
+  const findNorm = db.prepare('SELECT id, deleted_at FROM participants WHERE event_id = ? AND name_normalized = ?');
+  const ins = db.prepare(`INSERT INTO participants (event_id, name, name_normalized, company, phone, table_number, response, qr_token) VALUES (?, ?, ?, ?, ?, ?, 'confirmado', ?)`);
+  const revive = db.prepare(`UPDATE participants SET name=?, company=?, phone=?, table_number=?, response='confirmado', qr_token=COALESCE(qr_token, ?), deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now') WHERE id=?`);
+  const tx = db.transaction(() => {
+    for (const r of rows) {
+      const name = String(r?.name || '').trim();
+      if (!name) { skipped++; continue; }
+      const normalized = normalizeName(name);
+      const company = r.company != null ? String(r.company).trim() || null : null;
+      const phone   = r.phone   != null ? String(r.phone).trim()   || null : null;
+      const tableNo = r.table_number != null && String(r.table_number).trim() !== '' ? String(r.table_number).trim() : null;
+      const ex = findNorm.get(reqId, normalized);
+      if (ex && !ex.deleted_at) { skipped++; continue; }
+      if (ex) revive.run(name, company, phone, tableNo, genQrToken(), ex.id);
+      else    ins.run(reqId, name, normalized, company, phone, tableNo, genQrToken());
+      added++;
+    }
+  });
+  tx();
+  logAudit(null, reqId, 'criou', actorName(req), `Importação de lista pelo check-in (${added} adicionados)`);
+  res.json({ ok: true, added, skipped });
+});
+
+// ── GET /api/checkin/participant/:pid/history ─────────────────────────────────
+// Ficha + linha do tempo de um convidado.
+router.get('/participant/:pid/history', (req, res) => {
+  const { event_id } = req.operatorToken;
+  const p = db.prepare('SELECT id, event_id, name, company, phone, table_number, category_id, checked_in_at, created_at FROM participants WHERE id = ?').get(Number(req.params.pid));
+  if (!p) return res.status(404).json({ error: 'Convidado não encontrado.' });
+  if (event_id && p.event_id !== event_id) return res.status(403).json({ error: 'Acesso negado a este evento.' });
+  const log = db.prepare('SELECT action, actor, details, created_at FROM audit_log WHERE participant_id = ? ORDER BY created_at DESC LIMIT 50').all(p.id);
+  res.json({ participant: p, log });
 });
 
 module.exports = router;
