@@ -228,12 +228,21 @@ function showErr(m) { const err = document.getElementById('err'); err.textConten
 function showResult(r) {
   const ok = r.response === 'confirmado';
   const check = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>';
+  // Código de entrada (QR): exibido apenas para quem confirmou presença.
+  const qr = (ok && r.qr_token) ? `
+      <div class="entry-qr" style="margin-top:22px;padding-top:18px;border-top:1px solid rgba(0,0,0,.08)">
+        <p style="font-weight:600;margin:0 0 4px">Seu código de entrada</p>
+        <p class="muted" style="margin:0 0 12px;font-size:14px">Apresente este QR Code na recepção do evento para agilizar seu check-in.</p>
+        <img src="/api/public/qr/${encodeURIComponent(r.qr_token)}.png" alt="QR Code de entrada"
+             width="200" height="200" style="border-radius:12px;background:#fff;padding:8px;box-shadow:0 1px 6px rgba(0,0,0,.12)" />
+      </div>` : '';
   document.getElementById('form-slot').innerHTML = `
     <div class="divider"></div>
     <div class="result">
       <div class="badge ok">${check}</div>
       <h2>${ok ? 'Presença confirmada' : 'Resposta registrada'}</h2>
       <p>${esc(r.message)}</p>
+      ${qr}
       ${r.updated ? '' : `<div class="note">Precisa alterar sua resposta? Basta acessar este mesmo link novamente e reenviar — seus dados serão atualizados.</div>`}
       <button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="location.reload()">Enviar nova resposta</button>
       ${whatsappButton('Falar com a organização')}

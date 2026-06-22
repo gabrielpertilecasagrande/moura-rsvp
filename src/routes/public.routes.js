@@ -1,10 +1,12 @@
 'use strict';
 // Rotas públicas (sem autenticação) — usadas pela página /rsvp/:slug
 const express = require('express');
+const QRCode = require('qrcode');
 const db = require('../db');
 const { findTenantBySlug } = require('../router');
 const { runWithDb } = require('../db');
 const { normalizeName }  = require('../utils/normalize');
+const { genQrToken } = require('../utils/qrToken');
 const { parseFormConfig, customFields, sanitizeAnswer, isFilled } = require('../utils/formConfig');
 
 const router = express.Router();
@@ -41,6 +43,23 @@ async function currentConsentVersion() {
     return _verCache.value;
   } catch { return _verCache.value; }
 }
+
+// GET /api/public/qr/:token.png — imagem do QR de entrada do convidado.
+// O conteúdo do QR é o próprio token (lido pelo app de check-in em
+// /api/checkin/lookup?qr=<token>). Não exige login nem contexto de tenant:
+// é apenas a renderização visual de um código aleatório (hex), seguro de expor.
+router.get('/qr/:token', async (req, res) => {
+  const token = String(req.params.token || '').replace(/\.png$/i, '').replace(/[^a-fA-F0-9]/g, '').slice(0, 64);
+  if (token.length < 8) return res.status(400).json({ error: 'Código inválido.' });
+  try {
+    const png = await QRCode.toBuffer(token, { type: 'png', width: 360, margin: 1 });
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.send(png);
+  } catch {
+    res.status(500).json({ error: 'Falha ao gerar o QR Code.' });
+  }
+});
 
 function collectExtra(cfg, rawExtra) {
   const out = {};
@@ -175,15 +194,21 @@ router.post('/events/:slug/rsvp', (req, res) => {
 
     // Aplica UPDATE em um registro existente (correção da própria resposta).
     const doUpdate = (target) => {
+      // Gera o código de entrada (QR) na primeira confirmação; preserva o já
+      // existente para não invalidar um QR já apresentado ao convidado.
+      const qrToken = response === 'confirmado'
+        ? (target.qr_token || genQrToken())
+        : (target.qr_token || null);
+
       db.prepare(`
         UPDATE participants SET name=?, company=?, role=?, email=?,
-          phone=?, response=?, name_normalized=?, extra=?,
+          phone=?, response=?, name_normalized=?, extra=?, qr_token=?,
           accepted_terms=1, accepted_privacy_policy=1, accepted_data_processing=1,
           consent_date=datetime('now'), consent_ip=?, terms_version=?, privacy_version=?,
           deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now')
         WHERE id=?
       `).run(String(name).trim(), company || null, role || null, email || null,
-             phone || null, response, normalized, extraJson,
+             phone || null, response, normalized, extraJson, qrToken,
              consentIp, termsVersion, privacyVersion, target.id);
 
       db.prepare(`
@@ -196,6 +221,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
         updated: true,
         message: personalize(response === 'confirmado' ? e.confirm_message : e.decline_message, name),
         response,
+        qr_token: response === 'confirmado' ? qrToken : null,
       });
     };
 
@@ -207,12 +233,13 @@ router.post('/events/:slug/rsvp', (req, res) => {
     // Sem correspondência por contato → novo registro. Pode colidir com o índice
     // único (event_id, name_normalized) se já houver alguém com o mesmo nome.
     try {
+      const qrToken = response === 'confirmado' ? genQrToken() : null;
       const info = db.prepare(`
-        INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra,
+        INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra, qr_token,
           accepted_terms, accepted_privacy_policy, accepted_data_processing, consent_date, consent_ip, terms_version, privacy_version)
-        VALUES (?,?,?,?,?,?,?,?,?, 1, 1, 1, datetime('now'), ?, ?, ?)
+        VALUES (?,?,?,?,?,?,?,?,?,?, 1, 1, 1, datetime('now'), ?, ?, ?)
       `).run(e.id, String(name).trim(), normalized, company || null, role || null,
-             email || null, phone || null, response, extraJson,
+             email || null, phone || null, response, extraJson, qrToken,
              consentIp, termsVersion, privacyVersion);
 
       db.prepare(`
@@ -225,6 +252,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
         updated: false,
         message: personalize(response === 'confirmado' ? e.confirm_message : e.decline_message, name),
         response,
+        qr_token: qrToken,
       });
     } catch (err) {
       if (!/UNIQUE/i.test(String(err && err.message))) throw err;

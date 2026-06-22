@@ -4,6 +4,7 @@ const PDFDocument = require('pdfkit');
 const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { normalizeName } = require('../utils/normalize');
+const { genQrToken } = require('../utils/qrToken');
 const { logActivity } = require('../utils/activity');
 const { parseFormConfig, customFields, sanitizeAnswer, extraValueToText } = require('../utils/formConfig');
 const { requirePerm } = require('../utils/permissions');
@@ -247,19 +248,22 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
     });
   }
   if (existing && b.force_update) {
+    // Garante o código de entrada (QR) ao confirmar; preserva o existente.
+    const qrToken = response === 'confirmado' ? (existing.qr_token || genQrToken()) : (existing.qr_token || null);
     // Atualizar um cadastro existente também o restaura, caso estivesse na lixeira.
-    db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, extra=?, deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now') WHERE id=?`)
-      .run(name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, mergeExtra(existing.extra, cfg, b.extra), existing.id);
+    db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, extra=?, qr_token=?, deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now') WHERE id=?`)
+      .run(name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, mergeExtra(existing.extra, cfg, b.extra), qrToken, existing.id);
     db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details) VALUES (?,?,'editou',?,?,?,?)`)
       .run(existing.id, eventId, req.admin.name || req.admin.email || 'Administrador', existing.response, response, 'Atualização de cadastro existente (inclusão manual)');
     return res.json({ ok: true, updated: true, participant: db.prepare('SELECT * FROM participants WHERE id=?').get(existing.id) });
   }
 
   const newNotes = sanitizeNotes(b.notes);
+  const qrToken = response === 'confirmado' ? genQrToken() : null;
   const info = db.prepare(
-    `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra, notes)
-     VALUES (?,?,?,?,?,?,?,?,?,?)`
-  ).run(eventId, name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, newExtra, newNotes === undefined ? null : newNotes);
+    `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra, notes, qr_token)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+  ).run(eventId, name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, newExtra, newNotes === undefined ? null : newNotes, qrToken);
 
   db.prepare(
     `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
@@ -284,8 +288,8 @@ router.post('/bulk', requirePerm('can_participants'), (req, res) => {
   if (!lines.length) return res.status(400).json({ error: 'Cole ao menos um nome.' });
 
   const insert = db.prepare(
-    `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response)
-     VALUES (?,?,?,?,?,?,?,?)`
+    `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, qr_token)
+     VALUES (?,?,?,?,?,?,?,?,?)`
   );
   const audit = db.prepare(
     `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
@@ -301,7 +305,7 @@ router.post('/bulk', requirePerm('can_participants'), (req, res) => {
     const normalized = normalizeName(name);
     const dup = findDup(eventId, { email: cols[1], phone: cols[4], normalized });
     if (dup) { skipped.push(name); continue; }
-    const info = insert.run(eventId, name, normalized, cols[2] || null, cols[3] || null, cols[1] || null, cols[4] || null, response);
+    const info = insert.run(eventId, name, normalized, cols[2] || null, cols[3] || null, cols[1] || null, cols[4] || null, response, response === 'confirmado' ? genQrToken() : null);
     audit.run(info.lastInsertRowid, eventId, actor, response, 'Inclusão em lote pelo administrador');
     added++;
   }
