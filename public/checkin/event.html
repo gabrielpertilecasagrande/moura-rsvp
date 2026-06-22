@@ -141,7 +141,8 @@
     .ck:hover { background: var(--navy-tint); }
     .ck:active { transform: scale(.96); }
     .ck:disabled { opacity: .45; cursor: default; transform: none; }
-    .ck.done { background: var(--teal); color: #0c3a3f; border-color: var(--teal); cursor: default; }
+    .ck.done { background: var(--teal); color: #0c3a3f; border-color: var(--teal); cursor: pointer; }
+    .ck.done:hover { background: #25aeb9; border-color: #25aeb9; }
 
     /* Three-dot menu button */
     .btn-menu {
@@ -407,8 +408,8 @@ function renderList(list) {
           </div>
           <div class="guest-actions">
             ${done
-              ? `<button class="ck done" disabled>✓ Presente</button>`
-              : `<button class="ck" onclick="registerCheckin(${p.id})">Registrar</button>`}
+              ? `<button class="ck done" onclick="undoCheckin(${p.id})" title="Toque para desfazer o check-in">✓ Presente</button>`
+              : `<button class="ck" onclick="registerCheckin(${p.id})">Check-in</button>`}
           </div>
         </div>`;
     }).join('');
@@ -445,7 +446,30 @@ async function registerCheckin(participantId) {
   } catch (e) {
     showToast(e.message, 'err');
     playBeep(false);
-    if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
+    if (btn) { btn.disabled = false; btn.textContent = 'Check-in'; }
+  }
+}
+
+// ── Desfazer check-in ────────────────────────────────────────────────────────
+async function undoCheckin(participantId) {
+  const p = allParticipants.find(x => x.id === participantId);
+  if (!p) return;
+  if (!confirm(`Desfazer o check-in de ${p.name}?`)) return;
+  const btn = document.querySelector(`#gc-${participantId} .ck`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const r = await apiFetch('/api/checkin/unregister', { method: 'POST', body: JSON.stringify({ participant_id: participantId }) });
+    p.checked_in_at = null;
+    if (r.was_checked_in) {
+      stats.checked_in = Math.max(0, stats.checked_in - 1);
+      updateKpis();
+      showToast('Check-in desfeito — ' + esc(r.name), 'warn');
+    }
+    filterList();
+  } catch (e) {
+    showToast(e.message, 'err');
+    if (btn) { btn.disabled = false; btn.textContent = '✓ Presente'; }
+    filterList();
   }
 }
 
