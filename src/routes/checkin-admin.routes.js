@@ -85,7 +85,7 @@ router.post('/tokens', requireRole('admin', 'gestor'), (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(token, tenantSlug, ev.id, label || null, expiresAt, createdBy);
 
-  const ciUrl = (process.env.CHECKIN_URL || '').replace(/\/$/, '');
+  const ciUrl = (process.env.CHECKIN_URL || (process.env.BASE_URL ? process.env.BASE_URL.replace(/\/$/, '') + '/checkin' : '')).replace(/\/$/, '');
   const url   = ciUrl ? `${ciUrl}?token=${token}&event=${ev.id}` : null;
 
   if (!req.serviceCall) logActivity(createdBy, 'emitiu token de operador para check-in', ev.name);
