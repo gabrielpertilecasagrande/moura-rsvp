@@ -123,6 +123,8 @@ app.use('/api/public',                       publicLimiter, require('./src/route
 app.use('/api/platform',                                    require('./src/routes/platform.routes'));
 app.use('/api/lgpd',                                        require('./src/routes/lgpd.routes'));
 app.use('/api/trash',                                       require('./src/routes/trash.routes'));
+app.use('/api/checkin',                                     require('./src/routes/checkin.routes'));
+app.use('/api/admin/checkin',                               require('./src/routes/checkin-admin.routes'));
 
 // ── Páginas ────────────────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.redirect('/admin/login.html'));
@@ -139,6 +141,11 @@ app.get(['/legal.html', '/privacidade', '/termos', '/cookies', '/lgpd'], (_req, 
 // Caminho configurável via PLATFORM_PATH para não expor URL previsível em produção.
 const PLATFORM_PATH = (process.env.PLATFORM_PATH || '/platform').replace(/\/+$/, '');
 app.get(PLATFORM_PATH, (_req, res) => res.sendFile(path.join(__dirname, 'public', 'platform', 'index.html')));
+
+// App de check-in para operadores (servido também via moura-checkin.netlify.app).
+app.use('/checkin/assets', express.static(path.join(__dirname, 'public', 'checkin', 'assets')));
+app.get('/checkin/event', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin', 'event.html')));
+app.get(['/checkin', '/checkin/'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin', 'index.html')));
 
 // ── Tratador de erros ──────────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars

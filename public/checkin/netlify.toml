@@ -1,0 +1,6 @@
+[build]
+  publish = "."
+  command = "node -e \"const fs=require('fs'),url=(process.env.RSVP_API_URL||'').replace(/\\/+$/,'');fs.writeFileSync('_redirects','/api/*  '+url+'/api/:splat  200\\n');\""
+
+[build.environment]
+  NODE_VERSION = "20"

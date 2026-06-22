@@ -77,6 +77,8 @@ function applyMigrations(db) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_events_deleted       ON events(deleted_at)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_participants_deleted ON participants(deleted_at)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_admins_deleted       ON admins(deleted_at)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_participants_qr      ON participants(qr_token)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_participants_checkin ON participants(event_id, checked_in_at)');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS data_erasures (

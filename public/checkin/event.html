@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#2C427E" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Check-in — Moura</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #2C427E; --navy-deep: #21345f; --cyan: #2BC2CE;
+      --off-white: #F2F3F3; --gray-soft: #eceded; --charcoal: #28282A;
+      --muted: #6b6f78; --ok: #22c55e; --danger: #ef4444; --yellow: #f59e0b;
+      --white: #fff; --radius: 14px; --radius-sm: 9px;
+      --shadow: 0 1px 2px rgba(40,40,42,.06), 0 6px 18px rgba(40,40,42,.06);
+    }
+    body { background: var(--off-white); font-family: 'Inter', system-ui, sans-serif; min-height: 100dvh; }
+
+    /* ── Top bar ── */
+    .topbar {
+      background: var(--navy); color: #fff; padding: 0 16px;
+      display: flex; align-items: center; gap: 12px; height: 56px;
+      position: sticky; top: 0; z-index: 30;
+      padding-top: env(safe-area-inset-top, 0);
+    }
+    .topbar-back { color: rgba(255,255,255,.6); font-size: 13px; text-decoration: none; flex-shrink: 0; }
+    .topbar-ev { flex: 1; overflow: hidden; }
+    .topbar-ev-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .topbar-ev-meta { font-size: 11px; color: rgba(255,255,255,.5); }
+    .topbar-logo { height: 24px; flex-shrink: 0; }
+
+    /* ── KPI bar ── */
+    .kpi-bar {
+      background: var(--navy-deep); display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,.06);
+    }
+    .kpi { flex: 1; text-align: center; padding: 10px 4px; border-right: 1px solid rgba(255,255,255,.06); }
+    .kpi:last-child { border-right: none; }
+    .kpi-n { font-size: 22px; font-weight: 800; color: #fff; line-height: 1; }
+    .kpi-n.ok { color: #4ade80; }
+    .kpi-n.pct { color: var(--cyan); }
+    .kpi-l { font-size: 9px; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+
+    /* ── Search / scan bar ── */
+    .search-bar {
+      background: var(--white); border-bottom: 1px solid var(--gray-soft);
+      padding: 10px 12px; display: flex; gap: 8px; align-items: center; position: sticky;
+      top: 56px; z-index: 20;
+    }
+    .search-input {
+      flex: 1; border: 1.5px solid var(--gray-soft); border-radius: var(--radius-sm);
+      padding: 10px 14px; font-size: 15px; outline: none; background: var(--off-white);
+      transition: border-color .15s;
+    }
+    .search-input:focus { border-color: var(--cyan); background: var(--white); }
+    .btn-scan {
+      background: var(--navy); color: #fff; border: none; border-radius: var(--radius-sm);
+      width: 44px; height: 44px; font-size: 20px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; transition: background .15s;
+    }
+    .btn-scan:hover { background: var(--navy-deep); }
+    .btn-scan.active { background: var(--cyan); }
+
+    /* ── Guest list ── */
+    .guest-list { padding: 8px 12px 80px; }
+    .guest-card {
+      background: var(--white); border-radius: var(--radius); padding: 14px 16px;
+      margin-bottom: 8px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px;
+      transition: opacity .2s;
+    }
+    .guest-card.done { opacity: .65; }
+    .guest-avatar {
+      width: 40px; height: 40px; border-radius: 50%; background: var(--navy);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
+      font-family: 'Inter', sans-serif;
+    }
+    .guest-avatar.done { background: var(--ok); }
+    .guest-info { flex: 1; overflow: hidden; }
+    .guest-name { font-size: 15px; font-weight: 600; color: var(--charcoal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .guest-meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+    .guest-time { font-size: 11px; color: var(--ok); margin-top: 2px; font-weight: 500; }
+    .btn-checkin {
+      background: var(--navy); color: #fff; border: none; border-radius: var(--radius-sm);
+      padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
+      transition: background .15s, transform .1s; flex-shrink: 0;
+    }
+    .btn-checkin:hover { background: var(--cyan); }
+    .btn-checkin:active { transform: scale(.96); }
+    .btn-checkin:disabled { background: var(--gray-soft); color: var(--muted); cursor: default; transform: none; }
+    .btn-done { background: var(--ok); color: #fff; border: none; border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; flex-shrink: 0; }
+
+    /* ── QR scanner overlay ── */
+    .scanner-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 50;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
+    }
+    .scanner-overlay.hidden { display: none; }
+    #qrVideo { width: 100%; max-width: 340px; border-radius: 12px; object-fit: cover; }
+    .scanner-frame {
+      position: relative; width: 100%; max-width: 340px;
+      border: 2px solid var(--cyan); border-radius: 12px; overflow: hidden; aspect-ratio: 1;
+    }
+    .scanner-corners {
+      position: absolute; inset: 0; pointer-events: none;
+    }
+    .scanner-corners::before, .scanner-corners::after {
+      content: ''; position: absolute; width: 28px; height: 28px;
+      border: 3px solid var(--cyan); border-radius: 4px;
+    }
+    .scanner-corners::before { top: 8px; left: 8px; border-right: none; border-bottom: none; }
+    .scanner-corners::after  { top: 8px; right: 8px; border-left: none; border-bottom: none; }
+    .scanner-label { color: #fff; font-size: 14px; }
+    .btn-close-scan {
+      background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2);
+      border-radius: var(--radius); padding: 10px 28px; font-size: 14px; cursor: pointer;
+    }
+
+    /* ── Toast / feedback ── */
+    .toast-wrap { position: fixed; top: 68px; left: 50%; transform: translateX(-50%); z-index: 100; pointer-events: none; }
+    .toast {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 18px; border-radius: 99px; font-size: 14px; font-weight: 600;
+      box-shadow: 0 4px 20px rgba(0,0,0,.2); animation: toastIn .25s ease; pointer-events: none;
+    }
+    .toast.ok   { background: var(--ok); color: #fff; }
+    .toast.warn { background: var(--yellow); color: #fff; }
+    .toast.err  { background: var(--danger); color: #fff; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* ── States ── */
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
+    .empty-state .icon { font-size: 36px; display: block; margin-bottom: 10px; }
+    .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-soft); border-top-color: var(--cyan); border-radius: 50%; animation: spin .7s linear infinite; margin: 48px auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .guest-count { font-size: 12px; color: var(--muted); padding: 6px 12px 2px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Topbar ── -->
+<div class="topbar">
+  <a class="topbar-back" href="/checkin/?token=TOKEN_PLACEHOLDER">← Eventos</a>
+  <div class="topbar-ev">
+    <div class="topbar-ev-name" id="evName">Carregando…</div>
+    <div class="topbar-ev-meta" id="evMeta"></div>
+  </div>
+  <img class="topbar-logo" src="/assets/img/logo-moura-white.png" alt="Moura" onerror="this.style.display='none'" />
+</div>
+
+<!-- ── KPIs ── -->
+<div class="kpi-bar" id="kpiBar">
+  <div class="kpi"><div class="kpi-n" id="kpiConfirmed">—</div><div class="kpi-l">Confirmados</div></div>
+  <div class="kpi"><div class="kpi-n ok" id="kpiPresent">—</div><div class="kpi-l">Presentes</div></div>
+  <div class="kpi"><div class="kpi-n pct" id="kpiPct">—</div><div class="kpi-l">Check-in</div></div>
+</div>
+
+<!-- ── Search bar ── -->
+<div class="search-bar">
+  <input class="search-input" id="searchInput" type="text" placeholder="Buscar convidado…" autocomplete="off" autocorrect="off" />
+  <button class="btn-scan" id="btnScan" title="Escanear QR Code">&#x1F4F7;</button>
+</div>
+
+<!-- ── Guest list ── -->
+<div class="guest-list" id="guestList">
+  <div class="spinner"></div>
+</div>
+
+<!-- ── QR Scanner overlay ── -->
+<div class="scanner-overlay hidden" id="scannerOverlay">
+  <div class="scanner-frame">
+    <video id="qrVideo" autoplay playsinline muted></video>
+    <div class="scanner-corners"></div>
+  </div>
+  <p class="scanner-label">Aponte para o QR Code do convidado</p>
+  <button class="btn-close-scan" id="btnCloseScan">Cancelar</button>
+</div>
+
+<!-- ── Toast ── -->
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script>
+const urlParams = new URLSearchParams(location.search);
+const TOKEN    = urlParams.get('token') || localStorage.getItem('ci_token') || '';
+const EVENT_ID = urlParams.get('event') || '';
+const API      = (window.CHECKIN_API || '').replace(/\/$/, '');
+
+if (TOKEN) localStorage.setItem('ci_token', TOKEN);
+
+// Fix back link
+document.querySelector('.topbar-back').href = '/checkin/?token=' + encodeURIComponent(TOKEN);
+
+let allParticipants = [];
+let stats = { total_confirmed: 0, checked_in: 0 };
+let scanStream = null;
+let scanning   = false;
+let debounceTimer;
+
+// ── API helper ──────────────────────────────────────────────────────────────
+function apiFetch(path, opts) {
+  return fetch(API + path, {
+    ...opts,
+    headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', ...(opts?.headers || {}) },
+  }).then(async r => {
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'Erro ' + r.status);
+    return data;
+  });
+}
+
+function esc(s) {
+  return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function fmtDate(d) {
+  if (!d) return '';
+  const [y, m, day] = d.split('-');
+  return `${day}/${m}/${y}`;
+}
+
+function fmtTime(iso) {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  } catch { return ''; }
+}
+
+function initials(name) {
+  return (name || '?').trim().split(/\s+/).slice(0, 2).map(n => n[0]).join('').toUpperCase();
+}
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+let toastTimer;
+function showToast(msg, type = 'ok') {
+  const wrap = document.getElementById('toastWrap');
+  clearTimeout(toastTimer);
+  wrap.innerHTML = `<div class="toast ${type}">${esc(msg)}</div>`;
+  toastTimer = setTimeout(() => { wrap.innerHTML = ''; }, 2800);
+}
+
+// ── KPIs ────────────────────────────────────────────────────────────────────
+function updateKpis() {
+  const c = stats.total_confirmed;
+  const p = stats.checked_in;
+  const pct = c > 0 ? Math.round(p / c * 100) : 0;
+  document.getElementById('kpiConfirmed').textContent = c;
+  document.getElementById('kpiPresent').textContent   = p;
+  document.getElementById('kpiPct').textContent       = pct + '%';
+}
+
+// ── Render guest list ────────────────────────────────────────────────────────
+function renderList(list) {
+  const el = document.getElementById('guestList');
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state"><span class="icon">🔍</span>Nenhum convidado encontrado.</div>`;
+    return;
+  }
+  el.innerHTML = `<div class="guest-count">${list.length} convidado${list.length !== 1 ? 's' : ''}</div>` +
+    list.map(p => {
+      const done = !!p.checked_in_at;
+      const meta = [p.company, p.role].filter(Boolean).join(' · ');
+      return `
+        <div class="guest-card${done ? ' done' : ''}" id="gc-${p.id}">
+          <div class="guest-avatar${done ? ' done' : ''}">${done ? '✓' : esc(initials(p.name))}</div>
+          <div class="guest-info">
+            <div class="guest-name">${esc(p.name)}</div>
+            ${meta ? `<div class="guest-meta">${esc(meta)}</div>` : ''}
+            ${done ? `<div class="guest-time">Chegou às ${fmtTime(p.checked_in_at)}</div>` : ''}
+          </div>
+          ${done
+            ? `<div class="btn-done">✓</div>`
+            : `<button class="btn-checkin" onclick="registerCheckin(${p.id})">Registrar</button>`}
+        </div>`;
+    }).join('');
+}
+
+function filterList() {
+  const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+  if (!q) { renderList(allParticipants); return; }
+  renderList(allParticipants.filter(p => p.name.toLowerCase().includes(q)));
+}
+
+// ── Check-in ─────────────────────────────────────────────────────────────────
+async function registerCheckin(participantId) {
+  const btn = document.querySelector(`#gc-${participantId} .btn-checkin`);
+  if (btn) { btn.disabled = true; btn.textContent = '…'; }
+  try {
+    const r = await apiFetch('/api/checkin/register', { method: 'POST', body: JSON.stringify({ participant_id: participantId }) });
+    const p = allParticipants.find(x => x.id === participantId);
+    if (p) {
+      p.checked_in_at = r.checked_in_at;
+      if (r.already_checked_in) {
+        showToast('Já havia chegado — ' + fmtTime(r.checked_in_at), 'warn');
+      } else {
+        stats.checked_in++;
+        updateKpis();
+        showToast('✓ Chegada registrada — ' + esc(r.name), 'ok');
+        playBeep(true);
+      }
+    }
+    filterList();
+  } catch (e) {
+    showToast(e.message, 'err');
+    playBeep(false);
+    if (btn) { btn.disabled = false; btn.textContent = 'Registrar'; }
+  }
+}
+
+// ── QR Scanner ───────────────────────────────────────────────────────────────
+async function handleQrResult(token) {
+  if (!scanning) return;
+  scanning = false;
+  stopScan();
+  try {
+    const p = await apiFetch('/api/checkin/lookup?qr=' + encodeURIComponent(token));
+    // Update local list
+    const local = allParticipants.find(x => x.id === p.id);
+    if (p.checked_in_at && local) {
+      showToast('Já havia chegado — ' + esc(p.name), 'warn');
+      playBeep(false);
+    } else {
+      await registerCheckin(p.id);
+    }
+  } catch (e) {
+    showToast(e.message, 'err');
+    playBeep(false);
+    scanning = true;
+  }
+}
+
+function stopScan() {
+  if (scanStream) { scanStream.getTracks().forEach(t => t.stop()); scanStream = null; }
+  document.getElementById('scannerOverlay').classList.add('hidden');
+  document.getElementById('btnScan').classList.remove('active');
+}
+
+async function startScan() {
+  const overlay = document.getElementById('scannerOverlay');
+  const video   = document.getElementById('qrVideo');
+  overlay.classList.remove('hidden');
+  document.getElementById('btnScan').classList.add('active');
+  scanning = true;
+  try {
+    scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+    video.srcObject = scanStream;
+    await video.play();
+
+    if ('BarcodeDetector' in window) {
+      const bd = new BarcodeDetector({ formats: ['qr_code'] });
+      const tick = async () => {
+        if (!scanning) return;
+        try {
+          const codes = await bd.detect(video);
+          if (codes.length) { await handleQrResult(codes[0].rawValue); return; }
+        } catch { /* sem código ainda */ }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    } else {
+      showToast('QR automático não suportado — use a câmera e busque o nome.', 'warn');
+    }
+  } catch (e) {
+    stopScan();
+    showToast('Câmera não disponível: ' + e.message, 'err');
+  }
+}
+
+document.getElementById('btnScan').addEventListener('click', () => {
+  if (scanStream) { stopScan(); scanning = false; } else { startScan(); }
+});
+document.getElementById('btnCloseScan').addEventListener('click', () => { scanning = false; stopScan(); });
+
+// ── Audio feedback ────────────────────────────────────────────────────────────
+function playBeep(success) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.value = success ? 880 : 220;
+    gain.gain.setValueAtTime(.4, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + (success ? .25 : .5));
+    osc.start(); osc.stop(ctx.currentTime + (success ? .25 : .5));
+  } catch { /* sem áudio */ }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+document.getElementById('searchInput').addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(filterList, 250);
+});
+
+async function init() {
+  if (!TOKEN || !EVENT_ID) {
+    document.getElementById('guestList').innerHTML = `<div class="empty-state"><span class="icon">🔒</span>Link inválido. Solicite um novo ao organizador.</div>`;
+    return;
+  }
+  try {
+    const [evList, s] = await Promise.all([
+      apiFetch('/api/checkin/events'),
+      apiFetch('/api/checkin/events/' + EVENT_ID + '/stats'),
+    ]);
+    const ev = evList.find(e => String(e.id) === String(EVENT_ID));
+    if (ev) {
+      document.getElementById('evName').textContent = ev.name;
+      const meta = [fmtDate(ev.event_date), ev.location, ev.city].filter(Boolean).join(' · ');
+      document.getElementById('evMeta').textContent = meta;
+    }
+    stats = s;
+    updateKpis();
+
+    allParticipants = await apiFetch('/api/checkin/events/' + EVENT_ID + '/participants');
+    filterList();
+
+    // Refresh stats every 30 seconds
+    setInterval(async () => {
+      try {
+        stats = await apiFetch('/api/checkin/events/' + EVENT_ID + '/stats');
+        updateKpis();
+      } catch { /* ignora */ }
+    }, 30000);
+  } catch (e) {
+    document.getElementById('guestList').innerHTML =
+      `<div class="empty-state"><span class="icon">⚠️</span>${esc(e.message)}</div>`;
+  }
+}
+
+init();
+</script>
+</body>
+</html>
