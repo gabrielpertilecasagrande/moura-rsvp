@@ -8,6 +8,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <title>Check-in — Moura</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
@@ -16,6 +20,7 @@
       --base: #F2F3F3; --card: #FFFFFF; --line: #D9D9D9; --line-soft: #E6E7E7;
       --ink: #28282A; --ink-soft: #6E6F72;
       --danger: #A4343A;
+      --amber: #B57614; --amber-tint: #FBF3E4;
       --shadow: 0 1px 2px rgba(40,40,42,.05), 0 4px 16px rgba(40,40,42,.07);
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
@@ -227,6 +232,174 @@
     .empty-state .icon { font-size: 36px; display: block; margin-bottom: 10px; }
     .spinner { width: 32px; height: 32px; border: 3px solid var(--line-soft); border-top-color: var(--teal); border-radius: 50%; animation: spin .7s linear infinite; margin: 48px auto; }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Action toolbar ── */
+    .actionbar {
+      display: flex; gap: 8px; padding: 10px 14px 2px; overflow-x: auto;
+      background: var(--card); -webkit-overflow-scrolling: touch;
+    }
+    .actionbar::-webkit-scrollbar { display: none; }
+    .act-btn {
+      flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 600; padding: 9px 14px; min-height: 40px;
+      border-radius: 99px; border: 1.5px solid var(--line); background: var(--card);
+      color: var(--navy); cursor: pointer; transition: all .12s; white-space: nowrap;
+      font-family: inherit;
+    }
+    .act-btn:hover { background: var(--navy-tint); }
+    .act-btn:active { transform: scale(.97); }
+    .act-btn.filled { background: var(--navy); border-color: var(--navy); color: #fff; }
+    .act-btn.filled:hover { background: var(--navy-dark); }
+
+    /* ── Category chips ── */
+    .catchips { display: flex; gap: 6px; padding: 4px 14px 8px; overflow-x: auto; }
+    .catchips::-webkit-scrollbar { display: none; }
+    .catchip {
+      flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; padding: 5px 11px;
+      border-radius: 99px; border: 1.5px solid var(--line); background: var(--card);
+      color: var(--ink-soft); cursor: pointer; transition: all .12s; white-space: nowrap;
+      font-family: inherit;
+    }
+    .catchip .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .catchip.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+
+    /* ── Guest chips (table + category) ── */
+    .guest-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 4px; }
+    .gchip {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 99px;
+      line-height: 1.5; cursor: pointer; border: 1px solid transparent;
+    }
+    .gchip.table { background: var(--navy-tint); color: var(--navy); }
+    .gchip.addtable { background: var(--base); color: var(--ink-soft); border: 1px dashed var(--line); }
+    .gchip.cat { color: #fff; }
+
+    /* ── Modal ── */
+    .modal-back {
+      position: fixed; inset: 0; z-index: 70; background: rgba(40,40,42,.45);
+      display: flex; align-items: flex-end; justify-content: center;
+      padding: 0; opacity: 0; transition: opacity .18s;
+    }
+    .modal-back.show { opacity: 1; }
+    @media (min-width: 540px) { .modal-back { align-items: center; padding: 20px; } }
+    .modal {
+      background: var(--card); width: 100%; max-width: 460px; max-height: 88vh;
+      border-radius: 18px 18px 0 0; box-shadow: var(--shadow);
+      display: flex; flex-direction: column; overflow: hidden;
+      transform: translateY(20px); transition: transform .18s;
+    }
+    .modal-back.show .modal { transform: translateY(0); }
+    @media (min-width: 540px) { .modal { border-radius: 18px; } }
+    .modal-head {
+      display: flex; align-items: center; gap: 10px; padding: 16px 18px 12px;
+      border-bottom: 1px solid var(--line-soft); flex-shrink: 0;
+    }
+    .modal-title { flex: 1; font-size: 17px; font-weight: 800; color: var(--navy); letter-spacing: -.01em; }
+    .modal-sub { font-size: 11.5px; color: var(--ink-soft); font-weight: 500; margin-top: 1px; }
+    .modal-x {
+      width: 32px; height: 32px; border-radius: 50%; border: none; background: var(--base);
+      color: var(--ink-soft); font-size: 18px; cursor: pointer; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; transition: background .12s;
+    }
+    .modal-x:hover { background: var(--line-soft); }
+    .modal-body { padding: 16px 18px; overflow-y: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+    .modal-foot { padding: 12px 18px calc(14px + env(safe-area-inset-bottom,0)); border-top: 1px solid var(--line-soft); flex-shrink: 0; display: flex; gap: 8px; }
+
+    /* form bits in modals */
+    .fld { margin-bottom: 12px; }
+    .fld label { display: block; font-size: 11.5px; font-weight: 700; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 5px; }
+    .fld input, .fld select {
+      width: 100%; border: 1.5px solid var(--line-soft); border-radius: 10px;
+      padding: 11px 12px; font-size: 14px; outline: none; background: var(--base);
+      font-family: inherit; color: var(--ink); transition: border-color .15s;
+    }
+    .fld input:focus, .fld select:focus { border-color: var(--teal); background: var(--card); }
+    .row2 { display: flex; gap: 8px; } .row2 > * { flex: 1; }
+
+    .mbtn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      font-weight: 700; font-size: 14px; padding: 11px 16px; min-height: 44px;
+      border-radius: 11px; border: 1.5px solid var(--navy); color: var(--navy);
+      background: var(--card); cursor: pointer; font-family: inherit; transition: all .12s; flex: 1;
+    }
+    .mbtn:hover { background: var(--navy-tint); }
+    .mbtn:active { transform: scale(.98); }
+    .mbtn.primary { background: var(--navy); color: #fff; }
+    .mbtn.primary:hover { background: var(--navy-dark); }
+    .mbtn.teal { background: var(--teal); color: #0c3a3f; border-color: var(--teal); }
+    .mbtn.teal:hover { background: #25aeb9; }
+    .mbtn.ghost { border-color: var(--line); color: var(--ink-soft); }
+    .mbtn.danger { border-color: var(--danger); color: var(--danger); background: var(--card); }
+    .mbtn.danger:hover { background: #fbeaea; }
+
+    /* tables grid */
+    .legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--ink-soft); margin-bottom: 12px; flex-wrap: wrap; }
+    .legend span { display: inline-flex; align-items: center; gap: 5px; }
+    .legend .sq { width: 11px; height: 11px; border-radius: 3px; }
+    .tgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+    .tcard {
+      border: 2px solid var(--line); border-radius: 12px; padding: 10px 8px; text-align: center;
+      background: var(--card);
+    }
+    .tcard.free { border-color: #bfe3cf; background: #f3faf6; }
+    .tcard.full { border-color: var(--teal-line); background: var(--teal-tint); }
+    .tcard.over { border-color: var(--amber); background: var(--amber-tint); }
+    .tcard .tname { font-size: 15px; font-weight: 800; color: var(--navy); }
+    .tcard .tnums { font-size: 10.5px; color: var(--ink-soft); margin-top: 3px; line-height: 1.5; }
+    .tcard .tpres { font-size: 10.5px; color: #127a83; font-weight: 700; margin-top: 2px; }
+
+    /* config table rows */
+    .trow { display: flex; align-items: center; gap: 7px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+    .trow input { padding: 8px 10px; font-size: 13px; }
+    .trow .tn { flex: 1.4; } .trow .tc { flex: 1; }
+    .icon-btn {
+      width: 38px; height: 38px; flex-shrink: 0; border-radius: 9px; border: 1.5px solid var(--line);
+      background: var(--card); cursor: pointer; font-size: 15px; display: flex;
+      align-items: center; justify-content: center; transition: all .12s;
+    }
+    .icon-btn.del { color: var(--danger); border-color: #e8c9cb; }
+    .icon-btn.del:hover { background: #fbeaea; }
+
+    /* selectable list (table/category assign) */
+    .pick { display: flex; flex-direction: column; gap: 7px; margin-bottom: 12px; }
+    .pick-item {
+      display: flex; align-items: center; gap: 10px; padding: 11px 13px; border-radius: 11px;
+      border: 1.5px solid var(--line-soft); background: var(--card); cursor: pointer;
+      font-size: 14px; font-weight: 600; color: var(--ink); transition: all .12s; text-align: left; font-family: inherit;
+    }
+    .pick-item:hover { border-color: var(--teal); background: var(--teal-tint); }
+    .pick-item.sel { border-color: var(--navy); background: var(--navy-tint); }
+    .pick-item .dot { width: 13px; height: 13px; border-radius: 50%; flex-shrink: 0; }
+    .pick-item .chk { margin-left: auto; color: var(--navy); font-weight: 800; }
+
+    /* live panel */
+    .live-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
+    .live-box { background: var(--base); border-radius: 11px; padding: 11px 6px; text-align: center; }
+    .live-box .n { font-size: 21px; font-weight: 800; color: var(--navy); line-height: 1; letter-spacing: -.02em; }
+    .live-box .n.ok { color: #0e7c39; } .live-box .n.teal { color: #127a83; }
+    .live-box .l { font-size: 9px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .04em; margin-top: 4px; font-weight: 700; }
+    .section-h { font-size: 12.5px; font-weight: 800; color: var(--navy); margin: 4px 0 8px; text-transform: uppercase; letter-spacing: .04em; }
+    .chart { display: flex; align-items: flex-end; gap: 3px; height: 70px; padding: 0 2px; border-bottom: 1px solid var(--line-soft); margin-bottom: 16px; }
+    .bar { flex: 1; background: var(--teal); border-radius: 3px 3px 0 0; min-height: 2px; transition: height .2s; }
+    .recent-item { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line-soft); }
+    .recent-item .av { width: 30px; height: 30px; border-radius: 50%; background: var(--teal); color: #0c3a3f; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+    .recent-item .nm { flex: 1; font-size: 13.5px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .recent-item .tm { font-size: 11.5px; color: #127a83; font-weight: 700; }
+
+    /* QR modal */
+    .qr-card { text-align: center; }
+    .qr-card canvas, .qr-card img { width: 220px; height: 220px; margin: 6px auto 10px; display: block; border-radius: 8px; }
+    .qr-token { font-size: 14px; font-weight: 800; letter-spacing: .12em; color: var(--navy); word-break: break-all; margin-top: 4px; }
+
+    .muted-note { font-size: 13px; color: var(--ink-soft); line-height: 1.5; text-align: center; padding: 10px 4px; }
+    .swatches { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+    .swatch { width: 32px; height: 32px; border-radius: 9px; cursor: pointer; border: 2px solid transparent; }
+    .swatch.sel { border-color: var(--ink); box-shadow: 0 0 0 2px #fff inset; }
+    .cat-manage-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+    .cat-manage-row .dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+    .cat-manage-row .nm { flex: 1; font-size: 14px; font-weight: 600; }
+    .cat-manage-row .ct { font-size: 11px; color: var(--ink-soft); }
   </style>
 </head>
 <body>
@@ -258,11 +431,19 @@
   </div>
   <button class="btn-scan" id="btnScan" title="Escanear QR Code">📷</button>
 </div>
+<div class="actionbar">
+  <button class="act-btn" onclick="openTablesModal()">▦ Mesas</button>
+  <button class="act-btn" onclick="openLiveModal()">◉ Ao vivo</button>
+  <button class="act-btn" onclick="openExportMenu(event)">⬇ Exportar</button>
+  <button class="act-btn" onclick="openCategoriesManager()">🏷 Categorias</button>
+  <button class="act-btn filled" onclick="openReportModal()">⊕ Relatório</button>
+</div>
 <div class="chips">
   <button class="chip active" id="chipAll"      onclick="setFilter('all')">Todos</button>
   <button class="chip"        id="chipPresent"  onclick="setFilter('present')">Presentes</button>
   <button class="chip"        id="chipPending"  onclick="setFilter('pending')">Ausentes</button>
 </div>
+<div class="catchips" id="catChips" style="display:none"></div>
 
 <!-- ── Guest list ── -->
 <div class="guest-list" id="guestList">
@@ -284,6 +465,9 @@
   <p class="scanner-label">Aponte para o QR Code do convidado</p>
   <button class="btn-close-scan" id="btnCloseScan">Cancelar</button>
 </div>
+
+<!-- ── Modal root ── -->
+<div id="modalRoot"></div>
 
 <!-- ── Toast ── -->
 <div class="toast" id="toast"></div>
@@ -316,6 +500,11 @@ let scanStream = null;
 let scanning   = false;
 let debounceTimer;
 let activeFilter = 'all'; // 'all' | 'present' | 'pending'
+let categories = [];
+let tables = [];
+let catFilter = ''; // '' = todas
+let eventName = 'Evento';
+const CAT_PALETTE = ['#B57614','#2C427E','#15795B','#7A2733','#2BC2CE','#6E6F72','#A4343A','#5B4B8A'];
 
 // ── API helper ──────────────────────────────────────────────────────────────
 function apiFetch(path, opts) {
@@ -387,6 +576,12 @@ function setFilter(f) {
   filterList();
 }
 
+// ── Category helpers ─────────────────────────────────────────────────────────
+function catById(id) {
+  if (id === null || id === undefined || id === '') return null;
+  return categories.find(c => String(c.id) === String(id)) || null;
+}
+
 // ── Render guest list ────────────────────────────────────────────────────────
 function renderList(list) {
   const el = document.getElementById('guestList');
@@ -398,6 +593,13 @@ function renderList(list) {
     list.map(p => {
       const done = !!p.checked_in_at;
       const meta = [p.company, p.role].filter(Boolean).join(' · ');
+      const cat = catById(p.category_id);
+      const tableChip = p.table_number
+        ? `<span class="gchip table" onclick="openTableAssign(${p.id})">○ Mesa ${esc(p.table_number)}</span>`
+        : `<span class="gchip addtable" onclick="openTableAssign(${p.id})">+ mesa</span>`;
+      const catChip = cat
+        ? `<span class="gchip cat" style="background:${esc(cat.color || '#6E6F72')}" onclick="openCategoryAssign(${p.id})">${esc(cat.name)}</span>`
+        : '';
       return `
         <div class="guest${done ? ' present' : ''}" id="gc-${p.id}">
           <div class="guest-avatar">${done ? '✓' : esc(initials(p.name))}</div>
@@ -405,11 +607,13 @@ function renderList(list) {
             <div class="guest-name">${esc(p.name)}</div>
             ${meta ? `<div class="guest-meta">${esc(meta)}</div>` : ''}
             ${done ? `<div class="guest-time">Chegou às ${fmtTime(p.checked_in_at)}</div>` : ''}
+            <div class="guest-chips">${tableChip}${catChip}</div>
           </div>
           <div class="guest-actions">
             ${done
               ? `<button class="ck done" onclick="undoCheckin(${p.id})" title="Toque para desfazer o check-in">✓ Presente</button>`
               : `<button class="ck" onclick="registerCheckin(${p.id})">Check-in</button>`}
+            <button class="btn-menu" onclick="openRowMenu(event, ${p.id})" title="Mais opções">⋮</button>
           </div>
         </div>`;
     }).join('');
@@ -420,8 +624,62 @@ function filterList() {
   let list = allParticipants;
   if (activeFilter === 'present') list = list.filter(p => !!p.checked_in_at);
   if (activeFilter === 'pending') list = list.filter(p => !p.checked_in_at);
-  if (q) list = list.filter(p => p.name.toLowerCase().includes(q));
+  if (catFilter !== '') list = list.filter(p => String(p.category_id || '') === String(catFilter));
+  if (q) list = list.filter(p => (p.name || '').toLowerCase().includes(q));
   renderList(list);
+}
+
+// ── Category chip row ────────────────────────────────────────────────────────
+function renderCatChips() {
+  const el = document.getElementById('catChips');
+  if (!categories.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  // counts from participants
+  const counts = {};
+  allParticipants.forEach(p => { if (p.category_id != null && p.category_id !== '') counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
+  el.innerHTML =
+    `<button class="catchip${catFilter === '' ? ' active' : ''}" onclick="setCatFilter('')">Todas categorias</button>` +
+    categories.map(c => `
+      <button class="catchip${String(catFilter) === String(c.id) ? ' active' : ''}" onclick="setCatFilter('${c.id}')">
+        <span class="dot" style="background:${esc(c.color || '#6E6F72')}"></span>${esc(c.name)} ${counts[c.id] || 0}
+      </button>`).join('');
+}
+
+function setCatFilter(id) {
+  catFilter = id;
+  renderCatChips();
+  filterList();
+}
+
+// ── Row three-dot menu ───────────────────────────────────────────────────────
+function closeRowMenu() {
+  document.querySelectorAll('.menu-pop, .row-backdrop').forEach(e => e.remove());
+}
+function openRowMenu(ev, pid) {
+  ev.stopPropagation();
+  closeRowMenu();
+  const back = document.createElement('div');
+  back.className = 'backdrop row-backdrop';
+  back.onclick = closeRowMenu;
+  document.body.appendChild(back);
+
+  const pop = document.createElement('div');
+  pop.className = 'menu-pop';
+  pop.innerHTML = `
+    <button onclick="closeRowMenu();openQrModal(${pid})">🔳 Ver QR Code</button>
+    <button onclick="closeRowMenu();openTableAssign(${pid})">▦ Definir / trocar mesa</button>
+    <button onclick="closeRowMenu();openCategoryAssign(${pid})">🏷 Definir categoria</button>`;
+  document.body.appendChild(pop);
+
+  const r = ev.currentTarget.getBoundingClientRect();
+  const w = 185;
+  let left = r.right - w;
+  if (left < 8) left = 8;
+  let top = r.bottom + 4;
+  const ph = pop.offsetHeight;
+  if (top + ph > window.innerHeight - 8) top = r.top - ph - 4;
+  pop.style.left = left + 'px';
+  pop.style.top = Math.max(8, top) + 'px';
 }
 
 // ── Check-in ─────────────────────────────────────────────────────────────────
@@ -566,6 +824,559 @@ document.getElementById('searchInput').addEventListener('input', () => {
   debounceTimer = setTimeout(filterList, 250);
 });
 
+// ── Generic modal ────────────────────────────────────────────────────────────
+let modalCloseHook = null;
+function openModal(html, onClose) {
+  closeModal();
+  modalCloseHook = onClose || null;
+  const root = document.getElementById('modalRoot');
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+  back.innerHTML = `<div class="modal" onclick="event.stopPropagation()">${html}</div>`;
+  back.addEventListener('click', closeModal);
+  root.appendChild(back);
+  requestAnimationFrame(() => back.classList.add('show'));
+  return back;
+}
+function closeModal() {
+  if (modalCloseHook) { try { modalCloseHook(); } catch {} modalCloseHook = null; }
+  const root = document.getElementById('modalRoot');
+  if (root) root.innerHTML = '';
+}
+function modalShell(title, sub, bodyHtml, footHtml) {
+  return `
+    <div class="modal-head">
+      <div style="flex:1;min-width:0">
+        <div class="modal-title">${title}</div>
+        ${sub ? `<div class="modal-sub">${sub}</div>` : ''}
+      </div>
+      <button class="modal-x" onclick="closeModal()" aria-label="Fechar">×</button>
+    </div>
+    <div class="modal-body">${bodyHtml}</div>
+    ${footHtml ? `<div class="modal-foot">${footHtml}</div>` : ''}`;
+}
+
+// ── Data loading: categories + tables ────────────────────────────────────────
+async function loadCategories() {
+  try { categories = await apiFetch('/api/checkin/events/' + EVENT_ID + '/categories') || []; }
+  catch { categories = []; }
+}
+async function loadTables() {
+  try { tables = await apiFetch('/api/checkin/events/' + EVENT_ID + '/tables') || []; }
+  catch { tables = []; }
+}
+
+// ── Export menu (Excel + CSV) ────────────────────────────────────────────────
+function exportRows() {
+  return allParticipants.map(p => {
+    const cat = catById(p.category_id);
+    return {
+      Nome: p.name || '',
+      Empresa: p.company || '',
+      Mesa: p.table_number || '',
+      Categoria: cat ? cat.name : '',
+      Status: p.checked_in_at ? 'Presente' : 'Ausente',
+      Hora: p.checked_in_at ? fmtTime(p.checked_in_at) : '',
+    };
+  });
+}
+function safeFileBase() { return (eventName || 'evento').replace(/[^\w\-]+/g, '-').toLowerCase(); }
+
+function exportExcel() {
+  try {
+    const ws = XLSX.utils.json_to_sheet(exportRows());
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Check-in');
+    XLSX.writeFile(wb, safeFileBase() + '-checkin.xlsx');
+    showToast('Excel gerado', 'ok');
+  } catch (e) { showToast('Erro ao gerar Excel', 'err'); }
+}
+function exportCSV() {
+  try {
+    const rows = exportRows();
+    const cols = ['Nome','Empresa','Mesa','Categoria','Status','Hora'];
+    const esc2 = v => `"${String(v).replace(/"/g, '""')}"`;
+    const csv = [cols.join(',')].concat(rows.map(r => cols.map(c => esc2(r[c])).join(','))).join('\r\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = safeFileBase() + '-checkin.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 500);
+    showToast('CSV gerado', 'ok');
+  } catch (e) { showToast('Erro ao gerar CSV', 'err'); }
+}
+function openExportMenu(ev) {
+  ev.stopPropagation();
+  closeRowMenu();
+  const back = document.createElement('div');
+  back.className = 'backdrop row-backdrop';
+  back.onclick = closeRowMenu;
+  document.body.appendChild(back);
+  const pop = document.createElement('div');
+  pop.className = 'menu-pop';
+  pop.innerHTML = `
+    <button onclick="closeRowMenu();exportExcel()">⬇ Excel (.xlsx)</button>
+    <button onclick="closeRowMenu();exportCSV()">⬇ CSV (.csv)</button>`;
+  document.body.appendChild(pop);
+  const r = ev.currentTarget.getBoundingClientRect();
+  let left = r.left; if (left + 185 > window.innerWidth - 8) left = window.innerWidth - 193;
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top = (r.bottom + 4) + 'px';
+}
+
+// ── Mesas modal ──────────────────────────────────────────────────────────────
+let mesasConfigView = false;
+async function openTablesModal() {
+  await loadTables();
+  mesasConfigView = false;
+  openModal(modalShell('Mapa de mesas', `<span id="mesasCount">${tables.length}</span> mesa(s)`,
+    `<div id="mesasBody"></div>`, ''));
+  renderMesasBody();
+}
+function renderMesasBody() {
+  const body = document.getElementById('mesasBody');
+  if (!body) return;
+  document.getElementById('mesasCount').textContent = tables.length;
+  if (mesasConfigView) { body.innerHTML = mesasConfigHtml(); return; }
+
+  const legend = `<div class="legend">
+    <span><span class="sq" style="background:#cdeedd"></span>Livre</span>
+    <span><span class="sq" style="background:var(--teal-line)"></span>Ocupado</span>
+    <span><span class="sq" style="background:var(--amber)"></span>Excedente</span>
+  </div>`;
+  const search = `<div class="fld"><input type="text" id="mesaSearch" placeholder="Buscar convidado para achar a mesa…" oninput="mesaSearchGuests()" /></div>
+    <div id="mesaSearchRes"></div>`;
+  const toolbar = `<button class="mbtn ghost" style="margin-bottom:12px" onclick="toggleMesasConfig()">⚙ Configurar mesas</button>`;
+  let grid;
+  if (!tables.length) {
+    grid = `<div class="muted-note">Nenhuma mesa configurada ainda.<br>Toque em <b>⚙ Configurar mesas</b> para criar.</div>`;
+  } else {
+    grid = `<div class="tgrid">` + tables.map(t => {
+      const cap = t.capacity || 0;
+      const alloc = t.allocated || 0;
+      let cls = 'free';
+      if (cap && alloc > cap) cls = 'over';
+      else if (cap && alloc >= cap) cls = 'full';
+      else if (cap && alloc > 0) cls = 'full';
+      const capTxt = cap ? `${alloc}/${cap}` : `${alloc} aloc.`;
+      return `<div class="tcard ${cls}">
+        <div class="tname">${esc(t.name)}</div>
+        <div class="tnums">${capTxt}<br>${cap ? '' : 'capacidade não definida'}</div>
+        <div class="tpres">${t.present || 0} presente(s)</div>
+      </div>`;
+    }).join('') + `</div>`;
+  }
+  body.innerHTML = toolbar + legend + search + grid;
+}
+function mesaSearchGuests() {
+  const q = (document.getElementById('mesaSearch').value || '').toLowerCase().trim();
+  const res = document.getElementById('mesaSearchRes');
+  if (!q) { res.innerHTML = ''; return; }
+  const found = allParticipants.filter(p => (p.name || '').toLowerCase().includes(q)).slice(0, 8);
+  if (!found.length) { res.innerHTML = `<div class="muted-note">Nenhum convidado.</div>`; return; }
+  res.innerHTML = `<div class="pick" style="margin-top:4px">` + found.map(p =>
+    `<button class="pick-item" onclick="openTableAssign(${p.id})">
+      <span style="flex:1">${esc(p.name)}</span>
+      <span style="font-size:12px;color:var(--navy);font-weight:700">${p.table_number ? 'Mesa ' + esc(p.table_number) : 'sem mesa'}</span>
+    </button>`).join('') + `</div>`;
+}
+function toggleMesasConfig() { mesasConfigView = !mesasConfigView; renderMesasBody(); }
+function mesasConfigHtml() {
+  return `
+    <button class="mbtn ghost" style="margin-bottom:14px" onclick="toggleMesasConfig()">‹ Voltar ao mapa</button>
+    <div class="row2" style="margin-bottom:8px">
+      <div class="fld" style="margin-bottom:0"><label>Qtd. de mesas</label><input type="number" id="genCount" min="1" value="10" /></div>
+      <div class="fld" style="margin-bottom:0"><label>Lugares por mesa</label><input type="number" id="genCap" min="1" value="8" /></div>
+    </div>
+    <button class="mbtn primary" style="margin-bottom:16px" onclick="generateTables()">↻ Gerar mesas numeradas</button>
+    <div class="section-h">Mesas configuradas</div>
+    <div id="cfgList">${tablesConfigList()}</div>
+    <button class="mbtn ghost" style="margin-top:12px" onclick="addLooseTable()">+ Adicionar mesa avulsa</button>`;
+}
+function tablesConfigList() {
+  if (!tables.length) return `<div class="muted-note">Nenhuma mesa ainda.</div>`;
+  return tables.map(t => `
+    <div class="trow" id="cfgrow-${t.id}">
+      <input class="tn" type="text" value="${esc(t.name)}" id="tn-${t.id}" placeholder="Nome" />
+      <input class="tc" type="number" min="0" value="${t.capacity || ''}" id="tc-${t.id}" placeholder="Lug." />
+      <button class="icon-btn" onclick="saveTable(${t.id})" title="Salvar">💾</button>
+      <button class="icon-btn del" onclick="deleteTable(${t.id})" title="Excluir">🗑</button>
+    </div>`).join('');
+}
+async function generateTables() {
+  const count = parseInt(document.getElementById('genCount').value, 10);
+  const capacity = parseInt(document.getElementById('genCap').value, 10);
+  if (!count || count < 1) { showToast('Informe a quantidade de mesas', 'warn'); return; }
+  try {
+    await apiFetch('/api/checkin/events/' + EVENT_ID + '/tables/generate', { method: 'POST', body: JSON.stringify({ count, capacity: capacity || 0 }) });
+    await loadTables(); renderMesasBody(); showToast('Mesas geradas', 'ok');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+async function addLooseTable() {
+  try {
+    const r = await apiFetch('/api/checkin/events/' + EVENT_ID + '/tables', { method: 'POST', body: JSON.stringify({ name: 'Nova', capacity: 0 }) });
+    await loadTables(); renderMesasBody(); showToast('Mesa adicionada', 'ok');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+async function saveTable(tid) {
+  const name = (document.getElementById('tn-' + tid).value || '').trim();
+  const capVal = document.getElementById('tc-' + tid).value;
+  const capacity = capVal === '' ? 0 : parseInt(capVal, 10);
+  if (!name) { showToast('Nome obrigatório', 'warn'); return; }
+  try {
+    await apiFetch('/api/checkin/tables/' + tid, { method: 'PATCH', body: JSON.stringify({ name, capacity }) });
+    await loadTables(); renderMesasBody(); showToast('Mesa salva', 'ok');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+async function deleteTable(tid) {
+  if (!confirm('Excluir esta mesa?')) return;
+  try {
+    await apiFetch('/api/checkin/tables/' + tid, { method: 'DELETE' });
+    await loadTables(); renderMesasBody(); showToast('Mesa excluída', 'warn');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+
+// ── Table-assign modal ───────────────────────────────────────────────────────
+async function openTableAssign(pid) {
+  closeRowMenu();
+  const p = allParticipants.find(x => x.id === pid);
+  if (!p) return;
+  if (!tables.length) await loadTables();
+  const opts = tables.map(t =>
+    `<button class="pick-item${String(p.table_number) === String(t.name) ? ' sel' : ''}" onclick="assignTablePick(${pid}, this, '${esc(String(t.name)).replace(/'/g, "\\'")}')">
+      <span style="flex:1">Mesa ${esc(t.name)}</span>
+      ${String(p.table_number) === String(t.name) ? '<span class="chk">✓</span>' : ''}
+    </button>`).join('');
+  const body = `
+    <div class="fld">
+      <label>Ou digite o nome da mesa</label>
+      <input type="text" id="tableFreeText" value="${esc(p.table_number || '')}" placeholder="Ex.: 6, Principal…" />
+    </div>
+    ${tables.length ? `<div class="section-h">Mesas configuradas</div><div class="pick">${opts}</div>` : '<div class="muted-note">Nenhuma mesa configurada — digite o nome acima.</div>'}`;
+  const foot = `
+    <button class="mbtn danger" onclick="saveGuestTable(${pid}, '')">Remover mesa</button>
+    <button class="mbtn primary" onclick="saveGuestTable(${pid})">Salvar</button>`;
+  openModal(modalShell('Definir / trocar mesa', esc(p.name), body, foot));
+}
+function assignTablePick(pid, elBtn, name) {
+  document.getElementById('tableFreeText').value = name;
+  document.querySelectorAll('#modalRoot .pick-item').forEach(b => b.classList.remove('sel'));
+  elBtn.classList.add('sel');
+}
+async function saveGuestTable(pid, forced) {
+  const val = forced !== undefined ? forced : (document.getElementById('tableFreeText').value || '').trim();
+  try {
+    const r = await apiFetch('/api/checkin/participant/' + pid + '/assign', { method: 'POST', body: JSON.stringify({ table_number: val === '' ? '' : val }) });
+    const p = allParticipants.find(x => x.id === pid);
+    if (p) p.table_number = r.table_number || '';
+    closeModal(); filterList();
+    showToast(val ? 'Mesa atualizada' : 'Mesa removida', 'ok');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+
+// ── Category-assign modal ────────────────────────────────────────────────────
+async function openCategoryAssign(pid) {
+  closeRowMenu();
+  const p = allParticipants.find(x => x.id === pid);
+  if (!p) return;
+  if (!categories.length) await loadCategories();
+  let body;
+  if (!categories.length) {
+    body = `<div class="muted-note">Nenhuma categoria criada ainda.</div>
+      <button class="mbtn primary" style="margin-top:8px" onclick="seedAndReopenCat(${pid})">Criar categorias padrão</button>`;
+  } else {
+    body = `<div class="pick">
+      <button class="pick-item${!p.category_id ? ' sel' : ''}" onclick="saveGuestCategory(${pid}, '')">
+        <span class="dot" style="background:var(--line)"></span><span style="flex:1">Sem categoria</span>
+        ${!p.category_id ? '<span class="chk">✓</span>' : ''}
+      </button>` +
+      categories.map(c => `
+        <button class="pick-item${String(p.category_id) === String(c.id) ? ' sel' : ''}" onclick="saveGuestCategory(${pid}, '${c.id}')">
+          <span class="dot" style="background:${esc(c.color || '#6E6F72')}"></span><span style="flex:1">${esc(c.name)}</span>
+          ${String(p.category_id) === String(c.id) ? '<span class="chk">✓</span>' : ''}
+        </button>`).join('') + `</div>`;
+  }
+  openModal(modalShell('Definir categoria', esc(p.name), body));
+}
+async function seedAndReopenCat(pid) {
+  try {
+    await apiFetch('/api/checkin/events/' + EVENT_ID + '/categories/seed', { method: 'POST' });
+    await loadCategories(); renderCatChips();
+    openCategoryAssign(pid);
+  } catch (e) { showToast(e.message, 'err'); }
+}
+async function saveGuestCategory(pid, cid) {
+  try {
+    const r = await apiFetch('/api/checkin/participant/' + pid + '/assign', { method: 'POST', body: JSON.stringify({ category_id: cid === '' ? null : cid }) });
+    const p = allParticipants.find(x => x.id === pid);
+    if (p) p.category_id = r.category_id || null;
+    closeModal(); renderCatChips(); filterList();
+    showToast('Categoria atualizada', 'ok');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+
+// ── Categorias manager ───────────────────────────────────────────────────────
+let catNewColor = CAT_PALETTE[0];
+async function openCategoriesManager() {
+  await loadCategories();
+  catNewColor = CAT_PALETTE[0];
+  openModal(modalShell('Categorias', 'Crie e organize as etiquetas dos convidados',
+    `<div id="catMgrBody"></div>`, ''));
+  renderCatManager();
+}
+function renderCatManager() {
+  const body = document.getElementById('catMgrBody');
+  if (!body) return;
+  const counts = {};
+  allParticipants.forEach(p => { if (p.category_id != null && p.category_id !== '') counts[p.category_id] = (counts[p.category_id] || 0) + 1; });
+  let list;
+  if (!categories.length) {
+    list = `<div class="muted-note">Nenhuma categoria ainda.</div>
+      <button class="mbtn primary" style="margin:8px 0 14px" onclick="seedCategories()">Criar categorias padrão</button>`;
+  } else {
+    list = categories.map(c => `
+      <div class="cat-manage-row">
+        <span class="dot" style="background:${esc(c.color || '#6E6F72')}"></span>
+        <span class="nm">${esc(c.name)}</span>
+        <span class="ct">${counts[c.id] || 0}</span>
+        <button class="icon-btn" onclick="editCategory('${c.id}')" title="Editar">✏️</button>
+        <button class="icon-btn del" onclick="deleteCategory('${c.id}')" title="Excluir">🗑</button>
+      </div>`).join('');
+  }
+  body.innerHTML = `
+    <div class="section-h">Nova categoria</div>
+    <div class="fld"><input type="text" id="newCatName" placeholder="Nome da categoria" /></div>
+    <div class="swatches" id="newSwatches">${CAT_PALETTE.map(col =>
+      `<div class="swatch${col === catNewColor ? ' sel' : ''}" data-col="${col}" style="background:${col}" onclick="pickNewColor(this,'${col}')"></div>`).join('')}</div>
+    <button class="mbtn primary" style="margin-bottom:18px" onclick="createCategory()">+ Criar categoria</button>
+    <div class="section-h">Categorias existentes</div>
+    ${list}`;
+}
+function pickNewColor(el, col) {
+  catNewColor = col;
+  document.querySelectorAll('#newSwatches .swatch').forEach(s => s.classList.remove('sel'));
+  el.classList.add('sel');
+}
+async function seedCategories() {
+  try {
+    await apiFetch('/api/checkin/events/' + EVENT_ID + '/categories/seed', { method: 'POST' });
+    await loadCategories(); renderCatManager(); renderCatChips();
+    showToast('Categorias padrão criadas', 'ok');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+async function createCategory() {
+  const name = (document.getElementById('newCatName').value || '').trim();
+  if (!name) { showToast('Informe o nome', 'warn'); return; }
+  try {
+    await apiFetch('/api/checkin/events/' + EVENT_ID + '/categories', { method: 'POST', body: JSON.stringify({ name, color: catNewColor }) });
+    await loadCategories(); renderCatManager(); renderCatChips();
+    showToast('Categoria criada', 'ok');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+function editCategory(cid) {
+  const c = catById(cid);
+  if (!c) return;
+  const body = `
+    <div class="fld"><label>Nome</label><input type="text" id="editCatName" value="${esc(c.name)}" /></div>
+    <div class="section-h">Cor</div>
+    <div class="swatches" id="editSwatches">${CAT_PALETTE.map(col =>
+      `<div class="swatch${col.toLowerCase() === String(c.color||'').toLowerCase() ? ' sel' : ''}" style="background:${col}" onclick="pickEditColor(this,'${col}')"></div>`).join('')}</div>`;
+  const foot = `<button class="mbtn ghost" onclick="openCategoriesManager()">Cancelar</button>
+    <button class="mbtn primary" onclick="saveCategoryEdit('${cid}')">Salvar</button>`;
+  openModal(modalShell('Editar categoria', '', body, foot));
+  editCatColor = c.color || CAT_PALETTE[0];
+}
+let editCatColor = CAT_PALETTE[0];
+function pickEditColor(el, col) {
+  editCatColor = col;
+  document.querySelectorAll('#editSwatches .swatch').forEach(s => s.classList.remove('sel'));
+  el.classList.add('sel');
+}
+async function saveCategoryEdit(cid) {
+  const name = (document.getElementById('editCatName').value || '').trim();
+  if (!name) { showToast('Informe o nome', 'warn'); return; }
+  try {
+    await apiFetch('/api/checkin/categories/' + cid, { method: 'PATCH', body: JSON.stringify({ name, color: editCatColor }) });
+    await loadCategories(); renderCatChips(); filterList();
+    openCategoriesManager();
+    showToast('Categoria salva', 'ok');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+async function deleteCategory(cid) {
+  if (!confirm('Excluir esta categoria? Os convidados ficarão sem ela.')) return;
+  try {
+    await apiFetch('/api/checkin/categories/' + cid, { method: 'DELETE' });
+    if (String(catFilter) === String(cid)) catFilter = '';
+    await loadCategories();
+    allParticipants.forEach(p => { if (String(p.category_id) === String(cid)) p.category_id = null; });
+    renderCatManager(); renderCatChips(); filterList();
+    showToast('Categoria excluída', 'warn');
+  } catch (e) { showToast(e.message, 'err'); }
+}
+
+// ── Ao vivo (Live) modal ─────────────────────────────────────────────────────
+let liveInterval = null;
+function openLiveModal() {
+  openModal(modalShell('Painel ao vivo', 'Atualiza automaticamente',
+    `<div id="liveBody"></div>`, ''), () => { if (liveInterval) { clearInterval(liveInterval); liveInterval = null; } });
+  renderLiveBody();
+  liveInterval = setInterval(async () => {
+    try {
+      const [s, parts] = await Promise.all([
+        apiFetch('/api/checkin/events/' + EVENT_ID + '/stats'),
+        apiFetch('/api/checkin/events/' + EVENT_ID + '/participants'),
+      ]);
+      stats = s; allParticipants = parts;
+      updateKpis(); renderLiveBody();
+    } catch {}
+  }, 4000);
+}
+function renderLiveBody() {
+  const body = document.getElementById('liveBody');
+  if (!body) return;
+  const total = stats.total_confirmed || 0;
+  const present = stats.checked_in || 0;
+  const absent = Math.max(0, total - present);
+  const pct = total > 0 ? Math.round(present / total * 100) : 0;
+
+  // per-minute buckets (last 20 min)
+  const now = Date.now();
+  const buckets = new Array(20).fill(0);
+  allParticipants.forEach(p => {
+    if (!p.checked_in_at) return;
+    const t = new Date(p.checked_in_at).getTime();
+    if (isNaN(t)) return;
+    const diffMin = Math.floor((now - t) / 60000);
+    if (diffMin >= 0 && diffMin < 20) buckets[19 - diffMin]++;
+  });
+  const maxB = Math.max(1, ...buckets);
+  const bars = buckets.map(v => `<div class="bar" style="height:${Math.round(v / maxB * 100)}%" title="${v} check-in(s)"></div>`).join('');
+
+  const recent = allParticipants.filter(p => p.checked_in_at)
+    .sort((a, b) => new Date(b.checked_in_at) - new Date(a.checked_in_at))
+    .slice(0, 10);
+  const recentHtml = recent.length
+    ? recent.map(p => `<div class="recent-item"><div class="av">${esc(initials(p.name))}</div><div class="nm">${esc(p.name)}</div><div class="tm">${fmtTime(p.checked_in_at)}</div></div>`).join('')
+    : `<div class="muted-note">Nenhum check-in ainda.</div>`;
+
+  body.innerHTML = `
+    <div class="live-grid">
+      <div class="live-box"><div class="n">${total}</div><div class="l">Convidados</div></div>
+      <div class="live-box"><div class="n ok">${present}</div><div class="l">Presentes</div></div>
+      <div class="live-box"><div class="n">${absent}</div><div class="l">Ausentes</div></div>
+      <div class="live-box"><div class="n teal">${pct}%</div><div class="l">Comparec.</div></div>
+    </div>
+    <div class="section-h">Check-ins por minuto (últimos 20 min)</div>
+    <div class="chart">${bars}</div>
+    <div class="section-h">Últimos check-ins</div>
+    ${recentHtml}`;
+}
+
+// ── Relatório modal ──────────────────────────────────────────────────────────
+function openReportModal() {
+  const total = stats.total_confirmed || 0;
+  const present = stats.checked_in || 0;
+  const pct = total > 0 ? Math.round(present / total * 100) : 0;
+  const body = `
+    <div class="live-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="live-box"><div class="n">${total}</div><div class="l">Total</div></div>
+      <div class="live-box"><div class="n ok">${present}</div><div class="l">Presentes</div></div>
+      <div class="live-box"><div class="n teal">${pct}%</div><div class="l">Comparec.</div></div>
+    </div>
+    <div class="muted-note">Exporte a lista completa de convidados com mesa, categoria e horário de chegada.</div>`;
+  const foot = `
+    <button class="mbtn danger" onclick="exportPDF()" style="border-color:var(--navy);color:var(--navy)">⬇ PDF</button>
+    <button class="mbtn primary" onclick="exportExcel()">⬇ Excel</button>
+    <button class="mbtn teal" onclick="printReport()">🖨 Imprimir</button>`;
+  openModal(modalShell('Relatório', esc(eventName), body, foot));
+}
+function exportPDF() {
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    const total = stats.total_confirmed || 0;
+    const present = stats.checked_in || 0;
+    const pct = total > 0 ? Math.round(present / total * 100) : 0;
+    doc.setFontSize(16); doc.setTextColor(44, 66, 126);
+    doc.text(eventName + ' — Check-in', 14, 18);
+    doc.setFontSize(11); doc.setTextColor(80);
+    doc.text(`Total: ${total}    Presentes: ${present}    Comparecimento: ${pct}%`, 14, 27);
+    const rows = exportRows();
+    doc.autoTable({
+      startY: 33,
+      head: [['Nome', 'Empresa', 'Mesa', 'Categoria', 'Status', 'Hora']],
+      body: rows.map(r => [r.Nome, r.Empresa, r.Mesa, r.Categoria, r.Status, r.Hora]),
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [44, 66, 126] },
+    });
+    doc.save(safeFileBase() + '-checkin.pdf');
+    showToast('PDF gerado', 'ok');
+  } catch (e) { showToast('Erro ao gerar PDF', 'err'); }
+}
+function printReport() {
+  const total = stats.total_confirmed || 0;
+  const present = stats.checked_in || 0;
+  const pct = total > 0 ? Math.round(present / total * 100) : 0;
+  const rows = exportRows();
+  const w = window.open('', '_blank');
+  if (!w) { showToast('Permita pop-ups para imprimir', 'warn'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(eventName)} — Check-in</title>
+    <style>body{font-family:Arial,sans-serif;color:#28282A;padding:24px}h1{color:#2C427E;font-size:20px;margin:0 0 4px}
+    .stats{font-size:13px;color:#555;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:12px}
+    th{background:#2C427E;color:#fff;text-align:left;padding:6px 8px}td{padding:5px 8px;border-bottom:1px solid #ddd}</style></head><body>
+    <h1>${esc(eventName)} — Check-in</h1>
+    <div class="stats">Total: ${total} &nbsp; Presentes: ${present} &nbsp; Comparecimento: ${pct}%</div>
+    <table><thead><tr><th>Nome</th><th>Empresa</th><th>Mesa</th><th>Categoria</th><th>Status</th><th>Hora</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td>${esc(r.Nome)}</td><td>${esc(r.Empresa)}</td><td>${esc(r.Mesa)}</td><td>${esc(r.Categoria)}</td><td>${esc(r.Status)}</td><td>${esc(r.Hora)}</td></tr>`).join('')}
+    </tbody></table></body></html>`);
+  w.document.close();
+  setTimeout(() => { w.focus(); w.print(); }, 300);
+}
+
+// ── QR modal ─────────────────────────────────────────────────────────────────
+function openQrModal(pid) {
+  closeRowMenu();
+  const p = allParticipants.find(x => x.id === pid);
+  if (!p) return;
+  const meta = [p.company, p.role].filter(Boolean).join(' · ');
+  if (!p.qr_token) {
+    openModal(modalShell('QR Code', esc(p.name),
+      `<div class="muted-note">Este convidado ainda não tem QR.<br>Gere os QRs no painel do organizador.</div>`));
+    return;
+  }
+  const tokenDisp = String(p.qr_token).toUpperCase().replace(/(.{4})/g, '$1 ').trim();
+  const body = `<div class="qr-card">
+    <canvas id="qrCanvas"></canvas>
+    <div style="font-weight:800;font-size:16px;color:var(--ink)">${esc(p.name)}</div>
+    ${meta ? `<div style="font-size:12.5px;color:var(--ink-soft);margin-top:2px">${esc(meta)}</div>` : ''}
+    <div class="qr-token">${esc(tokenDisp)}</div>
+  </div>`;
+  const foot = `<button class="mbtn primary" onclick="printQr(${pid})">🖨 Imprimir</button>`;
+  openModal(modalShell('QR Code', '', body, foot));
+  if (window.QRCode) {
+    QRCode.toCanvas(document.getElementById('qrCanvas'), p.qr_token, { width: 220, margin: 1 }, err => { if (err) console.error(err); });
+  }
+}
+function printQr(pid) {
+  const p = allParticipants.find(x => x.id === pid);
+  if (!p || !p.qr_token) return;
+  QRCode.toDataURL(p.qr_token, { width: 320, margin: 1 }, (err, url) => {
+    if (err) { showToast('Erro ao gerar QR', 'err'); return; }
+    const w = window.open('', '_blank');
+    if (!w) { showToast('Permita pop-ups para imprimir', 'warn'); return; }
+    const meta = [p.company, p.role].filter(Boolean).join(' · ');
+    w.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>QR — ${esc(p.name)}</title>
+      <style>body{font-family:Arial,sans-serif;text-align:center;padding:40px;color:#28282A}
+      img{width:300px;height:300px}h2{color:#2C427E;margin:14px 0 2px}p{color:#666;margin:0}
+      .tok{margin-top:10px;font-weight:800;letter-spacing:.1em;color:#2C427E}</style></head><body>
+      <img src="${url}"><h2>${esc(p.name)}</h2><p>${esc(meta)}</p>
+      <div class="tok">${esc(String(p.qr_token).toUpperCase())}</div></body></html>`);
+    w.document.close();
+    setTimeout(() => { w.focus(); w.print(); }, 300);
+  });
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   if (!TOKEN || !EVENT_ID) {
@@ -579,6 +1390,7 @@ async function init() {
     ]);
     const ev = evList.find(e => String(e.id) === String(EVENT_ID));
     if (ev) {
+      eventName = ev.name;
       document.getElementById('evName').textContent = ev.name;
       const meta = [fmtDate(ev.event_date), ev.location, ev.city].filter(Boolean).join(' · ');
       document.getElementById('evMeta').textContent = meta;
@@ -588,6 +1400,11 @@ async function init() {
     updateKpis();
 
     allParticipants = await apiFetch('/api/checkin/events/' + EVENT_ID + '/participants');
+    filterList();
+
+    // Carrega categorias e mesas (falhas não bloqueiam)
+    await Promise.all([loadCategories(), loadTables()]);
+    renderCatChips();
     filterList();
 
     // Refresh stats every 30 seconds
