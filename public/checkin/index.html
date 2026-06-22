@@ -11,332 +11,409 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy: #2C427E; --navy-deep: #21345f; --navy-darker: #1a2849; --cyan: #2BC2CE;
-      --off-white: #F2F3F3; --gray-soft: #eceded; --charcoal: #28282A;
-      --muted: #6b6f78; --ok: #22c55e; --danger: #ef4444; --white: #fff;
-      --radius: 18px; --radius-sm: 10px;
-      --shadow: 0 1px 2px rgba(40,40,42,.05), 0 10px 30px -12px rgba(40,40,42,.18);
-      --shadow-hover: 0 8px 30px -8px rgba(44,66,126,.3);
+      --navy: #2C427E; --navy-dark: #22335f; --navy-tint: #E8ECF5;
+      --teal: #2BC2CE; --teal-tint: #E7F7F8; --teal-line: #c7e9ec;
+      --base: #F2F3F3; --card: #FFFFFF; --line: #D9D9D9; --line-soft: #E6E7E7;
+      --ink: #28282A; --ink-soft: #6E6F72;
+      --amber: #B57614; --amber-tint: #FBF3E4;
+      --danger: #A4343A;
+      --shadow: 0 1px 2px rgba(40,40,42,.05), 0 4px 16px rgba(40,40,42,.07);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
-    body { background: var(--off-white); font-family: 'Inter', system-ui, -apple-system, sans-serif; min-height: 100dvh; color: var(--charcoal); -webkit-font-smoothing: antialiased; }
+    body {
+      background: var(--base);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100dvh;
+      color: var(--ink);
+      -webkit-font-smoothing: antialiased;
+    }
 
     /* ── Top bar ── */
     .topbar {
-      background: linear-gradient(120deg, var(--navy-deep), var(--navy) 60%);
-      color: #fff; padding: 0 20px; padding-top: env(safe-area-inset-top, 0);
-      display: flex; align-items: center; gap: 14px; height: 58px;
-      position: sticky; top: 0; z-index: 20;
-      box-shadow: 0 2px 14px -4px rgba(26,40,73,.5);
+      position: sticky; top: 0; z-index: 30;
+      background: var(--card);
+      border-bottom: 3px solid var(--teal);
+      padding: 10px 16px;
+      padding-top: calc(10px + env(safe-area-inset-top, 0));
+      display: flex; align-items: center; gap: 12px;
     }
-    .topbar-logo { height: 26px; }
-    .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: .01em; flex: 1; display: flex; align-items: center; gap: 8px; }
-    .topbar-title::before { content: '✓'; display: inline-grid; place-items: center; width: 22px; height: 22px; background: var(--cyan); color: var(--navy-deep); border-radius: 7px; font-size: 13px; font-weight: 900; }
-    .topbar-badge {
-      font-size: 10px; font-weight: 700; background: rgba(255,255,255,.14);
-      border-radius: 99px; padding: 4px 11px; color: #bcd0f5; letter-spacing: .03em;
+    .topbar-logo { height: 26px; flex-shrink: 0; }
+    .topbar-appname {
+      font-size: 11px; font-weight: 700; letter-spacing: .12em; color: var(--navy);
+      text-transform: uppercase; border-left: 1px solid var(--line); padding-left: 12px;
     }
-    .topbar-logout {
-      font-size: 12px; font-weight: 600; color: rgba(255,255,255,.75);
-      background: rgba(255,255,255,.08); border: none; cursor: pointer; padding: 7px 12px;
-      border-radius: 8px; transition: background .15s, color .15s;
+    .topbar-spacer { flex: 1; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 5px;
+      font-size: 11px; font-weight: 600; padding: 4px 10px;
+      border-radius: 99px; letter-spacing: .02em;
     }
-    .topbar-logout:hover { background: rgba(255,255,255,.18); color: #fff; }
+    .pill::before { content: ''; width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .pill.ok { background: var(--teal-tint); color: #127a83; }
+    .pill.ok::before { background: var(--teal); }
+    .pill.off { background: #f5f5f5; color: var(--ink-soft); }
+    .pill.off::before { background: #aaa; }
+    .userbtn {
+      width: 34px; height: 34px; border-radius: 50%; background: var(--navy);
+      color: #fff; font-weight: 700; font-size: 13px; border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .operator-badge {
+      font-size: 11px; font-weight: 700; background: var(--navy-tint); color: var(--navy);
+      border-radius: 99px; padding: 4px 10px; letter-spacing: .04em;
+    }
+    .logout-link {
+      font-size: 12px; font-weight: 600; color: var(--ink-soft); cursor: pointer;
+      background: none; border: none; padding: 4px 6px; border-radius: 6px;
+      transition: color .15s;
+    }
+    .logout-link:hover { color: var(--navy); }
 
-    .page { max-width: 540px; margin: 0 auto; padding: 26px 16px 90px; }
-    .page-head { margin-bottom: 22px; }
-    .page-title { font-size: 26px; font-weight: 800; color: var(--navy-deep); letter-spacing: -.02em; }
-    .page-sub { font-size: 13px; color: var(--muted); margin-top: 3px; display: inline-flex; align-items: center; gap: 6px; }
-    .page-sub::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--cyan); display: inline-block; }
+    /* ── Page wrapper ── */
+    .page { max-width: 780px; margin: 0 auto; padding: 18px 16px 80px; }
+    .page-head { margin-bottom: 20px; }
+    .page-title { font-size: 26px; font-weight: 800; letter-spacing: -.03em; color: var(--navy); }
+    .page-sub { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
 
-    /* ── Event card ── */
-    .event-card {
-      background: var(--white); border-radius: var(--radius); padding: 18px;
-      margin-bottom: 14px; box-shadow: var(--shadow); cursor: pointer; position: relative;
-      border: 1px solid rgba(40,40,42,.05); transition: transform .18s, box-shadow .18s, border-color .18s;
-      text-decoration: none; color: inherit; display: block; overflow: hidden;
-    }
-    .event-card::before {
-      content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
-      background: linear-gradient(var(--cyan), var(--navy)); opacity: 0; transition: opacity .18s;
-    }
-    .event-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); border-color: rgba(43,194,206,.4); }
-    .event-card:hover::before { opacity: 1; }
-    .event-card:active { transform: translateY(0) scale(.995); }
-
-    .event-top { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
-    .event-date {
-      flex-shrink: 0; width: 52px; text-align: center; background: linear-gradient(155deg, #eef4ff, #e3ebfb);
-      border-radius: 12px; padding: 8px 4px; border: 1px solid rgba(44,66,126,.1);
-    }
-    .event-date .d { font-size: 21px; font-weight: 800; color: var(--navy); line-height: 1; }
-    .event-date .m { font-size: 10px; font-weight: 700; color: var(--cyan); text-transform: uppercase; letter-spacing: .06em; margin-top: 3px; }
-    .event-date .placeholder { font-size: 18px; color: var(--navy); }
-    .event-info { flex: 1; min-width: 0; padding-top: 2px; }
-    .event-name { font-size: 17px; font-weight: 700; color: var(--charcoal); line-height: 1.25; letter-spacing: -.01em; }
-    .event-meta { font-size: 12.5px; color: var(--muted); margin-top: 5px; display: flex; align-items: center; gap: 5px; }
-    .event-arrow { flex-shrink: 0; color: #c2c6cf; font-size: 20px; align-self: center; transition: color .18s, transform .18s; }
-    .event-card:hover .event-arrow { color: var(--cyan); transform: translateX(2px); }
-
-    .event-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-    .stat {
-      display: flex; flex-direction: column; align-items: center; justify-content: center;
-      background: var(--off-white); border-radius: 12px; padding: 11px 6px;
-    }
-    .stat.ok-bg { background: rgba(34,197,94,.08); }
-    .stat.cyan-bg { background: rgba(43,194,206,.1); }
-    .stat-n { font-size: 22px; font-weight: 800; color: var(--navy); line-height: 1; letter-spacing: -.02em; }
-    .stat-n.ok { color: var(--ok); }
-    .stat-n.cyan { color: #1aa0ab; }
-    .stat-l { font-size: 9.5px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .05em; font-weight: 600; }
-
-    .pct-bar { height: 6px; border-radius: 99px; background: var(--gray-soft); margin-top: 14px; overflow: hidden; }
-    .pct-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--ok)); border-radius: 99px; transition: width .5s ease; }
-
-    /* ── States ── */
-    .state-box { text-align: center; padding: 64px 24px; }
-    .state-box .icon { font-size: 44px; margin-bottom: 14px; }
-    .state-box p { color: var(--muted); font-size: 14px; line-height: 1.5; }
-    .state-box .err { color: var(--danger); font-weight: 700; font-size: 16px; margin-bottom: 6px; }
-    .spinner {
-      width: 38px; height: 38px; border: 3.5px solid var(--gray-soft);
-      border-top-color: var(--cyan); border-radius: 50%;
-      animation: spin .7s linear infinite; margin: 70px auto 0;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .footer { text-align: center; font-size: 11px; color: var(--muted); margin-top: 36px; opacity: .8; }
-
-    /* ── Skeleton loading ── */
-    .skel-card { background: var(--white); border-radius: var(--radius); padding: 18px; margin-bottom: 14px; box-shadow: var(--shadow); }
+    /* ── Skeleton ── */
+    .skel-card { background: var(--card); border: 1px solid var(--line-soft); border-left: 4px solid var(--line-soft); border-radius: 14px; padding: 18px; margin-bottom: 12px; box-shadow: var(--shadow); }
     .skel { background: linear-gradient(90deg, #eef0f2 25%, #e3e6e9 50%, #eef0f2 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
     @keyframes shimmer { to { background-position: -200% 0; } }
-    .skel-row { display: flex; gap: 14px; margin-bottom: 16px; }
-    .skel-date { width: 52px; height: 52px; border-radius: 12px; flex-shrink: 0; }
+    .skel-row { display: flex; gap: 14px; margin-bottom: 14px; align-items: flex-start; }
+    .skel-icon { width: 44px; height: 44px; border-radius: 10px; flex-shrink: 0; }
     .skel-lines { flex: 1; }
-    .skel-line { height: 14px; margin-bottom: 8px; }
-    .skel-stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-    .skel-stat { height: 56px; border-radius: 12px; }
+    .skel-line { height: 13px; margin-bottom: 8px; border-radius: 6px; }
+    .skel-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 8px; }
+    .skel-stat { height: 42px; border-radius: 10px; }
+
+    /* ── Event card ── */
+    .ev-card {
+      background: var(--card); border: 1px solid var(--line-soft);
+      border-left: 4px solid var(--navy); border-radius: 14px;
+      padding: 18px; box-shadow: var(--shadow); cursor: pointer;
+      transition: transform .12s, border-color .12s, box-shadow .12s;
+      display: flex; align-items: center; gap: 16px;
+      text-decoration: none; color: inherit; margin-bottom: 12px;
+    }
+    .ev-card:hover { transform: translateY(-1px); border-color: #c9cacb; border-left-color: var(--teal); box-shadow: 0 4px 20px rgba(40,40,42,.12); }
+    .ev-card:active { transform: translateY(0); }
+
+    .ev-body { flex: 1; min-width: 0; }
+    .ev-name { font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.25; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ev-meta { font-size: 12.5px; color: var(--ink-soft); margin-top: 5px; display: flex; align-items: center; gap: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ev-counts { display: flex; align-items: center; gap: 14px; flex-shrink: 0; text-align: right; }
+    .ev-pct { font-size: 22px; font-weight: 800; color: var(--navy); letter-spacing: -.03em; line-height: 1; }
+    .ev-pct-label { font-size: 9.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; margin-top: 2px; }
+    .ev-detail { display: flex; flex-direction: column; align-items: flex-end; }
+    .ev-checked { font-size: 13px; font-weight: 700; color: var(--teal); }
+    .ev-total { font-size: 11.5px; color: var(--ink-soft); margin-top: 1px; }
+    .ev-arrow { color: #c2c6cf; font-size: 20px; flex-shrink: 0; transition: color .12s; }
+    .ev-card:hover .ev-arrow { color: var(--teal); }
+
+    /* ── State boxes ── */
+    .state-box { text-align: center; padding: 64px 24px; }
+    .state-box .icon { font-size: 44px; margin-bottom: 14px; }
+    .state-box p { color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
+    .state-box .err { color: var(--danger); font-weight: 700; font-size: 16px; margin-bottom: 6px; }
+    .state-box .hdg { font-size: 17px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+    .spinner { width: 36px; height: 36px; border: 3px solid var(--line-soft); border-top-color: var(--teal); border-radius: 50%; animation: spin .7s linear infinite; margin: 70px auto 0; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .footer { text-align: center; font-size: 11px; color: var(--ink-soft); margin-top: 36px; opacity: .7; }
 
     /* ── Login form ── */
-    .login-wrap { max-width: 380px; margin: 40px auto 0; padding: 0 16px; }
-    .login-card {
-      background: var(--white); border-radius: 22px; padding: 36px 30px;
-      box-shadow: 0 20px 50px -20px rgba(26,40,73,.35); border: 1px solid rgba(40,40,42,.05);
+    .login-wrap { display: flex; justify-content: center; padding: 40px 16px 80px; }
+    .auth-card {
+      background: var(--card); border: 1px solid var(--line-soft); border-radius: 18px;
+      box-shadow: var(--shadow); width: 100%; max-width: 400px; padding: 30px 26px;
     }
-    .login-badge { display: grid; place-items: center; width: 56px; height: 56px; margin: 0 auto 18px; background: linear-gradient(150deg, var(--navy), var(--navy-deep)); border-radius: 16px; font-size: 26px; box-shadow: 0 8px 20px -6px rgba(44,66,126,.5); }
-    .login-logo { display: block; height: 34px; margin: 0 auto 18px; }
-    .login-title { font-size: 21px; font-weight: 800; color: var(--navy-deep); text-align: center; margin-bottom: 6px; letter-spacing: -.02em; }
-    .login-sub { font-size: 13px; color: var(--muted); text-align: center; margin-bottom: 26px; line-height: 1.4; }
-    .login-field { margin-bottom: 14px; }
-    .login-field label { display: block; font-size: 12px; font-weight: 600; color: var(--charcoal); margin-bottom: 7px; }
-    .login-field input {
-      width: 100%; border: 1.5px solid #dcdee2; border-radius: var(--radius-sm);
-      padding: 12px 14px; font-size: 15px; font-family: inherit; outline: none;
-      transition: border-color .15s, box-shadow .15s; background: #fafbfc;
+    .auth-logo { display: block; height: 28px; margin: 0 auto 20px; }
+    .auth-title { font-size: 20px; font-weight: 800; color: var(--navy); text-align: center; letter-spacing: -.02em; margin-bottom: 5px; }
+    .auth-sub { font-size: 13px; color: var(--ink-soft); text-align: center; margin-bottom: 24px; line-height: 1.5; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: var(--ink); margin-bottom: 6px; }
+    .field input {
+      width: 100%; border: 1.5px solid var(--line); border-radius: 10px;
+      padding: 11px 14px; font-size: 15px; font-family: inherit; outline: none;
+      background: #fafbfc; transition: border-color .15s, box-shadow .15s; color: var(--ink);
     }
-    .login-field input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(43,194,206,.15); background: #fff; }
-    .login-btn {
-      width: 100%; padding: 14px; background: linear-gradient(120deg, var(--navy), var(--navy-deep));
-      color: #fff; border: none; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700;
-      cursor: pointer; margin-top: 8px; transition: filter .15s, transform .1s; letter-spacing: .01em;
+    .field input:focus { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(43,194,206,.14); background: #fff; }
+    .auth-btn {
+      width: 100%; padding: 13px; background: var(--navy); color: #fff;
+      border: none; border-radius: 10px; font-size: 15px; font-weight: 700;
+      cursor: pointer; margin-top: 8px; letter-spacing: .01em;
+      transition: background .15s, transform .1s;
     }
-    .login-btn:hover { filter: brightness(1.1); }
-    .login-btn:active { transform: scale(.98); }
-    .login-btn:disabled { opacity: .6; cursor: not-allowed; }
-    .login-err { font-size: 13px; color: var(--danger); text-align: center; margin-top: 14px; min-height: 18px; font-weight: 500; }
+    .auth-btn:hover { background: var(--navy-dark); }
+    .auth-btn:active { transform: scale(.98); }
+    .auth-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .auth-err { font-size: 13px; color: var(--danger); text-align: center; margin-top: 12px; min-height: 18px; font-weight: 500; }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--navy); color: #fff; padding: 12px 20px; border-radius: 11px;
+      font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s; z-index: 100; white-space: nowrap;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
   </style>
 </head>
 <body>
-  <div class="topbar">
-    <img class="topbar-logo" src="/assets/img/logo-moura-white.png" alt="Moura" onerror="this.style.display='none'" />
-    <div class="topbar-title">Check-in de Eventos</div>
-    <span class="topbar-badge" id="operatorLabel" style="display:none">Operador</span>
-    <button class="topbar-logout" id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
-  </div>
-  <div class="page" id="root">
-    <div class="spinner"></div>
-  </div>
-  <script>
-    const params = new URLSearchParams(location.search);
-    let TOKEN = params.get('token') || localStorage.getItem('ci_token') || '';
-    const API = (window.CHECKIN_API || '').replace(/\/$/, '');
 
-    if (TOKEN) localStorage.setItem('ci_token', TOKEN);
+<!-- ── Topbar ── -->
+<div class="topbar">
+  <img class="topbar-logo" src="logo-moura.png" alt="Moura" onerror="this.style.display='none'" />
+  <span class="topbar-appname">Check-in</span>
+  <div class="topbar-spacer"></div>
+  <span class="pill ok" id="connPill">Online</span>
+  <span class="operator-badge" id="operatorLabel" style="display:none">Operador</span>
+  <button class="userbtn" id="userBtn" style="display:none" title="Usuário" onclick="logout()">–</button>
+  <button class="logout-link" id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
+</div>
 
-    // JWT tem 3 partes separadas por ponto e começa com "eyJ"; operator token é hex
-    function isJwt(t) { return t && t.startsWith('eyJ') && t.split('.').length === 3; }
+<!-- ── Content ── -->
+<div class="page" id="root">
+  <div class="spinner"></div>
+</div>
 
-    function apiFetch(path, opts, tok) {
-      const t = tok || TOKEN;
-      return fetch(API + path, {
-        ...opts,
-        headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json', ...(opts?.headers || {}) },
-      }).then(async r => {
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(data.error || 'Erro ' + r.status);
-        return data;
-      });
+<!-- ── Toast ── -->
+<div class="toast" id="toast"></div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  let TOKEN = params.get('token') || localStorage.getItem('ci_token') || '';
+  const API = (window.CHECKIN_API || '').replace(/\/$/, '');
+
+  if (TOKEN) localStorage.setItem('ci_token', TOKEN);
+
+  // JWT tem 3 partes separadas por ponto e começa com "eyJ"; operator token é hex
+  function isJwt(t) { return t && t.startsWith('eyJ') && t.split('.').length === 3; }
+
+  function apiFetch(path, opts, tok) {
+    const t = tok || TOKEN;
+    return fetch(API + path, {
+      ...opts,
+      headers: { 'Authorization': 'Bearer ' + t, 'Content-Type': 'application/json', ...(opts?.headers || {}) },
+    }).then(async r => {
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Erro ' + r.status);
+      return data;
+    });
+  }
+
+  const MESES = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+  function fmtDate(d) {
+    if (!d) return '';
+    const [y, m, day] = d.split('-');
+    return `${day}/${m}/${y}`;
+  }
+
+  function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
+
+  function logout() {
+    localStorage.removeItem('ci_token');
+    location.replace('./');
+  }
+
+  function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  // Iniciais para o botão de usuário
+  function getInitial(jwt) {
+    try {
+      const payload = JSON.parse(atob(jwt.split('.')[1]));
+      return (payload.name || payload.email || '?')[0].toUpperCase();
+    } catch { return '?'; }
+  }
+
+  // Conexão
+  function updateConn() {
+    const pill = document.getElementById('connPill');
+    if (navigator.onLine) {
+      pill.className = 'pill ok'; pill.textContent = 'Online';
+    } else {
+      pill.className = 'pill off'; pill.textContent = 'Offline';
     }
+  }
+  window.addEventListener('online',  updateConn);
+  window.addEventListener('offline', updateConn);
+  updateConn();
 
-    const MESES = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
-    function fmtDate(d) {
-      if (!d) return '';
-      const [y, m, day] = d.split('-');
-      return `${day}/${m}/${y}`;
-    }
-    function dateBadge(d) {
-      if (!d) return `<div class="event-date"><span class="placeholder">📅</span></div>`;
-      const [, m, day] = d.split('-');
-      const mi = Math.max(0, Math.min(11, Number(m) - 1));
-      return `<div class="event-date"><div class="d">${day}</div><div class="m">${MESES[mi]}</div></div>`;
-    }
+  // Toast
+  let toastTimer;
+  function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+  }
 
-    function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
-
-    function logout() {
-      localStorage.removeItem('ci_token');
-      location.replace('./');
-    }
-
-    function skeleton(n) {
-      let s = '';
-      for (let i = 0; i < n; i++) {
-        s += `<div class="skel-card">
-          <div class="skel-row">
-            <div class="skel skel-date"></div>
-            <div class="skel-lines">
-              <div class="skel skel-line" style="width:70%"></div>
-              <div class="skel skel-line" style="width:45%;margin-bottom:0"></div>
-            </div>
+  function skeleton(n) {
+    let s = '';
+    for (let i = 0; i < n; i++) {
+      s += `<div class="skel-card">
+        <div class="skel-row">
+          <div class="skel skel-icon"></div>
+          <div class="skel-lines" style="flex:1">
+            <div class="skel skel-line" style="width:65%"></div>
+            <div class="skel skel-line" style="width:40%;margin-bottom:0"></div>
           </div>
-          <div class="skel-stats">
-            <div class="skel skel-stat"></div><div class="skel skel-stat"></div><div class="skel skel-stat"></div>
-          </div>
-        </div>`;
-      }
-      return s;
+        </div>
+        <div class="skel-stats">
+          <div class="skel skel-stat"></div>
+          <div class="skel skel-stat"></div>
+          <div class="skel skel-stat"></div>
+        </div>
+      </div>`;
     }
+    return s;
+  }
 
-    function showLoginForm(errMsg) {
-      document.getElementById('logoutBtn').style.display = 'none';
-      document.getElementById('operatorLabel').style.display = 'none';
-      document.getElementById('root').innerHTML = `
-        <div class="login-wrap">
-          <div class="login-card">
-            <div class="login-badge">✓</div>
-            <div class="login-title">Bem-vinda ao Check-in</div>
-            <div class="login-sub">Entre com seu e-mail e senha do Moura One</div>
-            <div class="login-field">
-              <label for="loginEmail">E-mail</label>
-              <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="email" />
-            </div>
-            <div class="login-field">
-              <label for="loginPass">Senha</label>
-              <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" />
-            </div>
-            <button class="login-btn" id="loginBtn">Entrar</button>
-            <div class="login-err" id="loginErr">${errMsg ? esc(errMsg) : ''}</div>
+  function showLoginForm(errMsg) {
+    document.getElementById('logoutBtn').style.display = 'none';
+    document.getElementById('userBtn').style.display = 'none';
+    document.getElementById('operatorLabel').style.display = 'none';
+    document.getElementById('root').innerHTML = `
+      <div class="login-wrap">
+        <div class="auth-card">
+          <img class="auth-logo" src="logo-moura.png" alt="Moura" onerror="this.style.display='none'" />
+          <div class="auth-title">Bem-vindo ao Check-in</div>
+          <div class="auth-sub">Entre com seu e-mail e senha do Moura One</div>
+          <div class="field">
+            <label for="loginEmail">E-mail</label>
+            <input type="email" id="loginEmail" placeholder="seu@email.com" autocomplete="email" />
           </div>
-        </div>`;
+          <div class="field">
+            <label for="loginPass">Senha</label>
+            <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" />
+          </div>
+          <button class="auth-btn" id="loginBtn">Entrar</button>
+          <div class="auth-err" id="loginErr">${errMsg ? esc(errMsg) : ''}</div>
+        </div>
+      </div>`;
 
-      const emailEl = document.getElementById('loginEmail');
-      const passEl  = document.getElementById('loginPass');
-      const btn     = document.getElementById('loginBtn');
-      const errEl   = document.getElementById('loginErr');
+    const emailEl = document.getElementById('loginEmail');
+    const passEl  = document.getElementById('loginPass');
+    const btn     = document.getElementById('loginBtn');
+    const errEl   = document.getElementById('loginErr');
 
-      async function doLogin() {
-        const email    = emailEl.value.trim();
-        const password = passEl.value;
-        if (!email || !password) { errEl.textContent = 'Preencha e-mail e senha.'; return; }
-        btn.disabled = true; btn.textContent = 'Entrando…'; errEl.textContent = '';
-        try {
-          const data = await apiFetch('/api/auth/login', {
-            method: 'POST',
-            body: JSON.stringify({ email, password }),
-          }, '');
-          TOKEN = data.token;
-          localStorage.setItem('ci_token', TOKEN);
-          loadEvents();
-        } catch (e) {
-          errEl.textContent = e.message === 'Credenciais inválidas.' ? 'E-mail ou senha incorretos.' : e.message;
-          btn.disabled = false; btn.textContent = 'Entrar';
-        }
-      }
-
-      btn.addEventListener('click', doLogin);
-      passEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
-      emailEl.addEventListener('keydown', e => { if (e.key === 'Enter') passEl.focus(); });
-    }
-
-    async function loadEvents() {
-      const root = document.getElementById('root');
-      if (!TOKEN) { showLoginForm(); return; }
-
-      // Mostra botão de sair apenas para sessões JWT (não para operator token)
-      const logoutBtn    = document.getElementById('logoutBtn');
-      const operatorBadge = document.getElementById('operatorLabel');
-      if (isJwt(TOKEN)) {
-        logoutBtn.style.display = '';
-        operatorBadge.style.display = 'none';
-      } else {
-        logoutBtn.style.display = 'none';
-        operatorBadge.style.display = '';
-      }
-
-      root.innerHTML = `<div class="page-head"><h1 class="page-title">Eventos</h1></div>` + skeleton(3);
+    async function doLogin() {
+      const email    = emailEl.value.trim();
+      const password = passEl.value;
+      if (!email || !password) { errEl.textContent = 'Preencha e-mail e senha.'; return; }
+      btn.disabled = true; btn.textContent = 'Entrando…'; errEl.textContent = '';
       try {
-        const events = await apiFetch('/api/checkin/events');
-        if (events.length === 1) {
-          location.replace('event?token=' + encodeURIComponent(TOKEN) + '&event=' + events[0].id);
-          return;
-        }
-        if (!events.length) {
-          root.innerHTML = `<div class="state-box"><div class="icon">📭</div><p class="err" style="color:var(--navy-deep)">Nenhum evento disponível</p><p>Quando houver um evento com convidados confirmados, ele aparecerá aqui.</p></div>`;
-          return;
-        }
-        const statsAll = await Promise.all(events.map(ev => apiFetch('/api/checkin/events/' + ev.id + '/stats').catch(() => ({ total_confirmed: 0, checked_in: 0 }))));
-        root.innerHTML = `
-          <div class="page-head">
-            <h1 class="page-title">Eventos</h1>
-            <p class="page-sub">${events.length} evento${events.length !== 1 ? 's' : ''} disponível${events.length !== 1 ? 'is' : ''}</p>
-          </div>
-          ${events.map((ev, i) => {
-            const s = statsAll[i];
-            const p = pct(s.checked_in, s.total_confirmed);
-            const meta = [ev.location, ev.city].filter(Boolean).join(' · ');
-            return `
-              <a class="event-card" href="event?token=${encodeURIComponent(TOKEN)}&event=${ev.id}">
-                <div class="event-top">
-                  ${dateBadge(ev.event_date)}
-                  <div class="event-info">
-                    <div class="event-name">${esc(ev.name)}</div>
-                    ${meta ? `<div class="event-meta">📍 ${esc(meta)}</div>` : (ev.event_date ? `<div class="event-meta">📅 ${esc(fmtDate(ev.event_date))}</div>` : '')}
-                  </div>
-                  <div class="event-arrow">›</div>
-                </div>
-                <div class="event-stats">
-                  <div class="stat"><span class="stat-n">${s.total_confirmed}</span><span class="stat-l">Confirmados</span></div>
-                  <div class="stat ok-bg"><span class="stat-n ok">${s.checked_in}</span><span class="stat-l">Presentes</span></div>
-                  <div class="stat cyan-bg"><span class="stat-n cyan">${p}%</span><span class="stat-l">Check-in</span></div>
-                </div>
-                <div class="pct-bar"><div class="pct-fill" style="width:${p}%"></div></div>
-              </a>`;
-          }).join('')}
-          <div class="footer">Moura Agência de Relações Públicas · 2026</div>`;
+        const data = await apiFetch('/api/auth/login', {
+          method: 'POST',
+          body: JSON.stringify({ email, password }),
+        }, '');
+        TOKEN = data.token;
+        localStorage.setItem('ci_token', TOKEN);
+        loadEvents();
       } catch (e) {
-        // Token expirado ou inválido → volta para o login
-        if (e.message.includes('401') || e.message.toLowerCase().includes('expirado') || e.message.toLowerCase().includes('inválido')) {
-          localStorage.removeItem('ci_token');
-          TOKEN = '';
-          showLoginForm('Sua sessão expirou. Faça login novamente.');
-          return;
-        }
-        root.innerHTML = `<div class="state-box"><div class="icon">⚠️</div><p class="err">${esc(e.message)}</p><p>Verifique sua conexão e tente novamente.</p></div>`;
+        errEl.textContent = e.message === 'Credenciais inválidas.' ? 'E-mail ou senha incorretos.' : e.message;
+        btn.disabled = false; btn.textContent = 'Entrar';
       }
     }
 
-    function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    btn.addEventListener('click', doLogin);
+    passEl.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+    emailEl.addEventListener('keydown', e => { if (e.key === 'Enter') passEl.focus(); });
+  }
 
-    loadEvents();
-  </script>
+  async function loadEvents() {
+    const root = document.getElementById('root');
+    if (!TOKEN) { showLoginForm(); return; }
+
+    // Atualiza topbar de acordo com o tipo de token
+    const logoutBtn    = document.getElementById('logoutBtn');
+    const userBtn      = document.getElementById('userBtn');
+    const operatorBadge = document.getElementById('operatorLabel');
+
+    if (isJwt(TOKEN)) {
+      userBtn.textContent = getInitial(TOKEN);
+      userBtn.style.display = '';
+      logoutBtn.style.display = '';
+      operatorBadge.style.display = 'none';
+    } else {
+      userBtn.style.display = 'none';
+      logoutBtn.style.display = 'none';
+      operatorBadge.style.display = '';
+    }
+
+    root.innerHTML = `<div class="page-head"><h1 class="page-title">Eventos</h1></div>` + skeleton(3);
+
+    try {
+      const events = await apiFetch('/api/checkin/events');
+      if (events.length === 1) {
+        location.replace('event?token=' + encodeURIComponent(TOKEN) + '&event=' + events[0].id);
+        return;
+      }
+      if (!events.length) {
+        root.innerHTML = `
+          <div class="page-head"><h1 class="page-title">Eventos</h1></div>
+          <div class="state-box">
+            <div class="icon">📭</div>
+            <p class="hdg">Nenhum evento disponível</p>
+            <p>Quando houver um evento com convidados confirmados, ele aparecerá aqui.</p>
+          </div>`;
+        return;
+      }
+
+      const statsAll = await Promise.all(
+        events.map(ev => apiFetch('/api/checkin/events/' + ev.id + '/stats').catch(() => ({ total_confirmed: 0, checked_in: 0 })))
+      );
+
+      root.innerHTML = `
+        <div class="page-head">
+          <h1 class="page-title">Eventos</h1>
+          <p class="page-sub">${events.length} evento${events.length !== 1 ? 's' : ''} disponível${events.length !== 1 ? 'is' : ''}</p>
+        </div>
+        ${events.map((ev, i) => {
+          const s = statsAll[i];
+          const p = pct(s.checked_in, s.total_confirmed);
+          const metaParts = [ev.location, ev.city].filter(Boolean);
+          const metaDate  = ev.event_date ? fmtDate(ev.event_date) : '';
+          const metaStr   = metaParts.length ? metaParts.join(' · ') : metaDate;
+          return `
+            <a class="ev-card" href="event?token=${encodeURIComponent(TOKEN)}&event=${ev.id}">
+              <div class="ev-body">
+                <div class="ev-name">${esc(ev.name)}</div>
+                ${metaStr ? `<div class="ev-meta">📍 ${esc(metaStr)}${metaDate && metaParts.length ? ' · ' + esc(metaDate) : ''}</div>` : ''}
+              </div>
+              <div class="ev-counts">
+                <div class="ev-detail">
+                  <div class="ev-checked">${s.checked_in} presentes</div>
+                  <div class="ev-total">${s.total_confirmed} confirmados</div>
+                </div>
+                <div>
+                  <div class="ev-pct">${p}%</div>
+                  <div class="ev-pct-label">Check-in</div>
+                </div>
+              </div>
+              <div class="ev-arrow">›</div>
+            </a>`;
+        }).join('')}
+        <div class="footer">Moura Agência de Relações Públicas · 2026</div>`;
+    } catch (e) {
+      // Token expirado ou inválido → volta para o login
+      if (e.message.includes('401') || e.message.toLowerCase().includes('expirado') || e.message.toLowerCase().includes('inválido')) {
+        localStorage.removeItem('ci_token');
+        TOKEN = '';
+        showLoginForm('Sua sessão expirou. Faça login novamente.');
+        return;
+      }
+      root.innerHTML = `
+        <div class="state-box">
+          <div class="icon">⚠️</div>
+          <p class="err">${esc(e.message)}</p>
+          <p>Verifique sua conexão e tente novamente.</p>
+        </div>`;
+    }
+  }
+
+  loadEvents();
+</script>
 </body>
 </html>
