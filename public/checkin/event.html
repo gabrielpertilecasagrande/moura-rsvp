@@ -31,6 +31,12 @@
     .topbar-ev-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .topbar-ev-meta { font-size: 11px; color: rgba(255,255,255,.5); }
     .topbar-logo { height: 24px; flex-shrink: 0; }
+    .topbar-logout {
+      font-size: 12px; font-weight: 600; color: rgba(255,255,255,.7);
+      background: none; border: none; cursor: pointer; padding: 4px 8px;
+      border-radius: 6px; transition: background .15s; flex-shrink: 0;
+    }
+    .topbar-logout:hover { background: rgba(255,255,255,.12); color: #fff; }
 
     /* ── KPI bar ── */
     .kpi-bar {
@@ -148,6 +154,7 @@
     <div class="topbar-ev-meta" id="evMeta"></div>
   </div>
   <img class="topbar-logo" src="/assets/img/logo-moura-white.png" alt="Moura" onerror="this.style.display='none'" />
+  <button class="topbar-logout" id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
 </div>
 
 <!-- ── KPIs ── -->
@@ -188,6 +195,17 @@ const EVENT_ID = urlParams.get('event') || '';
 const API      = (window.CHECKIN_API || '').replace(/\/$/, '');
 
 if (TOKEN) localStorage.setItem('ci_token', TOKEN);
+
+// JWT tem 3 partes separadas por ponto; operator token é hex
+function isJwt(t) { return t && t.startsWith('eyJ') && t.split('.').length === 3; }
+
+function logout() {
+  localStorage.removeItem('ci_token');
+  location.replace('/checkin/');
+}
+
+// Mostra botão Sair apenas para sessões JWT
+if (isJwt(TOKEN)) document.getElementById('logoutBtn').style.display = '';
 
 // Fix back link
 document.querySelector('.topbar-back').href = '/checkin/?token=' + encodeURIComponent(TOKEN);

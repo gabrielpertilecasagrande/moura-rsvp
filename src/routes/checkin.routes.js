@@ -1,9 +1,11 @@
 'use strict';
 const express   = require('express');
+const jwt       = require('jsonwebtoken');
 const db        = require('../db');
 const { runWithDb }  = require('../db');
 const { routerDb }   = require('../router');
 const { rateLimit }  = require('../middleware/rateLimit');
+const { SECRET }     = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -14,22 +16,37 @@ const checkinLimiter = rateLimit({
   keyGenerator: (req) => `ci:${req.ip}`,
 });
 
-// Autentica via token de operador (UUID armazenado no router.db global).
+// Aceita operator token (UUID) OU JWT de sessão de admin (mesmas credenciais do Moura One).
 function requireOperatorToken(req, res, next) {
   const header = req.headers.authorization || '';
   const token  = header.startsWith('Bearer ') ? header.slice(7) : (req.query.token || null);
-  if (!token) return res.status(401).json({ error: 'Token de operador ausente.' });
+  if (!token) return res.status(401).json({ error: 'Token ausente.' });
 
+  // Tenta operator token primeiro (operadores externos com link UUID)
   const record = routerDb.prepare(
     `SELECT * FROM operator_tokens
      WHERE token = ? AND revoked_at IS NULL AND expires_at > datetime('now')`
   ).get(token);
 
-  if (!record) return res.status(401).json({ error: 'Token inválido ou expirado.' });
+  if (record) {
+    req.operatorToken = record;
+    req.tenantSlug    = record.tenant_slug;
+    return runWithDb(record.tenant_slug, () => next());
+  }
 
-  req.operatorToken = record;
-  req.tenantSlug    = record.tenant_slug;
-  runWithDb(record.tenant_slug, () => next());
+  // Tenta JWT de admin (funcionárias que fazem login com credenciais do Moura One)
+  try {
+    const payload = jwt.verify(token, SECRET);
+    // Rejeita tokens SSO/service (têm claim `target`) — apenas sessões normais
+    if (payload?.tenant_slug && !payload?.target) {
+      req.admin        = { id: payload.id, name: payload.name, email: payload.email, role: payload.role };
+      req.operatorToken = { event_id: null, tenant_slug: payload.tenant_slug };
+      req.tenantSlug   = payload.tenant_slug;
+      return runWithDb(payload.tenant_slug, () => next());
+    }
+  } catch { /* JWT inválido ou expirado */ }
+
+  return res.status(401).json({ error: 'Token inválido ou expirado.' });
 }
 
 router.use(checkinLimiter, requireOperatorToken);
