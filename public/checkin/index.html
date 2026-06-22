@@ -141,7 +141,7 @@
 
     function logout() {
       localStorage.removeItem('ci_token');
-      location.replace('/checkin/');
+      location.replace('./');
     }
 
     function showLoginForm(errMsg) {
@@ -214,7 +214,7 @@
       try {
         const events = await apiFetch('/api/checkin/events');
         if (events.length === 1) {
-          location.replace('/checkin/event?token=' + encodeURIComponent(TOKEN) + '&event=' + events[0].id);
+          location.replace('event?token=' + encodeURIComponent(TOKEN) + '&event=' + events[0].id);
           return;
         }
         const statsAll = await Promise.all(events.map(ev => apiFetch('/api/checkin/events/' + ev.id + '/stats').catch(() => ({ total_confirmed: 0, checked_in: 0 }))));
@@ -226,7 +226,7 @@
             const p = pct(s.checked_in, s.total_confirmed);
             const meta = [fmtDate(ev.event_date), ev.location, ev.city].filter(Boolean).join(' · ');
             return `
-              <a class="event-card" href="/checkin/event?token=${encodeURIComponent(TOKEN)}&event=${ev.id}">
+              <a class="event-card" href="event?token=${encodeURIComponent(TOKEN)}&event=${ev.id}">
                 <div class="event-name">${esc(ev.name)}</div>
                 ${meta ? `<div class="event-meta">${esc(meta)}</div>` : ''}
                 <div class="event-stats">
