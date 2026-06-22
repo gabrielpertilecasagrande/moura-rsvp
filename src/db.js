@@ -53,6 +53,10 @@ function applyMigrations(db) {
   addColumn('events', 'whatsapp_enabled', 'INTEGER DEFAULT 1');
   addColumn('events', 'city', 'TEXT');
   addColumn('events', 'address', 'TEXT');
+  // ID do evento no Moura One (fonte da verdade). Permite que o provisionamento
+  // seja IDEMPOTENTE: reenviar os dados ATUALIZA o evento em vez de duplicar.
+  addColumn('events', 'source_event_id', 'TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_events_source ON events(source_event_id)');
   addColumn('audit_log', 'actor', 'TEXT');
   addColumn('participants', 'extra', 'TEXT');
   addColumn('participants', 'notes', 'TEXT');

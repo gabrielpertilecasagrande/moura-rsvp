@@ -195,3 +195,52 @@ test('provisionamento via serviço (Moura One) cria evento com o segredo compart
   });
   assert.equal(unauth.status, 401, 'segredo errado deve ser rejeitado');
 });
+
+test('provision-event é idempotente por source_event_id (atualiza, não duplica)', async () => {
+  const src = `sync-${SUFFIX}`;
+  const create = await json('/api/auth/provision-event', {
+    method: 'POST', token: SECRET,
+    body: { name: 'Evento Sync A', source_event_id: src, event_date: '2026-11-01', location: 'Local A' },
+  });
+  assert.ok([200, 201].includes(create.status), `criar: ${JSON.stringify(create.data)}`);
+  const id = create.data.id;
+  const slug = create.data.slug;
+  assert.ok(id && slug);
+
+  const update = await json('/api/auth/provision-event', {
+    method: 'POST', token: SECRET,
+    body: { name: 'Evento Sync B', source_event_id: src, event_date: '2026-12-02', location: 'Local B' },
+  });
+  assert.equal(update.status, 200);
+  assert.equal(update.data.id, id, 'mesmo id — não duplicou');
+  assert.equal(update.data.updated, true);
+
+  // O núcleo (nome/local) foi atualizado; o slug (próprio do RSVP) foi preservado.
+  const pub = await json(`/api/public/events/${slug}`);
+  assert.equal(pub.data.name, 'Evento Sync B');
+  assert.equal(pub.data.location, 'Local B');
+});
+
+test('provision-event vincula por event_id quando a origem ainda não foi carimbada (backfill)', async () => {
+  const create = await json('/api/auth/provision-event', {
+    method: 'POST', token: SECRET, body: { name: 'Evento Legado', event_date: '2026-10-01' },
+  });
+  const id = create.data.id;
+  assert.ok(id);
+
+  const link = await json('/api/auth/provision-event', {
+    method: 'POST', token: SECRET,
+    body: { name: 'Evento Legado Vinculado', event_id: id, source_event_id: `legacy-${SUFFIX}` },
+  });
+  assert.equal(link.status, 200);
+  assert.equal(link.data.id, id, 'vinculou ao evento existente — não duplicou');
+  assert.equal(link.data.linked, true);
+
+  // Depois de vinculado, re-sincronizar por source encontra o mesmo evento.
+  const resync = await json('/api/auth/provision-event', {
+    method: 'POST', token: SECRET,
+    body: { name: 'Evento Legado v2', source_event_id: `legacy-${SUFFIX}`, event_date: '2026-10-05' },
+  });
+  assert.equal(resync.data.id, id);
+  assert.equal(resync.data.updated, true);
+});

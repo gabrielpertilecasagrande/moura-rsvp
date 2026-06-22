@@ -361,30 +361,71 @@ router.post('/provision-event', (req, res) => {
   }
 
   const { registerEventSlug } = require('../router');
+  // ID do evento no Moura One (fonte da verdade) e o ID conhecido deste evento no
+  // RSVP (quando o Moura One já o tem mapeado) — usados para localizar e atualizar
+  // em vez de duplicar.
+  const src     = b.source_event_id != null ? String(b.source_event_id) : null;
+  const knownId = b.event_id != null ? Number(b.event_id) : null;
 
   runWithDb(tenantSlug, () => {
+    const base = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+    const publicUrl = (e) => `${base}/rsvp/${e.slug}`;
+
+    // Atualiza APENAS os campos que o Moura One é dono (núcleo do evento).
+    // NÃO toca em campos próprios do RSVP: slug, mensagens, prazo, form_config,
+    // whatsapp, status, capa/logo — para não sobrescrever ajustes locais.
+    const syncCore = (id) => {
+      db.prepare(
+        `UPDATE events SET name = ?, event_date = ?, event_time = ?, location = ?, city = ?,
+                updated_at = datetime('now') WHERE id = ?`
+      ).run(String(b.name).trim(), b.event_date || null, b.event_time || null,
+            b.location || null, b.city || null, id);
+    };
+
+    // 1) Já vinculado pela origem (source_event_id) → atualiza.
+    if (src) {
+      const ex = db.prepare('SELECT id, slug, name FROM events WHERE source_event_id = ? AND deleted_at IS NULL').get(src);
+      if (ex) {
+        syncCore(ex.id);
+        logActivity('integração (provision)', 'atualizou evento', String(b.name).trim());
+        return res.json({ id: ex.id, slug: ex.slug, public_url: publicUrl(ex), updated: true });
+      }
+    }
+
+    // 2) Backfill: o Moura One conhece o ID deste evento no RSVP mas ainda não
+    //    havia carimbado a origem → vincula (stamp) e atualiza, sem duplicar.
+    if (knownId) {
+      const ex = db.prepare('SELECT id, slug, name, source_event_id FROM events WHERE id = ? AND deleted_at IS NULL').get(knownId);
+      if (ex) {
+        if (src && !ex.source_event_id) db.prepare('UPDATE events SET source_event_id = ? WHERE id = ?').run(src, ex.id);
+        syncCore(ex.id);
+        logActivity('integração (provision)', 'vinculou e atualizou evento', String(b.name).trim());
+        return res.json({ id: ex.id, slug: ex.slug, public_url: publicUrl(ex), updated: true, linked: true });
+      }
+    }
+
+    // 3) Não existe → cria (comportamento original), carimbando a origem.
     const slug       = uniqueSlug(db, b.slug && String(b.slug).trim() ? b.slug : b.name);
     const formConfig = JSON.stringify(parseFormConfig(b.form_config));
 
     const info = db.prepare(`
       INSERT INTO events (slug, name, description, event_date, event_time, location, city, address,
         cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
-        expected_guests, whatsapp, whatsapp_enabled, force_open, form_config)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        expected_guests, whatsapp, whatsapp_enabled, force_open, form_config, source_event_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(
       slug, String(b.name).trim(), b.description || null, b.event_date || null, b.event_time || null,
       b.location || null, b.city || null, b.address || null, null, null, b.rsvp_deadline || null, 'ativo',
       b.confirm_message || 'Olá, {nome}. Sua presença no evento foi confirmada com sucesso.',
       b.decline_message || 'Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.',
-      parseInt(b.expected_guests, 10) || 0, b.whatsapp || null, 1, 0, formConfig
+      parseInt(b.expected_guests, 10) || 0, b.whatsapp || null, 1, 0, formConfig, src
     );
 
     const created = db.prepare('SELECT id, slug, name FROM events WHERE id = ?').get(info.lastInsertRowid);
     registerEventSlug(created.slug, tenantSlug);
 
-    const base = (process.env.BASE_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
     logActivity('integração (provision)', 'criou evento', created.name);
-    res.status(201).json({ id: created.id, slug: created.slug, public_url: `${base}/rsvp/${created.slug}` });
+    res.status(201).json({ id: created.id, slug: created.slug, public_url: publicUrl(created) });
   });
 });
 
