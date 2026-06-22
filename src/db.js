@@ -80,6 +80,32 @@ function applyMigrations(db) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_participants_qr      ON participants(qr_token)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_participants_checkin ON participants(event_id, checked_in_at)');
 
+  // Check-in: mesa e categoria por convidado (recursos do módulo de credenciamento).
+  addColumn('participants', 'table_number', 'TEXT');
+  addColumn('participants', 'category_id',  'INTEGER');
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS checkin_tables (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id   INTEGER NOT NULL,
+      name       TEXT    NOT NULL,
+      capacity   INTEGER NOT NULL DEFAULT 8,
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS checkin_categories (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id   INTEGER NOT NULL,
+      name       TEXT    NOT NULL,
+      color      TEXT    DEFAULT '#2C427E',
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    );
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_checkin_tables_event     ON checkin_tables(event_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_checkin_categories_event ON checkin_categories(event_id)');
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS data_erasures (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
