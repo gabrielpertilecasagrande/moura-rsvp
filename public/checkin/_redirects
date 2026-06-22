@@ -1,1 +1,2 @@
-/api/*  https://moura-rsvp-production.up.railway.app/api/:splat  200
+/api/*   https://moura-rsvp-production.up.railway.app/api/:splat  200
+/event   /event.html                                               200

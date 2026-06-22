@@ -148,7 +148,7 @@
 
 <!-- ── Topbar ── -->
 <div class="topbar">
-  <a class="topbar-back" href="/checkin/?token=TOKEN_PLACEHOLDER">← Eventos</a>
+  <a class="topbar-back" href="./?token=TOKEN_PLACEHOLDER">← Eventos</a>
   <div class="topbar-ev">
     <div class="topbar-ev-name" id="evName">Carregando…</div>
     <div class="topbar-ev-meta" id="evMeta"></div>
@@ -201,14 +201,14 @@ function isJwt(t) { return t && t.startsWith('eyJ') && t.split('.').length === 3
 
 function logout() {
   localStorage.removeItem('ci_token');
-  location.replace('/checkin/');
+  location.replace('./');
 }
 
 // Mostra botão Sair apenas para sessões JWT
 if (isJwt(TOKEN)) document.getElementById('logoutBtn').style.display = '';
 
 // Fix back link
-document.querySelector('.topbar-back').href = '/checkin/?token=' + encodeURIComponent(TOKEN);
+document.querySelector('.topbar-back').href = './?token=' + encodeURIComponent(TOKEN);
 
 let allParticipants = [];
 let stats = { total_confirmed: 0, checked_in: 0 };
