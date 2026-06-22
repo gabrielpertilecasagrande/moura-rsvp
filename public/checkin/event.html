@@ -11,168 +11,267 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root {
-      --navy: #2C427E; --navy-deep: #21345f; --cyan: #2BC2CE;
-      --off-white: #F2F3F3; --gray-soft: #eceded; --charcoal: #28282A;
-      --muted: #6b6f78; --ok: #22c55e; --danger: #ef4444; --yellow: #f59e0b;
-      --white: #fff; --radius: 14px; --radius-sm: 9px;
-      --shadow: 0 1px 2px rgba(40,40,42,.06), 0 6px 18px rgba(40,40,42,.06);
+      --navy: #2C427E; --navy-dark: #22335f; --navy-tint: #E8ECF5;
+      --teal: #2BC2CE; --teal-tint: #E7F7F8; --teal-line: #c7e9ec;
+      --base: #F2F3F3; --card: #FFFFFF; --line: #D9D9D9; --line-soft: #E6E7E7;
+      --ink: #28282A; --ink-soft: #6E6F72;
+      --danger: #A4343A;
+      --shadow: 0 1px 2px rgba(40,40,42,.05), 0 4px 16px rgba(40,40,42,.07);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     }
-    body { background: var(--off-white); font-family: 'Inter', system-ui, sans-serif; min-height: 100dvh; }
+    body {
+      background: var(--base);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100dvh; color: var(--ink); -webkit-font-smoothing: antialiased;
+    }
 
     /* ── Top bar ── */
     .topbar {
-      background: var(--navy); color: #fff; padding: 0 16px;
-      display: flex; align-items: center; gap: 12px; height: 56px;
       position: sticky; top: 0; z-index: 30;
-      padding-top: env(safe-area-inset-top, 0);
+      background: var(--card); border-bottom: 3px solid var(--teal);
+      padding: 10px 16px; padding-top: calc(10px + env(safe-area-inset-top, 0));
+      display: flex; align-items: center; gap: 10px;
     }
-    .topbar-back { color: rgba(255,255,255,.6); font-size: 13px; text-decoration: none; flex-shrink: 0; }
-    .topbar-ev { flex: 1; overflow: hidden; }
-    .topbar-ev-name { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .topbar-ev-meta { font-size: 11px; color: rgba(255,255,255,.5); }
+    .topbar-back {
+      color: var(--navy); font-size: 20px; text-decoration: none; flex-shrink: 0;
+      line-height: 1; padding: 2px 4px; border-radius: 6px; transition: background .12s;
+    }
+    .topbar-back:hover { background: var(--navy-tint); }
+    .topbar-ev { flex: 1; min-width: 0; }
+    .topbar-ev-name {
+      font-size: 15px; font-weight: 700; color: var(--ink);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .topbar-ev-meta { font-size: 11px; color: var(--ink-soft); margin-top: 1px; }
     .topbar-logo { height: 24px; flex-shrink: 0; }
     .topbar-logout {
-      font-size: 12px; font-weight: 600; color: rgba(255,255,255,.7);
-      background: none; border: none; cursor: pointer; padding: 4px 8px;
-      border-radius: 6px; transition: background .15s; flex-shrink: 0;
+      font-size: 12px; font-weight: 600; color: var(--ink-soft); cursor: pointer;
+      background: none; border: none; padding: 4px 6px; border-radius: 6px;
+      flex-shrink: 0; transition: color .15s;
     }
-    .topbar-logout:hover { background: rgba(255,255,255,.12); color: #fff; }
+    .topbar-logout:hover { color: var(--navy); }
 
-    /* ── KPI bar ── */
-    .kpi-bar {
-      background: var(--navy-deep); display: flex; gap: 0; border-bottom: 1px solid rgba(255,255,255,.06);
+    /* ── Stats grid ── */
+    .stats {
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      gap: 1px; background: var(--line-soft);
+      border: 1px solid var(--line-soft); border-radius: 14px;
+      overflow: hidden; margin: 14px 14px 0;
     }
-    .kpi { flex: 1; text-align: center; padding: 10px 4px; border-right: 1px solid rgba(255,255,255,.06); }
-    .kpi:last-child { border-right: none; }
-    .kpi-n { font-size: 22px; font-weight: 800; color: #fff; line-height: 1; }
-    .kpi-n.ok { color: #4ade80; }
-    .kpi-n.pct { color: var(--cyan); }
-    .kpi-l { font-size: 9px; color: rgba(255,255,255,.4); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+    .stat { background: var(--card); padding: 13px 10px; text-align: center; }
+    .stat .n {
+      font-size: 23px; font-weight: 800; letter-spacing: -.03em;
+      line-height: 1; color: var(--navy);
+    }
+    .stat .n.ok { color: #0e7c39; }
+    .stat .n.teal { color: #127a83; }
+    .stat .l { font-size: 9.5px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: .06em; margin-top: 4px; font-weight: 600; }
 
-    /* ── Search / scan bar ── */
-    .search-bar {
-      background: var(--white); border-bottom: 1px solid var(--gray-soft);
-      padding: 10px 12px; display: flex; gap: 8px; align-items: center; position: sticky;
-      top: 56px; z-index: 20;
+    /* ── Toolbar ── */
+    .toolbar {
+      background: var(--card); border-bottom: 1px solid var(--line-soft);
+      padding: 10px 14px; display: flex; gap: 8px; align-items: center;
+      position: sticky; top: calc(49px + env(safe-area-inset-top, 0)); z-index: 20;
     }
+    .search-wrap { flex: 1; position: relative; }
     .search-input {
-      flex: 1; border: 1.5px solid var(--gray-soft); border-radius: var(--radius-sm);
-      padding: 10px 14px; font-size: 15px; outline: none; background: var(--off-white);
-      transition: border-color .15s;
+      width: 100%; border: 1.5px solid var(--line-soft); border-radius: 10px;
+      padding: 9px 14px 9px 34px; font-size: 14px; outline: none;
+      background: var(--base); font-family: inherit; color: var(--ink);
+      transition: border-color .15s, background .15s;
     }
-    .search-input:focus { border-color: var(--cyan); background: var(--white); }
+    .search-input:focus { border-color: var(--teal); background: var(--card); }
+    .search-icon {
+      position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+      color: var(--ink-soft); font-size: 14px; pointer-events: none;
+    }
     .btn-scan {
-      background: var(--navy); color: #fff; border: none; border-radius: var(--radius-sm);
-      width: 44px; height: 44px; font-size: 20px; cursor: pointer; flex-shrink: 0;
+      background: var(--navy); color: #fff; border: none; border-radius: 10px;
+      width: 42px; height: 42px; font-size: 18px; cursor: pointer; flex-shrink: 0;
       display: flex; align-items: center; justify-content: center; transition: background .15s;
     }
-    .btn-scan:hover { background: var(--navy-deep); }
-    .btn-scan.active { background: var(--cyan); }
+    .btn-scan:hover { background: var(--navy-dark); }
+    .btn-scan.active { background: var(--teal); }
+
+    /* ── Filter chips ── */
+    .chips { display: flex; gap: 6px; padding: 10px 14px 8px; overflow-x: auto; }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip {
+      flex-shrink: 0; font-size: 12px; font-weight: 600; padding: 5px 12px;
+      border-radius: 99px; border: 1.5px solid var(--line); background: var(--card);
+      color: var(--ink-soft); cursor: pointer; transition: all .12s; white-space: nowrap;
+    }
+    .chip.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+    .chip.active.teal { background: var(--teal); border-color: var(--teal); color: #0c3a3f; }
 
     /* ── Guest list ── */
-    .guest-list { padding: 8px 12px 80px; }
-    .guest-card {
-      background: var(--white); border-radius: var(--radius); padding: 14px 16px;
-      margin-bottom: 8px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px;
-      transition: opacity .2s;
-    }
-    .guest-card.done { opacity: .65; }
-    .guest-avatar {
-      width: 40px; height: 40px; border-radius: 50%; background: var(--navy);
-      display: flex; align-items: center; justify-content: center;
-      font-size: 16px; font-weight: 700; color: #fff; flex-shrink: 0;
-      font-family: 'Inter', sans-serif;
-    }
-    .guest-avatar.done { background: var(--ok); }
-    .guest-info { flex: 1; overflow: hidden; }
-    .guest-name { font-size: 15px; font-weight: 600; color: var(--charcoal); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .guest-meta { font-size: 12px; color: var(--muted); margin-top: 1px; }
-    .guest-time { font-size: 11px; color: var(--ok); margin-top: 2px; font-weight: 500; }
-    .btn-checkin {
-      background: var(--navy); color: #fff; border: none; border-radius: var(--radius-sm);
-      padding: 8px 14px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
-      transition: background .15s, transform .1s; flex-shrink: 0;
-    }
-    .btn-checkin:hover { background: var(--cyan); }
-    .btn-checkin:active { transform: scale(.96); }
-    .btn-checkin:disabled { background: var(--gray-soft); color: var(--muted); cursor: default; transform: none; }
-    .btn-done { background: var(--ok); color: #fff; border: none; border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; flex-shrink: 0; }
+    .guest-list { padding: 8px 14px 80px; }
+    .guest-count { font-size: 12px; color: var(--ink-soft); padding: 4px 0 8px; font-weight: 500; }
 
-    /* ── QR scanner overlay ── */
+    .guest {
+      background: var(--card); border: 1px solid var(--line-soft); border-radius: 12px;
+      padding: 13px 14px; display: flex; align-items: center; gap: 12px;
+      margin-bottom: 8px; transition: border-color .12s;
+    }
+    .guest.present { background: var(--teal-tint); border-color: var(--teal-line); }
+
+    .guest-avatar {
+      width: 38px; height: 38px; border-radius: 50%; background: var(--navy-tint);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; font-weight: 700; color: var(--navy); flex-shrink: 0;
+    }
+    .guest.present .guest-avatar { background: var(--teal); color: #0c3a3f; }
+
+    .guest-info { flex: 1; min-width: 0; }
+    .guest-name { font-size: 15px; font-weight: 700; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .guest-meta { font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+    .guest-time { font-size: 11px; color: #127a83; margin-top: 2px; font-weight: 600; }
+
+    .guest-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+
+    /* Check-in button */
+    .ck {
+      flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px;
+      font-weight: 700; font-size: 13.5px; padding: 9px 14px;
+      border-radius: 10px; border: 1.5px solid var(--navy);
+      color: var(--navy); background: var(--card); cursor: pointer;
+      transition: background .12s, color .12s, border-color .12s, transform .1s;
+      font-family: inherit;
+    }
+    .ck:hover { background: var(--navy-tint); }
+    .ck:active { transform: scale(.96); }
+    .ck:disabled { opacity: .45; cursor: default; transform: none; }
+    .ck.done { background: var(--teal); color: #0c3a3f; border-color: var(--teal); cursor: default; }
+
+    /* Three-dot menu button */
+    .btn-menu {
+      width: 30px; height: 30px; border-radius: 50%; background: none; border: none;
+      cursor: pointer; color: var(--ink-soft); font-size: 18px; display: flex;
+      align-items: center; justify-content: center; transition: background .12s;
+    }
+    .btn-menu:hover { background: var(--line-soft); }
+
+    /* ── Menu popup ── */
+    .menu-pop {
+      position: fixed; z-index: 60; background: var(--card);
+      border: 1px solid var(--line-soft); border-radius: 11px;
+      box-shadow: 0 12px 32px rgba(0,0,0,.16); overflow: hidden; min-width: 185px;
+    }
+    .menu-pop a, .menu-pop button {
+      display: flex; align-items: center; gap: 10px;
+      padding: 12px 16px; font-size: 13.5px; font-weight: 500; color: var(--ink);
+      text-decoration: none; background: none; border: none; width: 100%; text-align: left;
+      cursor: pointer; transition: background .1s; font-family: inherit;
+    }
+    .menu-pop a:hover, .menu-pop button:hover { background: var(--base); }
+    .menu-pop .sep { height: 1px; background: var(--line-soft); margin: 2px 0; }
+
+    /* Backdrop */
+    .backdrop { position: fixed; inset: 0; z-index: 50; }
+
+    /* ── QR Scanner overlay ── */
     .scanner-overlay {
-      position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 50;
+      position: fixed; inset: 0; background: rgba(0,0,0,.92); z-index: 55;
       display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
     }
     .scanner-overlay.hidden { display: none; }
     #qrVideo { width: 100%; max-width: 340px; border-radius: 12px; object-fit: cover; }
     .scanner-frame {
       position: relative; width: 100%; max-width: 340px;
-      border: 2px solid var(--cyan); border-radius: 12px; overflow: hidden; aspect-ratio: 1;
+      border: 2px solid var(--teal); border-radius: 12px; overflow: hidden; aspect-ratio: 1;
     }
-    .scanner-corners {
-      position: absolute; inset: 0; pointer-events: none;
-    }
+    .scanner-corners { position: absolute; inset: 0; pointer-events: none; }
     .scanner-corners::before, .scanner-corners::after {
       content: ''; position: absolute; width: 28px; height: 28px;
-      border: 3px solid var(--cyan); border-radius: 4px;
+      border: 3px solid var(--teal); border-radius: 4px;
     }
     .scanner-corners::before { top: 8px; left: 8px; border-right: none; border-bottom: none; }
     .scanner-corners::after  { top: 8px; right: 8px; border-left: none; border-bottom: none; }
     .scanner-label { color: #fff; font-size: 14px; }
     .btn-close-scan {
       background: rgba(255,255,255,.1); color: #fff; border: 1px solid rgba(255,255,255,.2);
-      border-radius: var(--radius); padding: 10px 28px; font-size: 14px; cursor: pointer;
+      border-radius: 14px; padding: 10px 28px; font-size: 14px; cursor: pointer;
+      font-family: inherit;
     }
 
-    /* ── Toast / feedback ── */
-    .toast-wrap { position: fixed; top: 68px; left: 50%; transform: translateX(-50%); z-index: 100; pointer-events: none; }
-    .toast {
-      display: inline-flex; align-items: center; gap: 8px;
-      padding: 10px 18px; border-radius: 99px; font-size: 14px; font-weight: 600;
-      box-shadow: 0 4px 20px rgba(0,0,0,.2); animation: toastIn .25s ease; pointer-events: none;
+    /* ── Syncbar ── */
+    .syncbar {
+      position: fixed; bottom: 0; left: 0; right: 0; z-index: 25;
+      background: var(--card); border-top: 1px solid var(--line-soft);
+      padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0));
+      display: flex; align-items: center; gap: 10px;
     }
-    .toast.ok   { background: var(--ok); color: #fff; }
-    .toast.warn { background: var(--yellow); color: #fff; }
-    .toast.err  { background: var(--danger); color: #fff; }
-    @keyframes toastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: translateY(0); } }
+    .sync-label { flex: 1; font-size: 11.5px; color: var(--ink-soft); }
+    .sync-btn {
+      font-size: 12px; font-weight: 700; color: var(--navy); background: var(--navy-tint);
+      border: none; border-radius: 8px; padding: 6px 12px; cursor: pointer;
+      font-family: inherit; transition: background .12s;
+    }
+    .sync-btn:hover { background: var(--teal-tint); }
+
+    /* ── Toast ── */
+    .toast {
+      position: fixed; bottom: 48px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: var(--navy); color: #fff; padding: 12px 20px; border-radius: 11px;
+      font-size: 14px; font-weight: 600; opacity: 0; pointer-events: none;
+      transition: opacity .2s, transform .2s; z-index: 100; white-space: nowrap;
+    }
+    .toast.ok     { background: var(--navy); }
+    .toast.warn   { background: #92700a; }
+    .toast.err    { background: var(--danger); }
+    .toast.show   { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     /* ── States ── */
-    .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
+    .empty-state { text-align: center; padding: 48px 20px; color: var(--ink-soft); font-size: 14px; line-height: 1.5; }
     .empty-state .icon { font-size: 36px; display: block; margin-bottom: 10px; }
-    .spinner { width: 32px; height: 32px; border: 3px solid var(--gray-soft); border-top-color: var(--cyan); border-radius: 50%; animation: spin .7s linear infinite; margin: 48px auto; }
+    .spinner { width: 32px; height: 32px; border: 3px solid var(--line-soft); border-top-color: var(--teal); border-radius: 50%; animation: spin .7s linear infinite; margin: 48px auto; }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .guest-count { font-size: 12px; color: var(--muted); padding: 6px 12px 2px; }
   </style>
 </head>
 <body>
 
 <!-- ── Topbar ── -->
 <div class="topbar">
-  <a class="topbar-back" href="./?token=TOKEN_PLACEHOLDER">← Eventos</a>
+  <a class="topbar-back" id="backLink" href="./">‹</a>
   <div class="topbar-ev">
     <div class="topbar-ev-name" id="evName">Carregando…</div>
     <div class="topbar-ev-meta" id="evMeta"></div>
   </div>
-  <img class="topbar-logo" src="/assets/img/logo-moura-white.png" alt="Moura" onerror="this.style.display='none'" />
+  <img class="topbar-logo" src="logo-moura.png" alt="Moura" onerror="this.style.display='none'" />
   <button class="topbar-logout" id="logoutBtn" style="display:none" onclick="logout()">Sair</button>
 </div>
 
-<!-- ── KPIs ── -->
-<div class="kpi-bar" id="kpiBar">
-  <div class="kpi"><div class="kpi-n" id="kpiConfirmed">—</div><div class="kpi-l">Confirmados</div></div>
-  <div class="kpi"><div class="kpi-n ok" id="kpiPresent">—</div><div class="kpi-l">Presentes</div></div>
-  <div class="kpi"><div class="kpi-n pct" id="kpiPct">—</div><div class="kpi-l">Check-in</div></div>
+<!-- ── Stats ── -->
+<div class="stats">
+  <div class="stat"><div class="n" id="kpiTotal">—</div><div class="l">Total</div></div>
+  <div class="stat"><div class="n ok" id="kpiPresent">—</div><div class="l">Presentes</div></div>
+  <div class="stat"><div class="n" id="kpiPending">—</div><div class="l">Pendentes</div></div>
+  <div class="stat"><div class="n teal" id="kpiPct">—</div><div class="l">Check-in</div></div>
 </div>
 
-<!-- ── Search bar ── -->
-<div class="search-bar">
-  <input class="search-input" id="searchInput" type="text" placeholder="Buscar convidado…" autocomplete="off" autocorrect="off" />
-  <button class="btn-scan" id="btnScan" title="Escanear QR Code">&#x1F4F7;</button>
+<!-- ── Toolbar + chips ── -->
+<div class="toolbar">
+  <div class="search-wrap">
+    <span class="search-icon">🔍</span>
+    <input class="search-input" id="searchInput" type="text" placeholder="Buscar convidado…" autocomplete="off" autocorrect="off" />
+  </div>
+  <button class="btn-scan" id="btnScan" title="Escanear QR Code">📷</button>
+</div>
+<div class="chips">
+  <button class="chip active" id="chipAll"      onclick="setFilter('all')">Todos</button>
+  <button class="chip"        id="chipPresent"  onclick="setFilter('present')">Presentes</button>
+  <button class="chip"        id="chipPending"  onclick="setFilter('pending')">Ausentes</button>
 </div>
 
 <!-- ── Guest list ── -->
 <div class="guest-list" id="guestList">
   <div class="spinner"></div>
+</div>
+
+<!-- ── Syncbar ── -->
+<div class="syncbar">
+  <span class="sync-label" id="syncLabel">Última atualização: —</span>
+  <button class="sync-btn" onclick="refreshStats()">↻ Atualizar</button>
 </div>
 
 <!-- ── QR Scanner overlay ── -->
@@ -186,7 +285,7 @@
 </div>
 
 <!-- ── Toast ── -->
-<div class="toast-wrap" id="toastWrap"></div>
+<div class="toast" id="toast"></div>
 
 <script>
 const urlParams = new URLSearchParams(location.search);
@@ -208,13 +307,14 @@ function logout() {
 if (isJwt(TOKEN)) document.getElementById('logoutBtn').style.display = '';
 
 // Fix back link
-document.querySelector('.topbar-back').href = './?token=' + encodeURIComponent(TOKEN);
+document.getElementById('backLink').href = './?token=' + encodeURIComponent(TOKEN);
 
 let allParticipants = [];
 let stats = { total_confirmed: 0, checked_in: 0 };
 let scanStream = null;
 let scanning   = false;
 let debounceTimer;
+let activeFilter = 'all'; // 'all' | 'present' | 'pending'
 
 // ── API helper ──────────────────────────────────────────────────────────────
 function apiFetch(path, opts) {
@@ -253,20 +353,37 @@ function initials(name) {
 // ── Toast ───────────────────────────────────────────────────────────────────
 let toastTimer;
 function showToast(msg, type = 'ok') {
-  const wrap = document.getElementById('toastWrap');
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + type;
+  el.classList.add('show');
   clearTimeout(toastTimer);
-  wrap.innerHTML = `<div class="toast ${type}">${esc(msg)}</div>`;
-  toastTimer = setTimeout(() => { wrap.innerHTML = ''; }, 2800);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
 // ── KPIs ────────────────────────────────────────────────────────────────────
 function updateKpis() {
-  const c = stats.total_confirmed;
-  const p = stats.checked_in;
+  const c   = stats.total_confirmed;
+  const p   = stats.checked_in;
+  const pen = c - p;
   const pct = c > 0 ? Math.round(p / c * 100) : 0;
-  document.getElementById('kpiConfirmed').textContent = c;
-  document.getElementById('kpiPresent').textContent   = p;
-  document.getElementById('kpiPct').textContent       = pct + '%';
+  document.getElementById('kpiTotal').textContent   = c;
+  document.getElementById('kpiPresent').textContent = p;
+  document.getElementById('kpiPending').textContent = Math.max(0, pen);
+  document.getElementById('kpiPct').textContent     = pct + '%';
+
+  // Sincbar
+  const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  document.getElementById('syncLabel').textContent = 'Atualizado às ' + now;
+}
+
+// ── Filter chips ─────────────────────────────────────────────────────────────
+function setFilter(f) {
+  activeFilter = f;
+  document.getElementById('chipAll').classList.toggle('active', f === 'all');
+  document.getElementById('chipPresent').classList.toggle('active', f === 'present');
+  document.getElementById('chipPending').classList.toggle('active', f === 'pending');
+  filterList();
 }
 
 // ── Render guest list ────────────────────────────────────────────────────────
@@ -281,29 +398,34 @@ function renderList(list) {
       const done = !!p.checked_in_at;
       const meta = [p.company, p.role].filter(Boolean).join(' · ');
       return `
-        <div class="guest-card${done ? ' done' : ''}" id="gc-${p.id}">
-          <div class="guest-avatar${done ? ' done' : ''}">${done ? '✓' : esc(initials(p.name))}</div>
+        <div class="guest${done ? ' present' : ''}" id="gc-${p.id}">
+          <div class="guest-avatar">${done ? '✓' : esc(initials(p.name))}</div>
           <div class="guest-info">
             <div class="guest-name">${esc(p.name)}</div>
             ${meta ? `<div class="guest-meta">${esc(meta)}</div>` : ''}
             ${done ? `<div class="guest-time">Chegou às ${fmtTime(p.checked_in_at)}</div>` : ''}
           </div>
-          ${done
-            ? `<div class="btn-done">✓</div>`
-            : `<button class="btn-checkin" onclick="registerCheckin(${p.id})">Registrar</button>`}
+          <div class="guest-actions">
+            ${done
+              ? `<button class="ck done" disabled>✓ Presente</button>`
+              : `<button class="ck" onclick="registerCheckin(${p.id})">Registrar</button>`}
+          </div>
         </div>`;
     }).join('');
 }
 
 function filterList() {
   const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
-  if (!q) { renderList(allParticipants); return; }
-  renderList(allParticipants.filter(p => p.name.toLowerCase().includes(q)));
+  let list = allParticipants;
+  if (activeFilter === 'present') list = list.filter(p => !!p.checked_in_at);
+  if (activeFilter === 'pending') list = list.filter(p => !p.checked_in_at);
+  if (q) list = list.filter(p => p.name.toLowerCase().includes(q));
+  renderList(list);
 }
 
 // ── Check-in ─────────────────────────────────────────────────────────────────
 async function registerCheckin(participantId) {
-  const btn = document.querySelector(`#gc-${participantId} .btn-checkin`);
+  const btn = document.querySelector(`#gc-${participantId} .ck`);
   if (btn) { btn.disabled = true; btn.textContent = '…'; }
   try {
     const r = await apiFetch('/api/checkin/register', { method: 'POST', body: JSON.stringify({ participant_id: participantId }) });
@@ -406,12 +528,21 @@ function playBeep(success) {
   } catch { /* sem áudio */ }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Refresh stats ─────────────────────────────────────────────────────────────
+async function refreshStats() {
+  try {
+    stats = await apiFetch('/api/checkin/events/' + EVENT_ID + '/stats');
+    updateKpis();
+  } catch { /* ignora */ }
+}
+
+// ── Search ────────────────────────────────────────────────────────────────────
 document.getElementById('searchInput').addEventListener('input', () => {
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(filterList, 250);
 });
 
+// ── Init ──────────────────────────────────────────────────────────────────────
 async function init() {
   if (!TOKEN || !EVENT_ID) {
     document.getElementById('guestList').innerHTML = `<div class="empty-state"><span class="icon">🔒</span>Link inválido. Solicite um novo ao organizador.</div>`;
@@ -427,6 +558,7 @@ async function init() {
       document.getElementById('evName').textContent = ev.name;
       const meta = [fmtDate(ev.event_date), ev.location, ev.city].filter(Boolean).join(' · ');
       document.getElementById('evMeta').textContent = meta;
+      document.title = ev.name + ' — Check-in';
     }
     stats = s;
     updateKpis();
