@@ -144,6 +144,9 @@ app.get(PLATFORM_PATH, (_req, res) => res.sendFile(path.join(__dirname, 'public'
 
 // App de check-in para operadores (servido também via moura-checkin.netlify.app).
 app.use('/checkin/assets', express.static(path.join(__dirname, 'public', 'checkin', 'assets')));
+// Estáticos da pasta do check-in (ex.: logo-moura.png). index:false p/ não
+// servir o index.html automaticamente — o SPA é entregue pela rota abaixo.
+app.use('/checkin', express.static(path.join(__dirname, 'public', 'checkin'), { index: false }));
 app.get('/checkin/event', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin', 'event.html')));
 app.get(['/checkin', '/checkin/'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin', 'index.html')));
 
