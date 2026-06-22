@@ -1,0 +1,4 @@
+# Gerado automaticamente pelo netlify.toml na build do Netlify.
+# Configure a variável de ambiente RSVP_API_URL no painel do Netlify.
+# Exemplo: RSVP_API_URL=https://moura-rsvp-production.up.railway.app
+/api/*  https://moura-rsvp-production.up.railway.app/api/:splat  200

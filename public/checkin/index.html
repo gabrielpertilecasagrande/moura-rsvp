@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#2C427E" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Check-in — Moura</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --navy: #2C427E; --navy-deep: #21345f; --cyan: #2BC2CE;
+      --off-white: #F2F3F3; --gray-soft: #eceded; --charcoal: #28282A;
+      --muted: #6b6f78; --ok: #22c55e; --danger: #ef4444; --white: #fff;
+      --radius: 14px; --radius-sm: 9px;
+      --shadow: 0 1px 2px rgba(40,40,42,.06), 0 8px 24px rgba(40,40,42,.06);
+    }
+    body { background: var(--off-white); font-family: 'Inter', system-ui, sans-serif; min-height: 100dvh; }
+    .topbar {
+      background: var(--navy); color: #fff; padding: 0 20px;
+      display: flex; align-items: center; gap: 14px; height: 56px;
+      position: sticky; top: 0; z-index: 20;
+    }
+    .topbar-logo { height: 28px; }
+    .topbar-title { font-size: 15px; font-weight: 700; letter-spacing: .02em; flex: 1; }
+    .topbar-badge {
+      font-size: 10px; font-weight: 700; background: rgba(255,255,255,.12);
+      border-radius: 99px; padding: 3px 10px; color: #9fb0d8;
+    }
+    .page { max-width: 520px; margin: 0 auto; padding: 24px 16px 80px; }
+    .page-title { font-size: 22px; font-weight: 700; color: var(--navy); margin-bottom: 4px; }
+    .page-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .event-card {
+      background: var(--white); border-radius: var(--radius); padding: 18px 20px;
+      margin-bottom: 12px; box-shadow: var(--shadow); cursor: pointer;
+      border: 1.5px solid transparent; transition: border-color .15s, box-shadow .15s;
+      text-decoration: none; color: inherit; display: block;
+    }
+    .event-card:hover { border-color: var(--cyan); box-shadow: 0 4px 20px rgba(44,66,126,.1); }
+    .event-card:active { transform: scale(.99); }
+    .event-name { font-size: 16px; font-weight: 700; color: var(--charcoal); margin-bottom: 4px; }
+    .event-meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+    .event-stats { display: flex; gap: 16px; }
+    .stat { display: flex; flex-direction: column; align-items: center; background: var(--off-white); border-radius: 8px; padding: 8px 14px; }
+    .stat-n { font-size: 20px; font-weight: 800; color: var(--navy); line-height: 1; }
+    .stat-n.ok { color: var(--ok); }
+    .stat-l { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .04em; }
+    .state-box { text-align: center; padding: 60px 20px; }
+    .state-box .icon { font-size: 40px; margin-bottom: 12px; }
+    .state-box p { color: var(--muted); font-size: 14px; }
+    .state-box .err { color: var(--danger); font-weight: 600; font-size: 15px; margin-bottom: 6px; }
+    .spinner {
+      width: 36px; height: 36px; border: 3px solid var(--gray-soft);
+      border-top-color: var(--cyan); border-radius: 50%;
+      animation: spin .7s linear infinite; margin: 60px auto 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .footer { text-align: center; font-size: 11px; color: var(--muted); margin-top: 32px; }
+    .pct-bar { height: 4px; border-radius: 2px; background: var(--gray-soft); margin-top: 8px; overflow: hidden; }
+    .pct-fill { height: 100%; background: var(--ok); border-radius: 2px; transition: width .4s; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <img class="topbar-logo" src="/assets/img/logo-moura-white.png" alt="Moura" onerror="this.style.display='none'" />
+    <div class="topbar-title">Check-in de Eventos</div>
+    <span class="topbar-badge" id="operatorLabel">Operador</span>
+  </div>
+  <div class="page" id="root">
+    <div class="spinner"></div>
+  </div>
+  <script>
+    const params = new URLSearchParams(location.search);
+    const TOKEN  = params.get('token') || localStorage.getItem('ci_token') || '';
+    const API    = (window.CHECKIN_API || '').replace(/\/$/, '');
+
+    if (TOKEN) localStorage.setItem('ci_token', TOKEN);
+
+    function apiFetch(path, opts) {
+      return fetch(API + path, {
+        ...opts,
+        headers: { 'Authorization': 'Bearer ' + TOKEN, 'Content-Type': 'application/json', ...(opts?.headers || {}) },
+      }).then(async r => {
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(data.error || 'Erro ' + r.status);
+        return data;
+      });
+    }
+
+    function fmtDate(d) {
+      if (!d) return '';
+      const [y, m, day] = d.split('-');
+      return `${day}/${m}/${y}`;
+    }
+
+    function pct(a, b) { return b > 0 ? Math.round(a / b * 100) : 0; }
+
+    async function loadEvents() {
+      const root = document.getElementById('root');
+      if (!TOKEN) {
+        root.innerHTML = `<div class="state-box"><div class="icon">🔒</div><p class="err">Acesso não autorizado.</p><p>Use o link com token fornecido pelo organizador.</p></div>`;
+        return;
+      }
+      try {
+        const events = await apiFetch('/api/checkin/events');
+        if (events.length === 1) {
+          location.replace('/checkin/event?token=' + encodeURIComponent(TOKEN) + '&event=' + events[0].id);
+          return;
+        }
+        const statsAll = await Promise.all(events.map(ev => apiFetch('/api/checkin/events/' + ev.id + '/stats').catch(() => ({ total_confirmed: 0, checked_in: 0 }))));
+        root.innerHTML = `
+          <h1 class="page-title">Eventos</h1>
+          <p class="page-sub">${events.length} evento${events.length !== 1 ? 's' : ''} disponível${events.length !== 1 ? 'is' : ''}</p>
+          ${events.map((ev, i) => {
+            const s = statsAll[i];
+            const p = pct(s.checked_in, s.total_confirmed);
+            const meta = [fmtDate(ev.event_date), ev.location, ev.city].filter(Boolean).join(' · ');
+            return `
+              <a class="event-card" href="/checkin/event?token=${encodeURIComponent(TOKEN)}&event=${ev.id}">
+                <div class="event-name">${esc(ev.name)}</div>
+                ${meta ? `<div class="event-meta">${esc(meta)}</div>` : ''}
+                <div class="event-stats">
+                  <div class="stat"><span class="stat-n">${s.total_confirmed}</span><span class="stat-l">Confirmados</span></div>
+                  <div class="stat"><span class="stat-n ok">${s.checked_in}</span><span class="stat-l">Presentes</span></div>
+                  <div class="stat"><span class="stat-n">${p}%</span><span class="stat-l">Check-in</span></div>
+                </div>
+                <div class="pct-bar"><div class="pct-fill" style="width:${p}%"></div></div>
+              </a>`;
+          }).join('')}
+          <div class="footer">Moura Agência de Relações Públicas · 2026</div>`;
+      } catch (e) {
+        root.innerHTML = `<div class="state-box"><div class="icon">⚠️</div><p class="err">${esc(e.message)}</p><p>Verifique sua conexão ou solicite um novo link ao organizador.</p></div>`;
+      }
+    }
+
+    function esc(s) { return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    loadEvents();
+  </script>
+</body>
+</html>
