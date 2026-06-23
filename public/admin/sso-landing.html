@@ -9,18 +9,85 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Entrando…</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #f4f6fa; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+    .card { background: #fff; border-radius: 14px; box-shadow: 0 2px 16px rgba(11,21,48,.10); padding: 36px 32px; max-width: 420px; width: 100%; margin: 24px; text-align: center; }
+    .card h2 { color: #152C6B; margin: 0 0 10px; font-size: 18px; }
+    .card p { color: #64748B; font-size: 14px; line-height: 1.6; margin: 0 0 20px; }
+    .card strong { color: #0E1B3D; }
+    .btn { display: inline-block; padding: 10px 20px; border-radius: 9px; font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; border: none; }
+    .btn-primary { background: #152C6B; color: #fff; }
+    .btn-ghost { background: #fff; color: #152C6B; border: 1px solid #E2E8F0; margin-top: 8px; }
+    .ico { font-size: 40px; margin-bottom: 14px; }
+    .loading { color: #2C427E; padding: 24px; }
+  </style>
 </head>
 <body>
-  <p style="font-family:system-ui,sans-serif;color:#2C427E;padding:24px">Entrando…</p>
+  <div id="root"><div class="loading">Entrando…</div></div>
   <script>
-    // Troca o ref opaco por um token de sessão via fetch.
-    // O JWT de sessão nunca aparece na URL nem no histórico do navegador.
+    // Decodifica o payload de um JWT sem verificar a assinatura.
+    // Usado APENAS para comparar e-mails — a validação real ocorre no servidor.
+    function decodeJwtPayload(token) {
+      try {
+        var parts = String(token || '').split('.');
+        if (parts.length !== 3) return null;
+        var b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+        // Padding para múltiplos de 4
+        while (b64.length % 4) b64 += '=';
+        return JSON.parse(atob(b64));
+      } catch (e) { return null; }
+    }
+
+    function showError(title, lines, actions) {
+      var html = '<div class="card"><div class="ico">🔒</div><h2>' + title + '</h2>';
+      html += '<p>' + lines.join('<br>') + '</p>';
+      actions.forEach(function(a) {
+        html += '<div><a href="' + a.href + '" class="btn ' + (a.primary ? 'btn-primary' : 'btn-ghost') + '">' + a.label + '</a></div>';
+      });
+      html += '</div>';
+      document.getElementById('root').innerHTML = html;
+    }
+
     var ref = new URLSearchParams(location.search).get('ref');
-    if (!ref) { location.replace('/admin/login.html'); }
-    else {
+    if (!ref) {
+      location.replace('/admin/login.html');
+    } else {
       fetch('/api/auth/sso-session?ref=' + encodeURIComponent(ref))
         .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
         .then(function(d) {
+          var incomingPayload = decodeJwtPayload(d.token);
+          var incomingEmail   = (incomingPayload && incomingPayload.email) ? incomingPayload.email.toLowerCase().trim() : null;
+
+          // Verifica se há uma sessão ativa no navegador.
+          var currentToken   = localStorage.getItem('moura_token');
+          var currentPayload = currentToken ? decodeJwtPayload(currentToken) : null;
+          var currentEmail   = (currentPayload && currentPayload.email) ? currentPayload.email.toLowerCase().trim() : null;
+
+          // PROTEÇÃO CRÍTICA: se há um usuário logado e é diferente do SSO → bloquear.
+          // Nunca substituir a sessão silenciosamente.
+          if (currentEmail && incomingEmail && currentEmail !== incomingEmail) {
+            var currentName   = (currentPayload && currentPayload.name)   ? currentPayload.name   : currentEmail;
+            var incomingName  = (incomingPayload && incomingPayload.name)  ? incomingPayload.name  : incomingEmail;
+            showError(
+              'Usuário diferente detectado',
+              [
+                'Você está logado como <strong>' + currentName + '</strong>',
+                '(' + currentEmail + ')',
+                '',
+                'Este link é para <strong>' + incomingName + '</strong>',
+                '(' + incomingEmail + ')',
+                '',
+                'Para continuar com este link, saia da conta atual primeiro.'
+              ],
+              [
+                { href: '/admin/dashboard.html', label: '← Voltar ao meu painel', primary: true },
+                { href: '/admin/login.html?logout=1', label: 'Sair e trocar de conta', primary: false }
+              ]
+            );
+            return;
+          }
+
+          // Mesma conta ou nenhuma sessão ativa → login normal.
           localStorage.setItem('moura_token', d.token);
           if (d.refresh_token) localStorage.setItem('moura_refresh', d.refresh_token);
           location.replace(d.event_id

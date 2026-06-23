@@ -38,11 +38,23 @@
   </div>
   <script src="/assets/js/api.js"></script>
   <script>
-    if (Api.token()) location.href = '/admin/dashboard.html';
+    const _qs = new URLSearchParams(location.search);
+    // logout=1: chegou via link "Sair e trocar de conta" da tela SSO — limpa a
+    // sessão local antes de qualquer outra verificação, para evitar o redirect
+    // automático ao dashboard com o usuário errado.
+    if (_qs.get('logout') === '1') {
+      Api.logout().catch(() => {}).finally(() => { Api.clear(); });
+    } else if (Api.token()) {
+      location.href = '/admin/dashboard.html';
+    }
     const err = document.getElementById('err');
     // Aviso quando o login único (SSO) pelo Moura One não pôde ser concluído.
-    if (new URLSearchParams(location.search).get('sso') === 'erro') {
+    if (_qs.get('sso') === 'erro') {
       err.textContent = 'Não foi possível entrar automaticamente pelo Moura One. Faça login.';
+      err.classList.remove('hidden');
+    }
+    if (_qs.get('logout') === '1') {
+      err.textContent = 'Sessão encerrada. Entre com a conta correta para continuar.';
       err.classList.remove('hidden');
     }
     async function login() {
