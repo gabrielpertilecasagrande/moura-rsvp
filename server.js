@@ -126,6 +126,20 @@ app.use('/api/trash',                                       require('./src/route
 app.use('/api/checkin',                                     require('./src/routes/checkin.routes'));
 app.use('/api/admin/checkin',                               require('./src/routes/checkin-admin.routes'));
 
+// ── Subdomínio de RSVP (ex.: rsvp.mouracom.com.br) ───────────────────────────
+// Quando RSVP_DOMAIN está definido, o SPA de RSVP é servido na raiz do
+// subdomínio. URL limpa: rsvp.mouracom.com.br/slug-do-evento
+const RSVP_DOMAIN = (process.env.RSVP_DOMAIN || '').toLowerCase().trim();
+if (RSVP_DOMAIN) {
+  app.use((req, res, next) => {
+    if ((req.hostname || '').toLowerCase() !== RSVP_DOMAIN) return next();
+    // Passa /api/*, /uploads/* e arquivos com extensão (legal.html, sw.js…) para handlers normais.
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || /\.\w+$/.test(req.path)) return next();
+    // SPA: entrega o index.html — o JS lê o slug do pathname (ex.: /forum-cdl-2026).
+    res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html'));
+  });
+}
+
 // ── Subdomínio de check-in (ex.: checkin.mouracom.com.br) ─────────────────────
 // Quando CHECKIN_DOMAIN está definido, o SPA de check-in é servido na raiz do
 // subdomínio sem o prefixo /checkin/ na URL — link mais limpo para operadoras.
