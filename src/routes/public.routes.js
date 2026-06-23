@@ -27,7 +27,6 @@ router.get('/legal-config', async (_req, res) => {
 router.get('/app-config', (_req, res) => {
   res.json({
     moura_one_url: (process.env.MOURA_ONE_URL || process.env.LEGAL_BASE_URL || '').replace(/\/+$/, ''),
-    checkin_url:   (process.env.CHECKIN_APP_URL || process.env.CHECKIN_URL || '').replace(/\/+$/, ''),
   });
 });
 

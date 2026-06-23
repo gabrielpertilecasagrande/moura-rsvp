@@ -101,7 +101,7 @@ router.get('/sso', (req, res) => {
 
   let payload;
   try { payload = jwt.verify(String(token), SECRET); } catch { return fail(); }
-  if (payload.target !== 'rsvp' && payload.target !== 'checkin') return fail();
+  if (payload.target !== 'rsvp') return fail();
 
   const email = String(payload.email || '').toLowerCase().trim();
   if (!email) return fail();
@@ -109,19 +109,6 @@ router.get('/sso', (req, res) => {
   const tenantDb = openTenantDb(DEFAULT_TENANT);
   const admin = tenantDb.prepare('SELECT * FROM admins WHERE email = ?').get(email);
   if (!admin || admin.deleted_at || admin.status !== 'ativo') return fail();
-
-  // SSO target: checkin — acesso pontual ao módulo de check-in (sem sessão persistente).
-  if (payload.target === 'checkin') {
-    runWithDb(DEFAULT_TENANT, () => {
-      db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
-      logActivity(admin.name || admin.email, 'entrou via SSO (check-in)', null);
-
-      const checkinToken = sign(admin, DEFAULT_TENANT);
-      const eventParam = event ? `&event=${encodeURIComponent(String(event))}` : '';
-      return res.redirect(`/checkin/?token=${encodeURIComponent(checkinToken)}${eventParam}`);
-    });
-    return;
-  }
 
   runWithDb(DEFAULT_TENANT, () => {
     db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);

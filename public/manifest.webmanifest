@@ -21,7 +21,6 @@
   ],
   "shortcuts": [
     { "name": "Dashboard", "url": "/admin/dashboard.html", "icons": [{ "src": "/assets/img/icon-96.png", "sizes": "96x96" }] },
-    { "name": "Eventos", "url": "/admin/event-detail.html", "icons": [{ "src": "/assets/img/icon-96.png", "sizes": "96x96" }] },
-    { "name": "Check-in", "url": "/checkin/index.html", "icons": [{ "src": "/assets/img/icon-96.png", "sizes": "96x96" }] }
+    { "name": "Eventos", "url": "/admin/event-detail.html", "icons": [{ "src": "/assets/img/icon-96.png", "sizes": "96x96" }] }
   ]
 }

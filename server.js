@@ -124,8 +124,6 @@ app.use('/api/public',                       publicLimiter, require('./src/route
 app.use('/api/platform',                                    require('./src/routes/platform.routes'));
 app.use('/api/lgpd',                                        require('./src/routes/lgpd.routes'));
 app.use('/api/trash',                                       require('./src/routes/trash.routes'));
-app.use('/api/checkin',                                     require('./src/routes/checkin.routes'));
-app.use('/api/admin/checkin',                               require('./src/routes/checkin-admin.routes'));
 app.use('/api/push',                                        require('./src/routes/push.routes'));
 
 // ── Subdomínio de RSVP (ex.: rsvp.mouracom.com.br) ───────────────────────────
