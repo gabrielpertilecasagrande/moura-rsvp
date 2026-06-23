@@ -122,6 +122,15 @@ function withTenantForSlug(slug, res, fn) {
   runWithDb(ref.tenant_slug, fn);
 }
 
+function parseLandingConfig(raw) {
+  try {
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!p || typeof p !== 'object') return { sections: [] };
+    if (!Array.isArray(p.sections)) p.sections = [];
+    return p;
+  } catch { return { sections: [] }; }
+}
+
 // GET /api/public/events/:slug  — dados públicos do evento
 router.get('/events/:slug', (req, res) => {
   withTenantForSlug(req.params.slug, res, () => {
@@ -129,21 +138,23 @@ router.get('/events/:slug', (req, res) => {
     if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
     const closed = isClosed(e);
     res.json({
-      slug:          e.slug,
-      name:          e.name,
-      description:   e.description,
-      event_date:    e.event_date,
-      event_time:    e.event_time,
-      location:      e.location,
-      city:          e.city,
-      address:       e.address,
-      cover_image:   e.cover_image,
-      client_logo:   e.client_logo,
-      rsvp_deadline: e.rsvp_deadline,
-      whatsapp:      e.whatsapp_enabled ? (e.whatsapp || null) : null,
-      form_config:   parseFormConfig(e.form_config),
+      slug:            e.slug,
+      name:            e.name,
+      description:     e.description,
+      event_date:      e.event_date,
+      event_time:      e.event_time,
+      location:        e.location,
+      city:            e.city,
+      address:         e.address,
+      cover_image:     e.cover_image,
+      client_logo:     e.client_logo,
+      rsvp_deadline:   e.rsvp_deadline,
+      whatsapp:        e.whatsapp_enabled ? (e.whatsapp || null) : null,
+      form_config:     parseFormConfig(e.form_config),
+      landing_enabled: e.landing_enabled ? 1 : 0,
+      landing_config:  parseLandingConfig(e.landing_config),
       closed,
-      closed_reason: e.status !== 'ativo' ? 'inativo' : (closed ? 'prazo' : null),
+      closed_reason:   e.status !== 'ativo' ? 'inativo' : (closed ? 'prazo' : null),
     });
   });
 });

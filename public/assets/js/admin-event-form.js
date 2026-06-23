@@ -194,6 +194,11 @@ async function loadForEdit() {
   renderBuilder();
   renderAttachment('coverCurrent', e.cover_image, 'cover');
   renderAttachment('logoCurrent', e.client_logo, 'logo');
+  const landingOn = !!e.landing_enabled;
+  document.getElementById('landing_enabled').checked = landingOn;
+  document.getElementById('landingOptions').classList.toggle('hidden', !landingOn);
+  landingConfig = normalizeLandingConfig(e.landing_config || {});
+  renderLandingEditor();
 
   const del = document.getElementById('deleteBtn');
   del.classList.remove('hidden');
@@ -255,6 +260,8 @@ async function save() {
    'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'].forEach((id) => fd.append(id, v(id)));
   fd.append('whatsapp_enabled', document.getElementById('whatsapp_enabled').checked ? '1' : '0');
   fd.append('form_config', JSON.stringify(formConfig));
+  fd.append('landing_enabled', document.getElementById('landing_enabled').checked ? '1' : '0');
+  fd.append('landing_config', JSON.stringify(landingConfig));
   if (eventLoadedAt) fd.append('updated_at', eventLoadedAt);
   if (removeCover) fd.append('remove_cover', '1');
   if (removeLogo) fd.append('remove_logo', '1');
@@ -282,7 +289,8 @@ let dirty = false;
 let draftT;
 
 function collectDraft() {
-  const d = { _t: Date.now(), wa_on: document.getElementById('whatsapp_enabled').checked, form_config: formConfig };
+  const d = { _t: Date.now(), wa_on: document.getElementById('whatsapp_enabled').checked, form_config: formConfig,
+    landing_on: document.getElementById('landing_enabled').checked, landing_config: landingConfig };
   TEXT_IDS.forEach((id) => { d[id] = document.getElementById(id).value; });
   return d;
 }
@@ -294,6 +302,11 @@ function applyDraft(d) {
   TEXT_IDS.forEach((id) => { if (d[id] != null) document.getElementById(id).value = d[id]; });
   if (d.wa_on != null) document.getElementById('whatsapp_enabled').checked = d.wa_on;
   if (d.form_config) { formConfig = normalizeConfig(d.form_config); renderBuilder(); }
+  if (d.landing_on != null) {
+    document.getElementById('landing_enabled').checked = d.landing_on;
+    document.getElementById('landingOptions').classList.toggle('hidden', !d.landing_on);
+  }
+  if (d.landing_config) { landingConfig = normalizeLandingConfig(d.landing_config); renderLandingEditor(); }
 }
 function maybeRestoreDraft() {
   let raw; try { raw = localStorage.getItem(DRAFT_KEY); } catch { return; }
@@ -324,7 +337,180 @@ document.addEventListener('change', (e) => {
   if (e.target.closest('.main')) markDirty();
 });
 
+// ---- Landing Page Premium ----
+
+const LP_SECTION_DEFAULTS = [
+  { type: 'video',     emoji: '🎥', label: 'Vídeo',                enabled: false, title: 'Sobre o evento',         url: '' },
+  { type: 'agenda',    emoji: '📅', label: 'Agenda / Programação', enabled: false, title: 'Programação',            items: [] },
+  { type: 'location',  emoji: '📍', label: 'Localização',          enabled: false, title: 'Localização',            embed_url: '' },
+  { type: 'sponsors',  emoji: '🤝', label: 'Patrocinadores',        enabled: false, title: 'Patrocinadores',         items: [] },
+  { type: 'faq',       emoji: '❓', label: 'Perguntas Frequentes',  enabled: false, title: 'Perguntas Frequentes',   items: [] },
+];
+
+let landingConfig = { sections: LP_SECTION_DEFAULTS.map((s) => ({ ...s, items: s.items ? [] : undefined })) };
+
+function normalizeLandingConfig(raw) {
+  try {
+    const p = (raw && typeof raw === 'object') ? raw : JSON.parse(raw || '{}');
+    const byType = {};
+    (p.sections || []).forEach((s) => { byType[s.type] = s; });
+    return {
+      sections: LP_SECTION_DEFAULTS.map((def) => {
+        const saved = byType[def.type] || {};
+        const base = { type: def.type, enabled: !!saved.enabled, title: saved.title || def.title };
+        if (def.type === 'video')    return { ...base, url: saved.url || '' };
+        if (def.type === 'location') return { ...base, embed_url: saved.embed_url || '' };
+        return { ...base, items: Array.isArray(saved.items) ? saved.items : [] };
+      }),
+    };
+  } catch { return { sections: LP_SECTION_DEFAULTS.map((s) => ({ ...s })) }; }
+}
+
+function renderLandingEditor() {
+  const el = document.getElementById('landingEditor');
+  if (!el) return;
+  el.innerHTML = landingConfig.sections.map((sec) => renderLpSection(sec)).join('');
+  el.querySelectorAll('.lp-ed-head').forEach((head) => {
+    head.addEventListener('click', (e) => {
+      if (e.target.closest('input[type=checkbox]')) return;
+      head.closest('.lp-ed-section').classList.toggle('open');
+    });
+  });
+  el.querySelectorAll('[data-lp-enabled]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const sec = landingConfig.sections.find((s) => s.type === cb.dataset.lpEnabled);
+      if (sec) { sec.enabled = cb.checked; markDirty(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-title]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const sec = landingConfig.sections.find((s) => s.type === inp.dataset.lpTitle);
+      if (sec) { sec.title = inp.value; markDirty(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-url]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const sec = landingConfig.sections.find((s) => s.type === inp.dataset.lpUrl);
+      if (sec) { sec.url = inp.value; markDirty(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-embed]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const sec = landingConfig.sections.find((s) => s.type === inp.dataset.lpEmbed);
+      if (sec) { sec.embed_url = inp.value; markDirty(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-add]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.lpAdd;
+      const sec = landingConfig.sections.find((s) => s.type === type);
+      if (!sec) return;
+      if (type === 'agenda')   sec.items.push({ time: '', title: '', description: '' });
+      if (type === 'sponsors') sec.items.push({ name: '', logo_url: '', website: '' });
+      if (type === 'faq')      sec.items.push({ question: '', answer: '' });
+      markDirty(); renderLandingEditor();
+    });
+  });
+  el.querySelectorAll('[data-lp-del]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [type, idx] = btn.dataset.lpDel.split(':');
+      const sec = landingConfig.sections.find((s) => s.type === type);
+      if (sec) { sec.items.splice(Number(idx), 1); markDirty(); renderLandingEditor(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-field]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const [type, idx, field] = inp.dataset.lpField.split(':');
+      const sec = landingConfig.sections.find((s) => s.type === type);
+      if (sec && sec.items[Number(idx)]) { sec.items[Number(idx)][field] = inp.value; markDirty(); }
+    });
+  });
+}
+
+function renderLpSection(sec) {
+  const def = LP_SECTION_DEFAULTS.find((d) => d.type === sec.type) || {};
+  const inner = renderLpSectionBody(sec);
+  return `
+  <div class="lp-ed-section${sec.enabled ? ' open' : ''}" id="lp-sec-${sec.type}">
+    <div class="lp-ed-head">
+      <div class="lp-ed-head-label">
+        <span>${def.emoji || ''} ${def.label || sec.type}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <label class="lp-ed-head-toggle" onclick="event.stopPropagation()">
+          <input type="checkbox" data-lp-enabled="${sec.type}" ${sec.enabled ? 'checked' : ''} style="accent-color:var(--navy)" />
+          <span>Ativar</span>
+        </label>
+        <svg class="lp-ed-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </div>
+    <div class="lp-ed-body">${inner}</div>
+  </div>`;
+}
+
+function renderLpSectionBody(sec) {
+  const titleField = `<div class="field"><label>Título da seção</label><input type="text" data-lp-title="${sec.type}" value="${esc(sec.title || '')}" /></div>`;
+  if (sec.type === 'video') {
+    return `${titleField}
+    <div class="field">
+      <label>URL do vídeo (YouTube ou Vimeo)</label>
+      <input type="text" data-lp-url="video" value="${esc(sec.url || '')}" placeholder="https://www.youtube.com/watch?v=..." />
+      <p class="muted" style="font-size:12px;margin:4px 0 0">Cole o link normal do YouTube ou Vimeo. O embed é gerado automaticamente.</p>
+    </div>`;
+  }
+  if (sec.type === 'location') {
+    return `${titleField}
+    <div class="field">
+      <label>URL de incorporação do Google Maps</label>
+      <input type="text" data-lp-embed="location" value="${esc(sec.embed_url || '')}" placeholder="https://www.google.com/maps/embed?pb=..." />
+      <p class="muted" style="font-size:12px;margin:4px 0 0">No Google Maps: Compartilhar → Incorporar um mapa → copie apenas a URL do atributo <code>src</code> do iframe.</p>
+    </div>`;
+  }
+  if (sec.type === 'agenda') {
+    const rows = (sec.items || []).map((it, i) => `
+      <div class="lp-ed-item" style="grid-template-columns:80px 1fr;align-items:start">
+        <button type="button" class="lp-ed-del" data-lp-del="agenda:${i}" title="Remover">✕</button>
+        <div class="field" style="margin:0"><label style="font-size:12px">Horário</label><input type="text" data-lp-field="agenda:${i}:time" value="${esc(it.time || '')}" placeholder="19:00" /></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="field" style="margin:0"><label style="font-size:12px">Título do item</label><input type="text" data-lp-field="agenda:${i}:title" value="${esc(it.title || '')}" placeholder="Abertura do evento" /></div>
+          <div class="field" style="margin:0"><label style="font-size:12px">Descrição (opcional)</label><input type="text" data-lp-field="agenda:${i}:description" value="${esc(it.description || '')}" placeholder="Breve descrição" /></div>
+        </div>
+      </div>`).join('');
+    return `${titleField}<div class="lp-ed-items">${rows}</div>
+      <button type="button" class="btn btn-ghost btn-sm" data-lp-add="agenda">+ Adicionar item</button>`;
+  }
+  if (sec.type === 'sponsors') {
+    const rows = (sec.items || []).map((it, i) => `
+      <div class="lp-ed-item" style="grid-template-columns:1fr 1fr 1fr">
+        <button type="button" class="lp-ed-del" data-lp-del="sponsors:${i}" title="Remover">✕</button>
+        <div class="field" style="margin:0"><label style="font-size:12px">Nome</label><input type="text" data-lp-field="sponsors:${i}:name" value="${esc(it.name || '')}" placeholder="Empresa X" /></div>
+        <div class="field" style="margin:0"><label style="font-size:12px">URL do logo (imagem)</label><input type="text" data-lp-field="sponsors:${i}:logo_url" value="${esc(it.logo_url || '')}" placeholder="https://..." /></div>
+        <div class="field" style="margin:0"><label style="font-size:12px">Site (opcional)</label><input type="text" data-lp-field="sponsors:${i}:website" value="${esc(it.website || '')}" placeholder="https://empresax.com.br" /></div>
+      </div>`).join('');
+    return `${titleField}<div class="lp-ed-items">${rows}</div>
+      <button type="button" class="btn btn-ghost btn-sm" data-lp-add="sponsors">+ Adicionar patrocinador</button>`;
+  }
+  if (sec.type === 'faq') {
+    const rows = (sec.items || []).map((it, i) => `
+      <div class="lp-ed-item" style="grid-template-columns:1fr">
+        <button type="button" class="lp-ed-del" data-lp-del="faq:${i}" title="Remover">✕</button>
+        <div class="field" style="margin:0"><label style="font-size:12px">Pergunta</label><input type="text" data-lp-field="faq:${i}:question" value="${esc(it.question || '')}" placeholder="Como funciona o check-in?" /></div>
+        <div class="field" style="margin:0"><label style="font-size:12px">Resposta</label><textarea data-lp-field="faq:${i}:answer" rows="2" placeholder="Resposta detalhada...">${esc(it.answer || '')}</textarea></div>
+      </div>`).join('');
+    return `${titleField}<div class="lp-ed-items">${rows}</div>
+      <button type="button" class="btn btn-ghost btn-sm" data-lp-add="faq">+ Adicionar pergunta</button>`;
+  }
+  return titleField;
+}
+
+// Inicializa o toggle de landing e re-renderiza o editor quando muda.
+document.getElementById('landing_enabled').addEventListener('change', function () {
+  document.getElementById('landingOptions').classList.toggle('hidden', !this.checked);
+  markDirty();
+});
+
 document.getElementById('saveBtn').addEventListener('click', save);
 renderBuilder();
+renderLandingEditor();
 if (EDIT_ID) loadForEdit().catch((e) => toast(e.message));
 else maybeRestoreDraft();

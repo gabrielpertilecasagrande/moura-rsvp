@@ -167,11 +167,14 @@ router.post('/', requireRole('admin', 'gestor'), upload, (req, res) => {
   const logo       = req.files?.client_logo?.[0]?.filename ? `/uploads/${req.files.client_logo[0].filename}` : null;
   const formConfig = JSON.stringify(parseFormConfig(b.form_config));
 
+  const landingEnabled = (b.landing_enabled === '1' || b.landing_enabled === 'true' || b.landing_enabled === true) ? 1 : 0;
+  const landingConfig  = (() => { try { return b.landing_config ? JSON.stringify(JSON.parse(b.landing_config)) : '{}'; } catch { return '{}'; } })();
+
   const info = db.prepare(`
     INSERT INTO events (slug, name, description, event_date, event_time, location, city, address,
       cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
-      expected_guests, whatsapp, whatsapp_enabled, force_open, form_config)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      expected_guests, whatsapp, whatsapp_enabled, force_open, form_config, landing_enabled, landing_config)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     slug, b.name, b.description || null, b.event_date || null, b.event_time || null,
     b.location || null, b.city || null, b.address || null, cover, logo, b.rsvp_deadline || null,
@@ -180,7 +183,7 @@ router.post('/', requireRole('admin', 'gestor'), upload, (req, res) => {
     b.decline_message || 'Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.',
     parseInt(b.expected_guests, 10) || 0, b.whatsapp || null,
     (b.whatsapp_enabled === '0' || b.whatsapp_enabled === 'false' || b.whatsapp_enabled === false) ? 0 : 1,
-    0, formConfig
+    0, formConfig, landingEnabled, landingConfig
   );
 
   const created = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
@@ -226,13 +229,20 @@ router.put('/:id', requirePerm('can_edit'), upload, (req, res) => {
     logo = null;
   }
 
+  const putLandingEnabled = b.landing_enabled != null
+    ? ((b.landing_enabled === '1' || b.landing_enabled === 'true' || b.landing_enabled === true) ? 1 : 0)
+    : (e.landing_enabled || 0);
+  const putLandingConfig = b.landing_config != null
+    ? (() => { try { return JSON.stringify(JSON.parse(b.landing_config)); } catch { return e.landing_config || '{}'; } })()
+    : (e.landing_config || '{}');
+
   db.prepare(`
     UPDATE events SET
       slug=?, name=?, description=?, event_date=?, event_time=?,
       location=?, city=?, address=?, cover_image=?, client_logo=?,
       rsvp_deadline=?, status=?, confirm_message=?,
       decline_message=?, expected_guests=?, whatsapp=?, whatsapp_enabled=?,
-      form_config=?, updated_at=datetime('now')
+      form_config=?, landing_enabled=?, landing_config=?, updated_at=datetime('now')
     WHERE id=?
   `).run(
     slug, b.name ?? e.name, b.description ?? e.description,
@@ -244,6 +254,7 @@ router.put('/:id', requirePerm('can_edit'), upload, (req, res) => {
     b.whatsapp != null ? (b.whatsapp || null) : e.whatsapp,
     b.whatsapp_enabled != null ? ((b.whatsapp_enabled === '0' || b.whatsapp_enabled === 'false' || b.whatsapp_enabled === false) ? 0 : 1) : e.whatsapp_enabled,
     b.form_config ? JSON.stringify(parseFormConfig(b.form_config)) : e.form_config,
+    putLandingEnabled, putLandingConfig,
     e.id
   );
 
