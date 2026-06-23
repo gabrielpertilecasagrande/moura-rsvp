@@ -126,6 +126,27 @@ function renderBuilder() {
   });
 }
 
+const PRESETS = {
+  vegetariano: { label: 'Alimentação', type: 'select', options: ['Onívoro (como de tudo)', 'Vegetariano', 'Vegano', 'Outro'] },
+  restricao:   { label: 'Restrição alimentar', type: 'text' },
+  alergia:     { label: 'Alergias', type: 'text' },
+  acessibilidade: { label: 'Necessidades de acessibilidade', type: 'select', options: ['Nenhuma', 'Cadeira de rodas', 'Deficiência visual', 'Deficiência auditiva', 'Outra'] },
+  observacao:  { label: 'Observações', type: 'textarea' },
+};
+
+function addPreset(key) {
+  const preset = PRESETS[key];
+  if (!preset) return;
+  const fields = formConfig.fields || (formConfig.fields = []);
+  const already = fields.some((f) => !f.builtin && f.label === preset.label);
+  if (already) { alert(`O campo "${preset.label}" já foi adicionado.`); return; }
+  const field = { key: `c_${Date.now()}`, label: preset.label, type: preset.type, enabled: true, required: false, builtin: false };
+  if (preset.options) field.options = [...preset.options];
+  fields.push(field);
+  markDirty(); renderBuilder();
+  document.getElementById('fieldBuilder').scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
 // Garante o formato { fields:[...] } a partir do que vier do backend/rascunho.
 // Respeita a configuração existente (inclusive remoções de campos padrão).
 function normalizeConfig(raw) {
