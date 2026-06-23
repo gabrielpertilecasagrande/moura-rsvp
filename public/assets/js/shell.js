@@ -37,10 +37,13 @@ function renderShell(active) {
   return `
   <header class="topbar">
     <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menu"><span></span></button>
-    <img class="topbar-logo" src="/assets/img/logo-moura.png" alt="Moura" style="filter:brightness(0) invert(1)" />
+    <a href="/admin/dashboard.html" class="logo-mo" style="font-size:20px;text-decoration:none" title="Moura RSVP"><span class="lm">moura</span><span class="lo"> rsvp</span></a>
   </header>
   <aside class="sidebar" id="sidebar">
-    <div class="brand"><img src="/assets/img/logo-moura.png" alt="Moura" /></div>
+    <div class="brand">
+      <a href="/admin/dashboard.html" class="logo-mo" style="text-decoration:none" title="Moura RSVP"><span class="lm">moura</span><span class="lo"> rsvp</span></a>
+      <div class="logo-tag">Confirmação de Presença</div>
+    </div>
     <nav>${nav}</nav>
     <div class="spacer"></div>
     <div class="side-foot">
