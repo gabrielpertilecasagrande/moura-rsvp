@@ -317,24 +317,43 @@ router.post('/sync-user', (req, res) => {
   if (!secret || !token || !safeEqual(token, secret)) {
     return res.status(401).json({ error: 'Não autorizado.' });
   }
-  const { name, email, role } = req.body || {};
+  const { name, email, role, status, deleted } = req.body || {};
   if (!email) return res.status(400).json({ error: 'E-mail obrigatório.' });
   const mail = String(email).toLowerCase().trim();
   const r    = normalizeRole(role);
   const n    = name ? String(name).trim() : mail;
+  // Espelha a situação vinda do Moura One. 'deleted' revoga o acesso (inativo).
+  // Mapeamento: ativo→ativo, bloqueado→bloqueado, demais (inativo/recusado/
+  // pendente)→inativo. Assim bloquear/excluir lá também bloqueia o login aqui.
+  function mirrorStatus(s) {
+    if (deleted) return 'inativo';
+    const v = String(s || '').toLowerCase();
+    if (v === 'ativo') return 'ativo';
+    if (v === 'bloqueado') return 'bloqueado';
+    if (v === 'inativo' || v === 'recusado' || v === 'pendente') return 'inativo';
+    return null; // não informado → não altera
+  }
+  const newStatus = mirrorStatus(status);
 
   const tenantDb = openTenantDb(DEFAULT_TENANT);
   const existing = tenantDb.prepare('SELECT id FROM admins WHERE email = ?').get(mail);
   if (existing) {
-    tenantDb.prepare('UPDATE admins SET name = ?, role = ? WHERE email = ?').run(n, r, mail);
-    runWithDb(DEFAULT_TENANT, () => logActivity('integração (sync)', 'atualizou usuário', mail));
-    return res.json({ ok: true, action: 'updated' });
+    if (newStatus) {
+      tenantDb.prepare('UPDATE admins SET name = ?, role = ?, status = ? WHERE email = ?').run(n, r, newStatus, mail);
+    } else {
+      tenantDb.prepare('UPDATE admins SET name = ?, role = ? WHERE email = ?').run(n, r, mail);
+    }
+    const act = deleted ? 'revogou usuário' : 'atualizou usuário';
+    runWithDb(DEFAULT_TENANT, () => logActivity('integração (sync)', act, mail));
+    return res.json({ ok: true, action: deleted ? 'revoked' : 'updated' });
   }
+  // Pedido de exclusão para conta inexistente aqui: nada a fazer.
+  if (deleted) return res.json({ ok: true, action: 'noop' });
   const randomPwd = crypto.randomBytes(32).toString('hex');
   const hash = bcrypt.hashSync(randomPwd, 10);
   tenantDb.prepare(
-    "INSERT INTO admins (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, 'ativo')"
-  ).run(n, mail, hash, r);
+    'INSERT INTO admins (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)'
+  ).run(n, mail, hash, r, newStatus || 'ativo');
   registerAdminEmail(mail, DEFAULT_TENANT);
   runWithDb(DEFAULT_TENANT, () => logActivity('integração (sync)', 'criou usuário', mail));
   res.status(201).json({ ok: true, action: 'created' });
