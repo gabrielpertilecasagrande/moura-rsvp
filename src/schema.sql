@@ -97,3 +97,34 @@ CREATE TABLE IF NOT EXISTS activity_log (
   created_at TEXT    NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_activity_created ON activity_log(created_at);
+
+-- Notificações push (Web Push) por tenant
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id           INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id      INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE,
+  endpoint     TEXT    NOT NULL UNIQUE,
+  p256dh       TEXT    NOT NULL,
+  auth         TEXT    NOT NULL,
+  user_agent   TEXT,
+  created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+  last_used_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_push_subs_user ON push_subscriptions(user_id);
+
+-- Histórico de envios push por tenant
+CREATE TABLE IF NOT EXISTS push_log (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  actor_id      INTEGER,
+  actor_name    TEXT    NOT NULL,
+  ip            TEXT,
+  title         TEXT    NOT NULL,
+  body          TEXT    NOT NULL,
+  url           TEXT,
+  target        TEXT    NOT NULL,
+  target_ids    TEXT,
+  sent_count    INTEGER NOT NULL DEFAULT 0,
+  devices_count INTEGER NOT NULL DEFAULT 0,
+  recipients    TEXT,
+  created_at    TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_push_log_created ON push_log(created_at);

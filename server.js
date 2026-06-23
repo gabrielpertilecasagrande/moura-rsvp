@@ -1,6 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const fs   = require('fs');
+const push = require('./src/utils/push');
 
 // ── Parâmetros do tenant padrão (organização inicial / Moura) ─────────────────
 const DEFAULT_TENANT_SLUG = process.env.DEFAULT_TENANT_SLUG || 'moura';
@@ -125,6 +126,21 @@ app.use('/api/lgpd',                                        require('./src/route
 app.use('/api/trash',                                       require('./src/routes/trash.routes'));
 app.use('/api/checkin',                                     require('./src/routes/checkin.routes'));
 app.use('/api/admin/checkin',                               require('./src/routes/checkin-admin.routes'));
+app.use('/api/push',                                        require('./src/routes/push.routes'));
+
+// ── Subdomínio de RSVP (ex.: rsvp.mouracom.com.br) ───────────────────────────
+// Quando RSVP_DOMAIN está definido, o SPA de RSVP é servido na raiz do
+// subdomínio. URL limpa: rsvp.mouracom.com.br/slug-do-evento
+const RSVP_DOMAIN = (process.env.RSVP_DOMAIN || '').toLowerCase().trim();
+if (RSVP_DOMAIN) {
+  app.use((req, res, next) => {
+    if ((req.hostname || '').toLowerCase() !== RSVP_DOMAIN) return next();
+    // Passa /api/*, /uploads/* e arquivos com extensão (legal.html, sw.js…) para handlers normais.
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/') || /\.\w+$/.test(req.path)) return next();
+    // SPA: entrega o index.html — o JS lê o slug do pathname (ex.: /forum-cdl-2026).
+    res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html'));
+  });
+}
 
 // ── Subdomínio de check-in (ex.: checkin.mouracom.com.br) ─────────────────────
 // Quando CHECKIN_DOMAIN está definido, o SPA de check-in é servido na raiz do
@@ -146,6 +162,17 @@ if (CHECKIN_DOMAIN) {
 }
 
 // ── Páginas ────────────────────────────────────────────────────────────────────
+app.get('/sw.js', (_req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'sw.js'));
+});
+app.get('/offline.html', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'offline.html')));
+app.get('/manifest.webmanifest', (_req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+  res.sendFile(path.join(__dirname, 'public', 'manifest.webmanifest'));
+});
 app.get('/', (_req, res) => res.redirect('/admin/login.html'));
 app.get('/admin', (_req, res) => res.redirect('/admin/login.html'));
 app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
@@ -192,4 +219,6 @@ app.listen(PORT, () => {
   // Robô diário da Lixeira: apaga definitivamente itens guardados há mais de 90 dias.
   try { require('./src/utils/trash').scheduleTrashCleanup(); }
   catch (e) { console.error('[trash] não foi possível agendar a limpeza:', e.message); }
+
+  try { push.init(); } catch (e) { console.error('[push] falha ao inicializar:', e.message); }
 });

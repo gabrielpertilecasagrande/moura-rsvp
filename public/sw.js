@@ -4,7 +4,7 @@
 //   • assets  → stale-while-revalidate (CSS/JS/imagens carregam do cache e
 //               atualizam em segundo plano).
 //   • páginas → network-first; fallback para página offline quando sem rede.
-const VERSION = 'moura-rsvp-v1';
+const VERSION = 'moura-rsvp-v2';
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 const OFFLINE_URL = '/offline.html';
@@ -75,4 +75,37 @@ self.addEventListener('fetch', (event) => {
       }).catch(async () => (await caches.match(req)) || caches.match(OFFLINE_URL))
     );
   }
+});
+
+// Push: notificação do servidor mesmo com o app fechado.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try { data = event.data ? event.data.json() : {}; }
+  catch { data = { body: event.data ? event.data.text() : '' }; }
+  const title = data.title || 'Moura RSVP';
+  const options = {
+    body: data.body || '',
+    icon: '/assets/img/icon-192.png',
+    badge: '/assets/img/icon-96.png',
+    tag: data.tag || 'moura-rsvp',
+    renotify: true,
+    data: { url: data.url || '/admin/dashboard.html' },
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Clique na notificação: foca uma aba já aberta ou abre uma nova.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/admin/dashboard.html';
+  event.waitUntil((async () => {
+    const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of all) {
+      if ('focus' in c) {
+        try { await c.navigate(url); } catch (_) { /* navigate pode falhar */ }
+        return c.focus();
+      }
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(url);
+  })());
 });

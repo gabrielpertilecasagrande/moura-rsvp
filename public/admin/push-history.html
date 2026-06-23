@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#152C6B" />
+  <title>Notificações Push — Moura RSVP</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+  <style>
+    .ph-list { display: flex; flex-direction: column; gap: 12px; }
+    .ph-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 18px;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      gap: 0 14px;
+      align-items: start;
+    }
+    .ph-avatar {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--navy);
+      color: #fff;
+      font-size: 14px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .ph-avatar.auto { background: var(--muted); color: var(--text); font-size: 18px; }
+    .ph-body { min-width: 0; }
+    .ph-actor { font-weight: 600; font-size: 14px; color: var(--text); }
+    .ph-meta { font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 3px 0 10px; }
+    .ph-meta span { display: flex; align-items: center; gap: 4px; }
+    .ph-msg { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+    .ph-msg-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+    .ph-msg-body  { font-size: 13px; color: var(--muted); white-space: pre-wrap; word-break: break-word; }
+    .ph-badge { background: var(--navy); color: #fff; font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 20px; white-space: nowrap; align-self: start; }
+    .ph-badge.auto { background: var(--muted); color: var(--text); }
+    .ph-stats { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .ph-stat { font-size: 12px; color: var(--muted); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; }
+    .ph-empty { text-align: center; padding: 48px 0; color: var(--muted); }
+    .ph-filters { display: flex; flex-direction: column; gap: 12px; margin-bottom: 18px; }
+    .ph-filters .search { width: 100%; }
+    .ph-filterline { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+    .ph-seg { display: inline-flex; background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 3px; gap: 2px; }
+    .ph-seg button { border: 0; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; padding: 6px 12px; border-radius: 7px; cursor: pointer; white-space: nowrap; }
+    .ph-seg button.active { background: var(--navy); color: #fff; }
+    .ph-select { border: 1px solid var(--border); border-radius: 9px; padding: 8px 10px; font-size: 13px; background: var(--surface); color: var(--text); cursor: pointer; }
+    .ph-dates { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .ph-dates input[type=date] { border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; font-size: 13px; background: var(--surface); color: var(--text); }
+    .ph-dates.hidden { display: none; }
+    .ph-recipients { margin-top: 10px; }
+    .ph-recipients summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--navy); list-style: none; display: inline-flex; align-items: center; gap: 5px; user-select: none; padding: 3px 0; }
+    .ph-recipients summary::-webkit-details-marker { display: none; }
+    .ph-recipients summary::before { content: '▸'; font-size: 10px; transition: transform .15s; }
+    .ph-recipients[open] summary::before { transform: rotate(90deg); }
+    .ph-rcp-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .ph-rcp { display: inline-flex; align-items: center; gap: 5px; background: var(--bg); border: 1px solid var(--border); border-radius: 20px; padding: 4px 10px 4px 4px; font-size: 12px; }
+    .ph-rcp-ini { width: 20px; height: 20px; border-radius: 50%; background: var(--navy); color: #fff; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .ph-rcp-dev { color: var(--muted); font-size: 11px; }
+    @media (max-width: 600px) {
+      .ph-card { grid-template-columns: auto 1fr; }
+      .ph-badge { grid-column: 2; }
+      .ph-seg { width: 100%; overflow-x: auto; }
+    }
+    .push-section { margin-bottom: 28px; }
+    .push-section > h2 { font-size: 18px; margin: 0 0 12px; }
+  </style>
+</head>
+<body>
+  <div class="admin-shell">
+    <div id="shell"></div>
+    <main class="main">
+      <div class="page-head">
+        <div>
+          <div class="eyebrow">Sistema</div>
+          <h1>Notificações Push</h1>
+        </div>
+      </div>
+      <p class="muted" style="margin:-6px 0 24px">Gerencie e monitore os avisos push enviados à equipe.</p>
+
+      <div class="push-section">
+        <h2>Status e aparelhos</h2>
+        <div class="card" id="pushStatusCard"><p class="muted">Carregando…</p></div>
+      </div>
+
+      <div class="push-section">
+        <h2>Enviar aviso manual</h2>
+        <div class="card" id="pushComposer">
+          <div class="field">
+            <label>Título *</label>
+            <input type="text" id="pushTitle" maxlength="80" placeholder="Ex.: Novo evento criado" />
+          </div>
+          <div class="field">
+            <label>Mensagem *</label>
+            <textarea id="pushBody" rows="3" maxlength="300" placeholder="Ex.: O evento Casamento Silva foi publicado."></textarea>
+          </div>
+          <div class="field">
+            <label>Link ao tocar na notificação <span class="muted" style="font-weight:400">(opcional)</span></label>
+            <input type="text" id="pushUrl" placeholder="/admin/dashboard.html" />
+            <div class="muted" style="font-size:12px;margin-top:4px">Para onde a pessoa vai ao tocar no aviso. Se vazio, abre o Painel.</div>
+          </div>
+          <div class="field">
+            <label>Para quem enviar</label>
+            <div style="display:flex;gap:18px;flex-wrap:wrap;margin-top:4px">
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;font-weight:400">
+                <input type="radio" name="pushTarget" value="all" checked /> Todos os inscritos
+              </label>
+              <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px;font-weight:400">
+                <input type="radio" name="pushTarget" value="selected" /> Selecionar pessoas
+              </label>
+            </div>
+            <div id="pushUserList" style="display:none;margin-top:12px;border:1px solid var(--border);border-radius:10px;padding:10px;max-height:240px;overflow:auto"></div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">
+            <button class="btn btn-ghost btn-sm" id="pushTestBtn">🔔 Enviar teste para mim</button>
+            <button class="btn btn-primary btn-sm" id="pushSendBtn">📣 Enviar aviso</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="push-section">
+        <h2>Histórico de envios</h2>
+        <div class="ph-filters">
+          <input class="search" type="text" id="searchInput" placeholder="Buscar por remetente, destinatário, IP, título ou mensagem…" />
+          <div class="ph-filterline">
+            <div class="ph-seg" id="phPeriod">
+              <button data-p="today">Hoje</button>
+              <button data-p="7d">7 dias</button>
+              <button data-p="30d">30 dias</button>
+              <button data-p="all" class="active">Tudo</button>
+              <button data-p="custom">Personalizado</button>
+            </div>
+            <select class="ph-select" id="phType" aria-label="Tipo de envio">
+              <option value="">Todos os tipos</option>
+              <option value="all">📢 Para todos</option>
+              <option value="selected">🎯 Selecionados</option>
+              <option value="test">🧪 Teste</option>
+            </select>
+          </div>
+          <div class="ph-dates hidden" id="phDates">
+            <input type="date" id="phFrom" aria-label="De" />
+            <span class="muted">até</span>
+            <input type="date" id="phTo" aria-label="Até" />
+          </div>
+          <span class="muted" id="totalLabel" style="font-size:13px"></span>
+        </div>
+        <div class="ph-list" id="phList"><p class="muted" style="padding:20px 0">Carregando…</p></div>
+        <div style="display:flex;justify-content:center;margin:18px 0 8px">
+          <button class="btn btn-ghost btn-sm hidden" id="loadMore">Carregar mais</button>
+        </div>
+      </div>
+    </main>
+  </div>
+  <script src="/assets/js/api.js"></script>
+  <script src="/assets/js/shell.js"></script>
+  <script>
+    requireSession();
+    mountShell('push-history');
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    }
+
+    function initials(name) {
+      return String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+    }
+
+    function fmtDate(s) {
+      if (!s) return '—';
+      const d = new Date(s.replace(' ', 'T') + (s.includes('T') ? '' : 'Z'));
+      return d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' });
+    }
+
+    let pushSubscribers = [];
+
+    async function loadPush() {
+      try {
+        const d = await Api.get('/api/push/admin/overview');
+        pushSubscribers = d.subscribers || [];
+        renderPushStatus(d);
+        renderPushUserList();
+      } catch (e) {
+        document.getElementById('pushStatusCard').innerHTML = `<p class="muted">Falha ao carregar: ${esc(e.message)}</p>`;
+      }
+    }
+
+    function renderPushStatus(d) {
+      const stat = (n, l) => `<div class="stat-mini"><div class="n">${n ?? '—'}</div><div class="l">${l}</div></div>`;
+      const disponivel = d.configured
+        ? '<span class="pill pill-ok">🟢 Online</span>'
+        : '<span class="pill pill-no">🔴 Com erro</span>';
+      document.getElementById('pushStatusCard').innerHTML = `
+        <div class="kv-grid" style="margin-bottom:16px">
+          <div class="kv"><span class="kv-k">Serviço de notificações (servidor)</span><span class="kv-v">${disponivel}</span></div>
+        </div>
+        <div class="stat-mini-grid">
+          ${stat(d.totalUsers, 'Pessoas inscritas')}
+          ${stat(d.totalDevices, 'Aparelhos inscritos')}
+        </div>
+        <div id="pushDeviceRow" style="margin-top:16px"></div>
+        ${!d.totalDevices ? `<div class="banner banner-warn" style="margin-top:16px">
+          Ninguém ativou as notificações ainda. Ative no seu aparelho abaixo, ou cada pessoa ativa pelo sininho 🔔.
+        </div>` : ''}`;
+      renderPushDevice();
+    }
+
+    async function renderPushDevice() {
+      const row = document.getElementById('pushDeviceRow');
+      if (!row || typeof Push === 'undefined') return;
+      const st = await Push.status();
+      if (st === 'ios-install') {
+        row.innerHTML = `<div class="banner banner-warn">
+          📱 <strong>No iPhone/iPad</strong>, instale o app na tela inicial para ativar as notificações:
+          <br>1) Abra este site no <strong>Safari</strong>; 2) toque em <strong>Compartilhar</strong> (□↑);
+          3) <strong>Adicionar à Tela de Início</strong>; 4) abra pelo ícone instalado e ative aqui.
+        </div>`;
+        return;
+      }
+      if (st === 'unsupported') {
+        row.innerHTML = '<span class="muted" style="font-size:13px">Este navegador não suporta notificações push.</span>';
+        return;
+      }
+      if (st === 'denied') {
+        row.innerHTML = '<div class="banner banner-warn">🔕 Notificações bloqueadas neste navegador. Libere nas configurações do site para ativar.</div>';
+        return;
+      }
+      const on = st === 'on';
+      const perm = (typeof Notification !== 'undefined') ? Notification.permission : 'default';
+      const permTxt = perm === 'granted' ? '✅ permitida' : (perm === 'denied' ? '⛔ bloqueada' : '⚠️ ainda não pedida');
+      row.innerHTML = `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <span style="font-size:14px;font-weight:600">${on ? '🔔 Este aparelho está recebendo notificações' : '🔕 Este aparelho ainda não recebe notificações'}</span>
+        <button class="btn btn-sm ${on ? 'btn-ghost' : 'btn-primary'}" id="pushDeviceBtn">${on ? 'Desativar' : 'Ativar neste aparelho'}</button>
+        <button class="btn btn-sm btn-ghost" id="pushLocalTestBtn">🧪 Testar notificação aqui</button>
+      </div>
+      <div class="muted" style="font-size:12px;margin-top:8px">Permissão do navegador: ${permTxt}.</div>`;
+
+      document.getElementById('pushDeviceBtn').addEventListener('click', async () => {
+        const b = document.getElementById('pushDeviceBtn');
+        b.disabled = true; const t = b.textContent; b.textContent = '…';
+        try {
+          if (on) { await Push.disable(); toast('Notificações desativadas neste aparelho.'); }
+          else { await Push.enable(); toast('Notificações ativadas neste aparelho! 🎉'); }
+          await loadPush();
+        } catch (e) {
+          toast(e.message || 'Não foi possível alterar.');
+          b.disabled = false; b.textContent = t;
+        }
+      });
+
+      document.getElementById('pushLocalTestBtn').addEventListener('click', async () => {
+        const b = document.getElementById('pushLocalTestBtn');
+        b.disabled = true; const t = b.textContent; b.textContent = '…';
+        try {
+          await Push.localTest();
+          toast('Notificação de teste enviada. Veja se apareceu na tela. 👀');
+        } catch (e) {
+          toast(e.message || 'Não foi possível mostrar a notificação.');
+        } finally { b.disabled = false; b.textContent = t; renderPushDevice(); }
+      });
+    }
+
+    function renderPushUserList() {
+      const box = document.getElementById('pushUserList');
+      if (!box) return;
+      if (!pushSubscribers.length) {
+        box.innerHTML = '<p class="muted" style="margin:4px;font-size:13px">Nenhuma pessoa inscrita ainda.</p>';
+        return;
+      }
+      box.innerHTML = pushSubscribers.map((u) => `
+        <label style="display:flex;align-items:center;gap:9px;padding:7px 4px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--border)">
+          <input type="checkbox" class="push-user-cb" value="${u.id}" style="width:16px;height:16px;accent-color:var(--navy)" />
+          <span style="flex:1;min-width:0">
+            <span style="font-weight:600">${esc(u.name || u.email || 'Usuário')}</span>
+            <span class="muted" style="font-size:12px"> · ${u.devices} aparelho${u.devices > 1 ? 's' : ''}</span>
+          </span>
+        </label>`).join('');
+    }
+
+    function pushTargetMode() {
+      const sel = document.querySelector('input[name="pushTarget"]:checked');
+      return sel ? sel.value : 'all';
+    }
+
+    function wirePush() {
+      document.querySelectorAll('input[name="pushTarget"]').forEach((r) => {
+        r.addEventListener('change', () => {
+          document.getElementById('pushUserList').style.display = pushTargetMode() === 'selected' ? 'block' : 'none';
+        });
+      });
+
+      document.getElementById('pushTestBtn').addEventListener('click', async () => {
+        const btn = document.getElementById('pushTestBtn');
+        btn.disabled = true; const txt = btn.textContent; btn.textContent = 'Ativando…';
+        try {
+          if (typeof Push === 'undefined' || (!Push.supported() && !Push.iosNeedsInstall())) {
+            toast('Este navegador não suporta notificações. Tente no Chrome (Android/PC) ou no app instalado (iPhone).');
+            return;
+          }
+          const st = await Push.status();
+          if (st === 'ios-install') {
+            toast('No iPhone, instale o app na tela inicial primeiro e ative por lá.');
+            return;
+          }
+          if (st === 'denied') {
+            toast('Notificações bloqueadas no navegador. Libere nas configurações do site e tente de novo.');
+            return;
+          }
+          if (st !== 'on') {
+            await Push.enable();
+            await loadPush();
+          }
+          btn.textContent = 'Enviando…';
+          await Api.post('/api/push/test', {});
+          toast('Teste enviado! Veja a notificação aparecer. 🔔');
+          loadHistory(true);
+        } catch (e) {
+          toast(e.message || 'Falha ao enviar o teste.');
+        } finally { btn.disabled = false; btn.textContent = txt; }
+      });
+
+      document.getElementById('pushSendBtn').addEventListener('click', async () => {
+        const title = document.getElementById('pushTitle').value.trim();
+        const body  = document.getElementById('pushBody').value.trim();
+        const url   = document.getElementById('pushUrl').value.trim();
+        if (!title) { toast('Informe um título.'); return; }
+        if (!body)  { toast('Informe a mensagem.'); return; }
+        const target = pushTargetMode();
+        let userIds = [];
+        if (target === 'selected') {
+          userIds = Array.from(document.querySelectorAll('.push-user-cb:checked')).map((c) => Number(c.value));
+          if (!userIds.length) { toast('Selecione ao menos uma pessoa.'); return; }
+        }
+        const alvoTxt = target === 'selected' ? `${userIds.length} pessoa(s)` : 'todos os inscritos';
+        const ok = await uiConfirm({
+          title: 'Enviar aviso push',
+          message: `Enviar "${title}" para ${alvoTxt}?`,
+          confirmText: 'Enviar',
+        });
+        if (!ok) return;
+        const btn = document.getElementById('pushSendBtn');
+        btn.disabled = true; const txt = btn.textContent; btn.textContent = 'Enviando…';
+        try {
+          const r = await Api.post('/api/push/admin/send', { title, body, url, target, userIds });
+          if (r.warning) toast(r.warning);
+          else toast(`Aviso enviado para ${r.sent} aparelho(s). ✅`);
+          document.getElementById('pushTitle').value = '';
+          document.getElementById('pushBody').value = '';
+          document.getElementById('pushUrl').value = '';
+          loadHistory(true);
+        } catch (e) {
+          toast(e.message || 'Falha ao enviar o aviso.');
+        } finally { btn.disabled = false; btn.textContent = txt; }
+      });
+    }
+
+    const list     = document.getElementById('phList');
+    const loadMoreBtn = document.getElementById('loadMore');
+    const totalLbl = document.getElementById('totalLabel');
+    const searchEl = document.getElementById('searchInput');
+    const PAGE = 50;
+    let offset = 0, total = 0, q = '';
+    let period = 'all', fromDate = '', toDate = '', typeFilter = '';
+
+    function targetLabel(row) {
+      if (row.target === 'test')     return '🧪 Teste (para si mesmo)';
+      if (row.target === 'all')      return '📢 Todos os usuários';
+      if (row.target === 'selected') {
+        const n = (row.target_ids || []).length;
+        return `🎯 ${n} usuário${n !== 1 ? 's' : ''} selecionado${n !== 1 ? 's' : ''}`;
+      }
+      return row.target || '—';
+    }
+
+    function renderCard(row) {
+      const isAuto = !row.actor_id;
+      const avatarHtml = isAuto
+        ? `<div class="ph-avatar auto" title="Envio automático">🤖</div>`
+        : `<div class="ph-avatar">${esc(initials(row.actor_name))}</div>`;
+      const badge = isAuto
+        ? `<span class="ph-badge auto">Automático</span>`
+        : `<span class="ph-badge">Manual</span>`;
+      const ipHtml = row.ip ? `<span>📍 ${esc(row.ip)}</span>` : '';
+      return `
+        <div class="ph-card">
+          ${avatarHtml}
+          <div class="ph-body">
+            <div class="ph-actor">${esc(row.actor_name)}</div>
+            <div class="ph-meta">
+              <span>🕐 ${fmtDate(row.created_at)}</span>
+              ${ipHtml}
+              <span>${targetLabel(row)}</span>
+            </div>
+            <div class="ph-msg">
+              <div class="ph-msg-title">${esc(row.title)}</div>
+              <div class="ph-msg-body">${esc(row.body)}</div>
+            </div>
+            <div class="ph-stats">
+              <span class="ph-stat">✅ ${row.sent_count} aparelho${row.sent_count !== 1 ? 's' : ''} recebeu</span>
+              ${row.devices_count > row.sent_count
+                ? `<span class="ph-stat">📱 ${row.devices_count} tentativas</span>` : ''}
+              ${row.url && row.url !== '/admin/dashboard.html'
+                ? `<span class="ph-stat">🔗 ${esc(row.url)}</span>` : ''}
+            </div>
+            ${recipientsHtml(row)}
+          </div>
+          ${badge}
+        </div>`;
+    }
+
+    function recipientsHtml(row) {
+      const r = row.recipients;
+      if (!r || !r.length) return '';
+      const people = r.length;
+      const chips = r.map((p) => `
+        <span class="ph-rcp">
+          <span class="ph-rcp-ini">${esc(initials(p.name))}</span>
+          ${esc(p.name)}
+          ${p.devices > 1 ? `<span class="ph-rcp-dev">· ${p.devices} aparelhos</span>` : ''}
+        </span>`).join('');
+      return `
+        <details class="ph-recipients">
+          <summary>👥 Quem recebeu (${people} pessoa${people !== 1 ? 's' : ''})</summary>
+          <div class="ph-rcp-list">${chips}</div>
+        </details>`;
+    }
+
+    async function loadHistory(reset) {
+      if (reset) { offset = 0; list.innerHTML = '<p class="muted" style="padding:20px 0">Carregando…</p>'; }
+      loadMoreBtn.classList.add('hidden');
+      try {
+        const params = new URLSearchParams({ limit: PAGE, offset });
+        if (q) params.set('q', q);
+        if (period !== 'custom') params.set('period', period);
+        if (period === 'custom' && fromDate) params.set('from', fromDate);
+        if (period === 'custom' && toDate)   params.set('to', toDate);
+        if (typeFilter) params.set('type', typeFilter);
+        const data = await Api.get(`/api/push/admin/history?${params}`);
+        total = data.total;
+        totalLbl.textContent = total === 0 ? 'Nenhum envio encontrado.' : `${total} envio${total !== 1 ? 's' : ''} no total`;
+        if (reset) list.innerHTML = '';
+        if (!data.rows.length && reset) {
+          list.innerHTML = `<div class="ph-empty">
+            <div style="font-size:40px;margin-bottom:8px">🔔</div>
+            <p>Nenhum push encontrado.</p>
+            <p class="muted" style="font-size:13px">Os próximos envios aparecerão aqui.</p>
+          </div>`;
+          return;
+        }
+        data.rows.forEach((row) => { list.insertAdjacentHTML('beforeend', renderCard(row)); });
+        offset += data.rows.length;
+        if (data.hasMore) loadMoreBtn.classList.remove('hidden');
+      } catch (e) {
+        if (reset) list.innerHTML = `<p class="muted">Erro ao carregar: ${esc(e.message)}</p>`;
+      }
+    }
+
+    loadMoreBtn.addEventListener('click', () => loadHistory(false));
+
+    let searchTimer;
+    searchEl.addEventListener('input', () => {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => { q = searchEl.value.trim(); loadHistory(true); }, 320);
+    });
+
+    const phDates = document.getElementById('phDates');
+    document.getElementById('phPeriod').addEventListener('click', (e) => {
+      const btn = e.target.closest('button'); if (!btn) return;
+      document.querySelectorAll('#phPeriod button').forEach((b) => b.classList.toggle('active', b === btn));
+      period = btn.dataset.p;
+      phDates.classList.toggle('hidden', period !== 'custom');
+      if (period !== 'custom') loadHistory(true);
+    });
+
+    let dateTimer;
+    function onDateChange() {
+      fromDate = document.getElementById('phFrom').value;
+      toDate   = document.getElementById('phTo').value;
+      clearTimeout(dateTimer);
+      dateTimer = setTimeout(() => loadHistory(true), 200);
+    }
+    document.getElementById('phFrom').addEventListener('change', onDateChange);
+    document.getElementById('phTo').addEventListener('change', onDateChange);
+
+    document.getElementById('phType').addEventListener('change', (e) => {
+      typeFilter = e.target.value;
+      loadHistory(true);
+    });
+
+    wirePush();
+    loadPush().catch(() => {});
+    loadHistory(true);
+  </script>
+</body>
+</html>

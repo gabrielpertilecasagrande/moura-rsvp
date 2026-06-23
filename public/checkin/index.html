@@ -333,6 +333,11 @@
   .admin-cta{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 4px}
   @media(max-width:520px){ .kpi-grid{grid-template-columns:repeat(2,1fr)} }
 
+  /* Selo de origem + código de referência do evento */
+  .ev-tags{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:5px 0 2px}
+  .ev-selo{font-size:10px;font-weight:800;background:var(--navy);color:#fff;padding:2px 8px;border-radius:6px;letter-spacing:.03em}
+  .ev-ref{font-size:10.5px;font-weight:700;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#eef0f4;color:#4a5673;padding:2px 7px;border-radius:6px;letter-spacing:.04em}
+
   .menu-pop{position:fixed;z-index:60;background:#fff;border:1px solid var(--line-soft);border-radius:11px;box-shadow:0 12px 32px rgba(0,0,0,.16);overflow:hidden;min-width:185px}
   .menu-pop button{display:block;width:100%;text-align:left;padding:11px 15px;font-size:14px;color:var(--ink)}
   .menu-pop button:hover{background:#f5f5f5}
@@ -992,6 +997,7 @@ function renderHome(){
       const pct=c.t?Math.round(c.p/c.t*100):0;
       h+=`<div class="ev-card" onclick="openEvent('${e.id}')">
         <div class="ev-main"><h3>${esc(e.name)}</h3>
+        <div class="ev-tags">${e.source_event_id?'<span class="ev-selo">◆ Moura One</span>':''}${e.ref_code?'<span class="ev-ref">'+esc(e.ref_code)+'</span>':''}</div>
         <div class="meta"><span>${fmtDate(e.date)||'Sem data'}</span>${e.location?'<span>'+esc(e.location)+'</span>':''}<span>${c.t} convidados</span></div></div>
         <div class="ring"><div class="pct">${pct}%</div><div class="lbl">${c.p}/${c.t}</div></div></div>`;
     });
@@ -1083,6 +1089,7 @@ function renderEvent(){
   const CAP=120; const capped=guests.length>CAP; if(capped) guests=guests.slice(0,CAP);
 
   let h=`<div class="wrap"><div class="ev-title"><h2>${esc(ev.name)}</h2>
+    <div class="ev-tags">${ev.source_event_id?'<span class="ev-selo">◆ Moura One</span>':''}${ev.ref_code?'<span class="ev-ref">'+esc(ev.ref_code)+'</span>':''}</div>
     <div class="meta"><span>${fmtDate(ev.date)||'Sem data'}</span>${ev.location?'<span>'+esc(ev.location)+'</span>':''}${ev.has_tables?'<span>Com mesas</span>':''}
     ${can('event_edit')?'<button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="modalEvent(true)">Editar</button>':''}</div></div>`;
 
