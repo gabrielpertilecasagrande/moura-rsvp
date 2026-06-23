@@ -57,14 +57,16 @@ function renderDashExtra(recent, daily) {
 
   // Últimas confirmações
   if (recent && recent.length) {
-    const rows = recent.map((r) => {
+    const TONES = ['a', 'b', 'c', 'd', 'e', 'f'];
+    const rows = recent.map((r, i) => {
       const initials = (r.name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+      const tone = TONES[i % TONES.length];
       return `
       <div class="recent-row">
-        <span class="recent-avatar">${esc(initials)}</span>
+        <span class="recent-avatar" data-tone="${tone}">${esc(initials)}</span>
         <span class="recent-body">
           <span class="recent-name">${esc(r.name)}</span>
-          <span class="recent-sub"><span class="recent-event-badge">${esc(r.event_name)}</span><span class="recent-time muted">${relTime(r.updated_at)}</span></span>
+          <span class="recent-sub"><span class="recent-event-badge">${esc(r.event_name)}</span><span class="recent-time">${relTime(r.updated_at)}</span></span>
         </span>
       </div>`;
     }).join('');
