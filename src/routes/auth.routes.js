@@ -424,7 +424,7 @@ router.post('/provision-event', (req, res) => {
       if (ex) {
         const refCode = promoteRefCode(ex.id, ex.ref_code);
         syncCore(ex.id);
-        logActivity('integração (provision)', 'atualizou evento', String(b.name).trim());
+        logActivity('integração (provision)', 'atualizou evento', `${String(b.name).trim()} [${refCode} | src:${src}]`);
         return res.json({ id: ex.id, slug: ex.slug, ref_code: refCode, public_url: publicUrl(ex), updated: true });
       }
     }
@@ -437,7 +437,7 @@ router.post('/provision-event', (req, res) => {
         if (src && !ex.source_event_id) db.prepare('UPDATE events SET source_event_id = ? WHERE id = ?').run(src, ex.id);
         const refCode = promoteRefCode(ex.id, ex.ref_code);
         syncCore(ex.id);
-        logActivity('integração (provision)', 'vinculou e atualizou evento', String(b.name).trim());
+        logActivity('integração (provision)', 'vinculou e atualizou evento', `${String(b.name).trim()} [${refCode} | src:${src || '—'}]`);
         return res.json({ id: ex.id, slug: ex.slug, ref_code: refCode, public_url: publicUrl(ex), updated: true, linked: true });
       }
     }
@@ -464,7 +464,7 @@ router.post('/provision-event', (req, res) => {
     const created = db.prepare('SELECT id, slug, name, ref_code FROM events WHERE id = ?').get(info.lastInsertRowid);
     registerEventSlug(created.slug, tenantSlug);
 
-    logActivity('integração (provision)', 'criou evento', created.name);
+    logActivity('integração (provision)', 'criou evento', `${created.name} [${created.ref_code} | src:${src || '—'}]`);
     res.status(201).json({ id: created.id, slug: created.slug, ref_code: created.ref_code, public_url: publicUrl(created) });
   });
 });
