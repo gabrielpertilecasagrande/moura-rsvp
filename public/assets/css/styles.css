@@ -708,3 +708,63 @@ textarea {
   overflow-y: auto;
   resize: none;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MAPA VISUAL DE MESAS (admin event-detail)
+   Visão gráfica das mesas: cartões coloridos por ocupação.
+   ════════════════════════════════════════════════════════════════════════════ */
+.mesa-map { margin-bottom: 28px; }
+.mesa-map.hidden { display: none; }
+.mesa-map-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+.mesa-map-head h2 { font-size: 18px; margin: 0; }
+.mesa-kpis { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.mesa-kpis .mk { font-size: 13px; color: var(--muted); }
+.mesa-kpis .mk b { color: var(--navy); font-variant-numeric: tabular-nums; }
+.mesa-kpis .mk.over b { color: var(--danger); }
+
+.mesa-warn { background: #fcecea; color: var(--danger); border: 1px solid #f0c7bf;
+  border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+
+.mesa-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 14px; font-size: 12.5px; color: var(--muted); }
+.mesa-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.mesa-legend .lg { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
+.mesa-legend .lg.free { background: #2bb673; }
+.mesa-legend .lg.near { background: #e6a700; }
+.mesa-legend .lg.over { background: var(--danger); }
+
+.mesa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.mesa-card { text-align: left; border: 1px solid var(--gray); border-radius: 14px; padding: 13px;
+  background: #fff; cursor: pointer; transition: transform .12s, box-shadow .12s, border-color .12s; font: inherit; }
+.mesa-card:hover { transform: translateY(-2px); box-shadow: var(--shadow, 0 6px 18px rgba(0,0,0,.08)); }
+.mesa-card.tone-free { border-left: 5px solid #2bb673; }
+.mesa-card.tone-near { border-left: 5px solid #e6a700; background: #fdfaf0; }
+.mesa-card.tone-over { border-left: 5px solid var(--danger); background: #fcecea; }
+.mesa-card.tone-na   { border-style: dashed; }
+.mesa-card .mc-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
+.mesa-card .mc-name { font-weight: 700; font-size: 14px; color: var(--navy); }
+.mesa-card .mc-flag { font-size: 9px; font-weight: 800; background: var(--danger); color: #fff;
+  padding: 2px 6px; border-radius: 5px; letter-spacing: .04em; }
+.mesa-card .mc-count { font-size: 22px; font-weight: 800; letter-spacing: -.02em; color: var(--charcoal, #28282A); }
+.mesa-card .mc-count span { font-size: 13px; color: var(--muted); font-weight: 600; }
+.mesa-card .mc-count.over { color: var(--danger); }
+.mesa-card .mc-seats { display: flex; flex-wrap: wrap; gap: 3px; margin: 9px 0 7px; }
+.mesa-card .mseat { width: 9px; height: 9px; border-radius: 50%; background: #d9e6df; display: inline-block; }
+.mesa-card .mseat.occ { background: #2bb673; }
+.mesa-card .mseat.over { background: var(--danger); }
+.mesa-card .mseat-more { font-size: 10px; color: var(--muted); font-weight: 700; align-self: center; }
+.mesa-card .mc-na { font-size: 11px; color: var(--muted); font-style: italic; margin: 9px 0 7px; }
+.mesa-card .mc-foot { font-size: 11.5px; color: #127a83; font-weight: 600; }
+
+/* Detalhe de uma mesa (modal) */
+.mesa-guest-list { display: flex; flex-direction: column; gap: 6px; max-height: 50vh; overflow-y: auto; }
+.mesa-guest { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  border: 1px solid var(--gray); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; }
+.mesa-guest.present { border-color: #bfe6cf; background: #f3fbf6; }
+.mesa-guest .mg-name { font-weight: 600; color: var(--charcoal, #28282A); }
+.mesa-guest .mg-co { color: var(--muted); font-weight: 400; }
+.mesa-guest .mg-tag { font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.mesa-guest.present .mg-tag { color: #1f9d63; }
+
+@media (max-width: 560px) {
+  .mesa-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
+}
