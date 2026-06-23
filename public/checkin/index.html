@@ -153,6 +153,8 @@
   .mesa-card2.full{border-color:#e7c07a;background:#FBF6EC}
   .mesa-card2.over{border-color:var(--danger);background:#FCEDED}
   .mesa-card2.na{border-style:dashed}
+  .mesa-card2.mesa-extra{display:none}
+  .mesa-grid2.expanded .mesa-card2.mesa-extra{display:block}
   .td-stat{font-size:13px;font-weight:600;color:var(--ink-soft);background:#fafafa;border:1px solid var(--line-soft);border-radius:9px;padding:9px 12px;margin-bottom:12px}
   .td-stat.over{color:var(--danger);background:#FCEDED;border-color:#f0c4c4}
   /* Config de mesas */
@@ -510,7 +512,7 @@ function renderAuth(){
   $('#backBtn').style.display='none';
   const ob=$('#operatorBadge'); if(ob) ob.style.display='none';
   $('#screen').innerHTML=`<div class="auth-wrap"><div class="auth-card">
-    <img class="logo" src="logo-moura.png" onerror="this.style.display='none'">
+    <img class="logo" src="logo-moura-light.png" onerror="this.style.display='none'">
     <div class="tag">Check-in de Eventos</div>
     <div class="auth-err" id="authErr"></div>
     <div class="field"><label>E-mail</label><input id="aEmail" type="email" placeholder="voce@moura.com.br"></div>
@@ -1327,10 +1329,12 @@ function renderTableMap(){
   const totalLug=conf.reduce((s,t)=>s+t.capacity,0);
   const totalOcc=conf.reduce((s,t)=>s+(assigned[t.name]||0),0);
 
-  const cards=all.map(t=>{
+  const MESA_VISIBLE=6;
+  const cards=all.map((t,idx)=>{
     const a=assigned[t.name]||0, p=present[t.name]||0, cap=t.capacity;
     const isOver=cap>0&&a>cap;
     const cls=t.extra?'na':(isOver?'over':(cap>0&&a>=cap?'full':(a>0?'partial':'empty')));
+    const extraCls=idx>=MESA_VISIBLE?' mesa-extra':'';
     let seats='';
     if(cap>0){
       const shown=Math.min(cap,30);
@@ -1338,13 +1342,16 @@ function renderTableMap(){
       if(isOver){ const ov=Math.min(a-cap,12); for(let i=0;i<ov;i++) seats+=`<span class="seat over"></span>`; }
       if(cap>30) seats+=`<span class="seat-more">+${cap-30}</span>`;
     }
-    return `<div class="mesa-card2 ${cls}" onclick="tableDetail('${esc(t.name).replace(/'/g,'')}')">
+    return `<div class="mesa-card2 ${cls}${extraCls}" onclick="tableDetail('${esc(t.name).replace(/'/g,'')}')">
       <div class="mc-head"><span class="mc-name">${t.name==='Sem mesa'?'Sem mesa':'Mesa '+esc(t.name)}</span>${isOver?'<span class="mc-alert">OVERBOOKING</span>':''}</div>
       <div class="mc-occ ${isOver?'over':''}">${a}${cap>0?'<span>/'+cap+'</span>':'<span> aloc.</span>'}</div>
       ${cap>0?`<div class="seats">${seats}</div>`:`<div class="mc-na">capacidade não definida</div>`}
       <div class="mc-foot">${p} presente${p!==1?'s':''}</div>
     </div>`;
   }).join('');
+  const hiddenCount=Math.max(0,all.length-MESA_VISIBLE);
+  const verMaisBtn=hiddenCount>0?`<button class="btn btn-ghost" id="mesaVerMaisBtn" onclick="expandMesaMap()" style="width:100%;margin-top:10px">Ver mais — ${hiddenCount} mesa${hiddenCount>1?'s':''}</button>`:``;
+
 
   const banner=over.length?`<div class="ob-banner">⚠ ${over.length} mesa${over.length>1?'s':''} com overbooking: ${over.map(o=>'Mesa '+esc(o.name)+' ('+o.assigned+'/'+o.cap+')').join(', ')}</div>`:'';
   const cfgBtn=`<button class="btn btn-ghost btn-sm" onclick="modalTablesConfig()">⚙ Configurar</button>`;
@@ -1358,7 +1365,12 @@ function renderTableMap(){
     <div class="search" style="margin-bottom:10px"><span class="ic">⌕</span><input id="mapSearch" placeholder="Buscar convidado para achar a mesa..." oninput="mapSearch(this.value)"></div>
     <div id="mapSearchRes"></div>
     <div class="map-legend"><span><span class="lg occ"></span> Ocupado</span><span><span class="lg free"></span> Livre</span><span><span class="lg over"></span> Excedente</span></div>
-    <div class="mesa-grid2">${cards||'<div style="color:var(--ink-soft)">Nenhuma mesa. Configure no botão ⚙.</div>'}</div>`);
+    <div class="mesa-grid2" id="mesaGrid">${cards||'<div style="color:var(--ink-soft)">Nenhuma mesa. Configure no botão ⚙.</div>'}</div>
+    ${verMaisBtn}`);
+}
+function expandMesaMap(){
+  const g=$('#mesaGrid'); if(g) g.classList.add('expanded');
+  const btn=$('#mesaVerMaisBtn'); if(btn) btn.remove();
 }
 function mapSearch(v){
   const q=v.trim().toLowerCase(); const el=$('#mapSearchRes'); if(!el)return;
