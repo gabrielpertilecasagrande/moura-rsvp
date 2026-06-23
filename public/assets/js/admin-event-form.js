@@ -10,6 +10,7 @@ const SLUG_PREFIX = `${location.origin}/rsvp/`;
   if (sp) sp.textContent = SLUG_PREFIX;
 }
 let removeCover = false, removeLogo = false;
+let previewCoverUrl = null, previewLogoUrl = null;
 
 // Configuração dos campos do formulário público — lista ordenada e editável.
 const BUILTIN_FIELDS = [
@@ -194,6 +195,8 @@ async function loadForEdit() {
   renderBuilder();
   renderAttachment('coverCurrent', e.cover_image, 'cover');
   renderAttachment('logoCurrent', e.client_logo, 'logo');
+  previewCoverUrl = e.cover_image || null;
+  previewLogoUrl  = e.client_logo || null;
   const landingOn = !!e.landing_enabled;
   document.getElementById('landing_enabled').checked = landingOn;
   document.getElementById('landingOptions').classList.toggle('hidden', !landingOn);
@@ -374,11 +377,13 @@ function renderLandingEditor() {
   const el = document.getElementById('landingEditor');
   if (!el) return;
   el.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <button type="button" id="lpPreviewBtn" class="btn btn-ghost btn-sm">Pré-visualizar</button>
       <button type="button" id="lpResetOrder" class="btn-link-muted" title="Volta à ordem original: Vídeo, Agenda, Localização, Patrocinadores, FAQ">redefinir ordem</button>
     </div>
     ${landingConfig.sections.map((sec) => renderLpSection(sec)).join('')}`;
 
+  document.getElementById('lpPreviewBtn').addEventListener('click', openLpPreview);
   document.getElementById('lpResetOrder').addEventListener('click', () => {
     const order = LP_SECTION_DEFAULTS.map((d) => d.type);
     landingConfig.sections.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
@@ -546,6 +551,159 @@ function renderLpSectionBody(sec) {
       <button type="button" class="btn btn-ghost btn-sm" data-lp-add="faq">+ Adicionar pergunta</button>`;
   }
   return titleField;
+}
+
+// ---- Pré-visualização da Landing Page ----
+
+function toEmbedUrlForPreview(url) {
+  if (!url) return null;
+  const u = url.trim();
+  const yt = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = u.match(/vimeo\.com\/(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  if (/youtube\.com\/embed\/|player\.vimeo\.com\//.test(u)) return u;
+  return null;
+}
+
+function buildPreviewSectionsHtml() {
+  const chevron = '<svg class="lp-faq-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>';
+  return landingConfig.sections.map((sec) => {
+    if (!sec.enabled) return '';
+    const title = sec.title ? `<h2 class="lp-section-title">${esc(sec.title)}</h2>` : '';
+    if (sec.type === 'video') {
+      const embed = toEmbedUrlForPreview(sec.url);
+      if (!embed) return '';
+      return `<section class="lp-section">${title}<div class="lp-video-wrap"><iframe src="${esc(embed)}" allowfullscreen loading="lazy"></iframe></div></section>`;
+    }
+    if (sec.type === 'agenda') {
+      const items = (sec.items || []).filter((it) => it.title);
+      if (!items.length) return '';
+      const rows = items.map((it) => `
+        <div class="lp-timeline-item">
+          <span class="lp-timeline-time">${esc(it.time || '')}</span>
+          <div class="lp-timeline-dot"></div>
+          <div class="lp-timeline-body"><strong>${esc(it.title)}</strong>${it.description ? `<p>${esc(it.description)}</p>` : ''}</div>
+        </div>`).join('');
+      return `<section class="lp-section">${title}<div class="lp-timeline">${rows}</div></section>`;
+    }
+    if (sec.type === 'location') {
+      if (!sec.embed_url) return '';
+      return `<section class="lp-section">${title}<div class="lp-map-wrap"><iframe src="${esc(sec.embed_url)}" allowfullscreen loading="lazy"></iframe></div></section>`;
+    }
+    if (sec.type === 'sponsors') {
+      const items = (sec.items || []).filter((it) => it.name || it.logo_url);
+      if (!items.length) return '';
+      const cards = items.map((it) => {
+        const inner = it.logo_url ? `<img src="${esc(it.logo_url)}" alt="${esc(it.name)}" />` : `<span class="lp-sponsor-name">${esc(it.name)}</span>`;
+        return it.website
+          ? `<a class="lp-sponsor-card" href="${esc(it.website)}" target="_blank" rel="noopener">${inner}</a>`
+          : `<div class="lp-sponsor-card">${inner}</div>`;
+      }).join('');
+      return `<section class="lp-section">${title}<div class="lp-sponsors-grid">${cards}</div></section>`;
+    }
+    if (sec.type === 'faq') {
+      const items = (sec.items || []).filter((it) => it.question);
+      if (!items.length) return '';
+      const rows = items.map((it, i) => `
+        <div class="lp-faq-item" data-faq="${i}">
+          <div class="lp-faq-q">${esc(it.question)}${chevron}</div>
+          <div class="lp-faq-a">${esc(it.answer || '')}</div>
+        </div>`).join('');
+      return `<section class="lp-section">${title}<div class="lp-faq">${rows}</div></section>`;
+    }
+    return '';
+  }).join('');
+}
+
+function buildPreviewHTML() {
+  const origin = window.location.origin;
+  const name = document.getElementById('name')?.value || 'Nome do Evento';
+  const description = document.getElementById('description')?.value || '';
+  const eventDate = document.getElementById('event_date')?.value || '';
+  const eventTime = document.getElementById('event_time')?.value || '';
+  const locationName = document.getElementById('location')?.value || '';
+  const city = document.getElementById('city')?.value || '';
+
+  const ICON_CAL   = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
+  const ICON_CLOCK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  const ICON_PIN   = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+
+  const dateTxt     = eventDate ? fmtDateBR(eventDate) : '';
+  const locationTxt = [locationName, city].filter(Boolean).join(' · ');
+
+  const coverFile = document.getElementById('cover_image')?.files[0];
+  const coverSrc  = coverFile ? URL.createObjectURL(coverFile) : previewCoverUrl;
+  const coverAttr = coverSrc ? `style="background-image:url('${coverSrc}')"` : '';
+
+  const logoFile = document.getElementById('client_logo')?.files[0];
+  const logoSrc  = logoFile ? URL.createObjectURL(logoFile) : previewLogoUrl;
+  const logoHtml = logoSrc ? `<img class="lp-hero-logo" src="${logoSrc}" alt="" />` : '';
+
+  const metaItems = [
+    dateTxt     ? `<div class="lp-hero-meta-item">${ICON_CAL}<span>${esc(dateTxt)}</span></div>` : '',
+    eventTime   ? `<div class="lp-hero-meta-item">${ICON_CLOCK}<span>${esc(eventTime)}</span></div>` : '',
+    locationTxt ? `<div class="lp-hero-meta-item">${ICON_PIN}<span>${esc(locationTxt)}</span></div>` : '',
+  ].join('');
+
+  const descHtml    = description ? `<p class="lp-rsvp-desc">${esc(description)}</p>` : '';
+  const sectionsHtml = buildPreviewSectionsHtml();
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="${origin}/assets/css/styles.css" />
+</head>
+<body class="lp-body">
+  <div class="lp-page">
+    <section class="lp-hero" ${coverAttr}>
+      <div class="lp-hero-inner">
+        ${logoHtml}
+        <div class="lp-hero-eyebrow">Confirmação de presença</div>
+        <h1 class="lp-hero-title">${esc(name)}</h1>
+        <div class="lp-hero-meta">${metaItems}</div>
+        <span class="lp-hero-cta" style="cursor:default;opacity:.85">Confirmar Presença</span>
+      </div>
+    </section>
+    <div class="lp-sections">
+      <section class="lp-section" id="lp-rsvp">
+        <div class="lp-rsvp-card">
+          ${descHtml}
+          <div style="background:#f0f3f9;border-radius:10px;padding:20px;text-align:center;color:#8a9bb5;font-size:14px;border:1.5px dashed #cdd5e0">Formulário de confirmação de presença</div>
+        </div>
+      </section>
+      ${sectionsHtml}
+    </div>
+    <footer class="lp-footer rsvp-footer">
+      <img class="footer-logo" src="${origin}/assets/img/logo-moura.png" alt="Moura" />
+      <div class="footer-title">Plataforma de Confirmação de Presença</div>
+    </footer>
+  </div>
+  <script>document.querySelectorAll('.lp-faq-q').forEach(function(q){q.addEventListener('click',function(){q.closest('.lp-faq-item').classList.toggle('open');});});<\/script>
+</body>
+</html>`;
+}
+
+function openLpPreview() {
+  const modal = document.createElement('div');
+  modal.id = 'lpPreviewModal';
+  modal.className = 'lp-preview-modal';
+  modal.innerHTML = `
+    <div class="lp-preview-bar">
+      <span>Pré-visualização — ainda não publicado</span>
+      <button class="lp-preview-close" onclick="closeLpPreview()">Fechar ✕</button>
+    </div>
+    <iframe class="lp-preview-frame" id="lpPreviewFrame"></iframe>`;
+  document.body.appendChild(modal);
+  document.getElementById('lpPreviewFrame').srcdoc = buildPreviewHTML();
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLpPreview() {
+  document.getElementById('lpPreviewModal')?.remove();
+  document.body.style.overflow = '';
 }
 
 // Inicializa o toggle de landing e re-renderiza o editor quando muda.
