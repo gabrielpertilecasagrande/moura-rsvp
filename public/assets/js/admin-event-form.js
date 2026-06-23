@@ -2,6 +2,7 @@ requireSession();
 mountShell('new');
 
 const EDIT_ID = new URLSearchParams(location.search).get('id');
+let eventLoadedAt = null; // updated_at do evento quando foi aberto para edição
 // Mostra o prefixo do link público ao lado do campo de slug.
 const SLUG_PREFIX = `${location.origin}/rsvp/`;
 {
@@ -145,6 +146,7 @@ function normalizeConfig(raw) {
 
 async function loadForEdit() {
   const e = await Api.get(`/api/events/${EDIT_ID}`);
+  eventLoadedAt = e.updated_at || null;
   document.getElementById('eyebrow').textContent = 'Editar evento';
   document.getElementById('title').textContent = e.name;
   document.title = `${e.name} — Moura RSVP`;
@@ -221,6 +223,7 @@ async function save() {
    'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'].forEach((id) => fd.append(id, v(id)));
   fd.append('whatsapp_enabled', document.getElementById('whatsapp_enabled').checked ? '1' : '0');
   fd.append('form_config', JSON.stringify(formConfig));
+  if (eventLoadedAt) fd.append('updated_at', eventLoadedAt);
   if (removeCover) fd.append('remove_cover', '1');
   if (removeLogo) fd.append('remove_logo', '1');
   const cover = document.getElementById('cover_image').files[0];

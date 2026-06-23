@@ -190,6 +190,10 @@ router.put('/:id', requirePerm('can_edit'), upload, (req, res) => {
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
   const b = req.body;
 
+  if (b.updated_at && b.updated_at !== e.updated_at) {
+    return res.status(409).json({ error: 'Este evento foi alterado por outra pessoa enquanto você editava. Recarregue a página para ver as mudanças e tente novamente.' });
+  }
+
   let slug = e.slug;
   if (b.slug != null && b.slug.trim() && slugify(b.slug) !== e.slug) {
     slug = uniqueSlug(db, b.slug, e.id);
