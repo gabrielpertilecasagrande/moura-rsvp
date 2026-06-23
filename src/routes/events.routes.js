@@ -97,8 +97,11 @@ const uploadFields = multer({
 }).fields([{ name: 'cover_image', maxCount: 1 }, { name: 'client_logo', maxCount: 1 }]);
 
 function upload(req, res, next) {
+  // Multer processa o corpo multipart em callbacks assíncronos que quebram o
+  // contexto da AsyncLocalStorage. Re-estabelecemos o contexto do banco via
+  // req.tenantSlug (gravado pelo requireAuth) antes de chamar next().
   uploadFields(req, res, (err) => {
-    if (!err) return next();
+    if (!err) return runWithDb(req.tenantSlug, () => next());
     if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'A imagem ultrapassa o limite de 10 MB.' });
     if (err.message === 'FORMATO') return res.status(400).json({ error: 'Formato não aceito. Use JPG, PNG, WEBP ou GIF.' });
     return res.status(400).json({ error: 'Não foi possível enviar a imagem.' });
