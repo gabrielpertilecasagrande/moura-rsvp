@@ -22,6 +22,15 @@ router.get('/legal-config', async (_req, res) => {
   });
 });
 
+// Config pública do app admin: URLs dos sistemas vizinhos para os atalhos de
+// navegação (voltar ao Moura One, abrir o Check-in). Só URLs — nenhum segredo.
+router.get('/app-config', (_req, res) => {
+  res.json({
+    moura_one_url: (process.env.MOURA_ONE_URL || process.env.LEGAL_BASE_URL || '').replace(/\/+$/, ''),
+    checkin_url:   (process.env.CHECKIN_APP_URL || process.env.CHECKIN_URL || '').replace(/\/+$/, ''),
+  });
+});
+
 // Versão de aceite vigente, definida no Moura One. O convidado preenche o
 // formulário uma única vez (sem login recorrente), então usamos a versão apenas
 // para CARIMBAR o consentimento na auditoria. Cache curto + timeout; se o Moura
