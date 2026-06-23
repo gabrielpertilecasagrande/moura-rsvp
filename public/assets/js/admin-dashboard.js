@@ -14,11 +14,13 @@ const ICO = {
   clock: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   rate: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg>',
 };
-// Apenas indicadores de eventos no painel. As informações de confirmações/recusas
-// ficam exclusivamente na página de cada evento.
 const STAT_DEFS = [
-  { k: 'totalEvents', l: 'Total de eventos', tone: 'navy', ico: ICO.cal },
-  { k: 'activeEvents', l: 'Eventos ativos', tone: 'green', ico: ICO.bolt },
+  { k: 'totalEvents',   l: 'Total de eventos',    tone: 'navy',  ico: ICO.cal },
+  { k: 'activeEvents',  l: 'Eventos ativos',       tone: 'green', ico: ICO.bolt },
+  { k: 'confirmed',     l: 'Confirmados',           tone: 'green', ico: ICO.check },
+  { k: 'declined',      l: 'Recusas',               ico: ICO.x,   toneFn: (v) => v > 0 ? 'red' : 'gray' },
+  { k: 'responseRate',  l: 'Taxa de resposta',      tone: 'amber', ico: ICO.rate, fmt: (v) => v !== null ? v + '%' : '—' },
+  { k: 'pending',       l: 'Aguardando',            tone: 'amber', ico: ICO.clock },
 ];
 
 function statCard(d) {
@@ -39,10 +41,57 @@ function isPastEvent(e) {
   return Date.now() > end;
 }
 
+function relTime(ts) {
+  if (!ts) return '';
+  const diff = Math.floor((Date.now() - new Date(ts.replace(' ', 'T') + 'Z').getTime()) / 1000);
+  if (diff < 60) return 'agora mesmo';
+  if (diff < 3600) return `${Math.floor(diff / 60)} min atrás`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)} h atrás`;
+  return `${Math.floor(diff / 86400)} d atrás`;
+}
+
+function renderDashExtra(recent, daily) {
+  const slot = document.getElementById('dashExtra');
+  if (!slot) return;
+  let html = '<div class="dash-extra-grid">';
+
+  // Últimas confirmações
+  if (recent && recent.length) {
+    const rows = recent.map((r) => `
+      <div class="recent-row">
+        <span class="recent-name">${esc(r.name)}</span>
+        <span class="recent-meta muted">${esc(r.event_name)} · ${relTime(r.updated_at)}</span>
+      </div>`).join('');
+    html += `<div><div class="section-label">Últimas confirmações</div><div class="card recent-list">${rows}</div></div>`;
+  }
+
+  // Gráfico diário
+  if (daily && daily.length) {
+    const max = Math.max(...daily.map((d) => d.n), 1);
+    const bars = daily.map((d) => {
+      const pct = Math.max(6, Math.round((d.n / max) * 100));
+      const mm = d.day.slice(5).replace('-', '/');
+      return `<div class="dc-col" title="${d.n} confirmação(ões) em ${d.day}">
+        <div class="dc-val">${d.n}</div>
+        <div class="dc-bar" style="height:${pct}%"></div>
+        <div class="dc-label">${mm}</div>
+      </div>`;
+    }).join('');
+    html += `<div><div class="section-label">Confirmações por dia (7 dias)</div><div class="card"><div class="daily-chart">${bars}</div></div></div>`;
+  }
+
+  html += '</div>';
+  slot.innerHTML = html;
+}
+
 async function init() {
   const s = await Api.get('/api/dashboard');
-  const cards = STAT_DEFS.map((d) => statCard({ ...d, n: s[d.k] ?? 0 }));
+  const cards = STAT_DEFS.map((d) => {
+    const val = s[d.k] ?? 0;
+    return statCard({ ...d, tone: d.toneFn ? d.toneFn(val) : d.tone, n: d.fmt ? d.fmt(s[d.k]) : val });
+  });
   document.getElementById('stats').innerHTML = cards.join('');
+  renderDashExtra(s.recent, s.daily);
 
   ALL_EVENTS = await Api.get('/api/events');
   renderEvents();

@@ -43,9 +43,27 @@ router.get('/', (req, res) => {
   const respExpected = perEvent.reduce((acc, r) => acc + r.resp, 0);
   const responseRate = totalExpected > 0 ? Math.round((respExpected / totalExpected) * 100) : null;
 
+  // Últimas 5 confirmações (transversais a todos os eventos autorizados)
+  const recent = db.prepare(`
+    SELECT p.name, p.updated_at, e.name AS event_name
+    FROM participants p JOIN events e ON e.id = p.event_id
+    ${pWhere} AND p.response = 'confirmado'
+    ORDER BY p.updated_at DESC LIMIT 5
+  `).all(...params);
+
+  // Confirmações por dia nos últimos 7 dias
+  const daily = db.prepare(`
+    SELECT date(p.updated_at) AS day, COUNT(*) AS n
+    FROM participants p JOIN events e ON e.id = p.event_id
+    ${pWhere} AND p.response = 'confirmado'
+    AND date(p.updated_at) >= date('now', '-6 days')
+    GROUP BY day ORDER BY day
+  `).all(...params);
+
   res.json({
     totalEvents, activeEvents, confirmed, declined, pending,
     totalResponses, totalExpected, responseRate,
+    recent, daily,
   });
 });
 
