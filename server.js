@@ -126,6 +126,25 @@ app.use('/api/trash',                                       require('./src/route
 app.use('/api/checkin',                                     require('./src/routes/checkin.routes'));
 app.use('/api/admin/checkin',                               require('./src/routes/checkin-admin.routes'));
 
+// ── Subdomínio de check-in (ex.: checkin.mouracom.com.br) ─────────────────────
+// Quando CHECKIN_DOMAIN está definido, o SPA de check-in é servido na raiz do
+// subdomínio sem o prefixo /checkin/ na URL — link mais limpo para operadoras.
+const CHECKIN_DOMAIN = (process.env.CHECKIN_DOMAIN || '').toLowerCase().trim();
+if (CHECKIN_DOMAIN) {
+  app.use((req, res, next) => {
+    if ((req.hostname || '').toLowerCase() !== CHECKIN_DOMAIN) return next();
+    // Passa /api/* e /uploads/* para os handlers normais.
+    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
+    // Serve arquivos estáticos da pasta checkin (logo, etc.) se existirem.
+    const filePath = path.join(__dirname, 'public', 'checkin', req.path);
+    if (req.path !== '/' && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+      return res.sendFile(filePath);
+    }
+    // SPA: tudo mais entrega o index.html (o JS lida com a rota via URL params).
+    res.sendFile(path.join(__dirname, 'public', 'checkin', 'index.html'));
+  });
+}
+
 // ── Páginas ────────────────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.redirect('/admin/login.html'));
 app.get('/admin', (_req, res) => res.redirect('/admin/login.html'));
