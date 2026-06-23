@@ -24,6 +24,13 @@ function mergeExtra(prevRaw, eventCfg, bodyExtra) {
   return Object.keys(out).length ? JSON.stringify(out) : null;
 }
 
+// Extrai IP e user-agent da requisição para rastreabilidade no audit_log.
+function getReqMeta(req) {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket?.remoteAddress || '').split(',')[0].trim() || null;
+  const ua = (req.headers['user-agent'] || '').slice(0, 300) || null;
+  return { ip, ua };
+}
+
 // Normaliza o campo de observações internas (texto simples, limite generoso).
 function sanitizeNotes(v) {
   if (v == null) return undefined; // undefined = não alterar
@@ -97,9 +104,13 @@ router.delete('/:pid', requirePerm('can_participants'), (req, res) => {
   const pid = Number(req.params.pid);
   const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ? AND deleted_at IS NULL').get(pid, eventId);
   if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
+  const actor = req.admin.name || req.admin.email;
+  const { ip, ua } = getReqMeta(req);
   db.prepare("UPDATE participants SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?")
-    .run(req.admin.name || req.admin.email, pid);
-  logActivity(req.admin.name || req.admin.email, 'moveu convidado para a lixeira', `${p.name}`);
+    .run(actor, pid);
+  db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, details, ip, user_agent, origin) VALUES (?,?,'excluiu',?,'Movido para a lixeira',?,?,'admin')`)
+    .run(pid, eventId, actor, ip, ua);
+  logActivity(actor, 'moveu convidado para a lixeira', `${p.name}`);
   res.json({ ok: true });
 });
 
@@ -113,6 +124,7 @@ router.post('/mass', requirePerm('can_participants'), (req, res) => {
   const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
   if (!ids.length) return res.status(400).json({ error: 'Selecione ao menos um participante.' });
   const actor = req.admin.name || req.admin.email || 'Administrador';
+  const { ip, ua } = getReqMeta(req);
   const placeholders = ids.map(() => '?').join(',');
   // Garante que todos pertencem a este evento.
   const rows = db.prepare(`SELECT id, name, response FROM participants WHERE event_id = ? AND deleted_at IS NULL AND id IN (${placeholders})`).all(eventId, ...ids);
@@ -123,14 +135,23 @@ router.post('/mass', requirePerm('can_participants'), (req, res) => {
   if (action === 'confirmar' || action === 'recusar') {
     const resp = action === 'confirmar' ? 'confirmado' : 'recusado';
     db.prepare(`UPDATE participants SET response = ?, updated_at = datetime('now') WHERE id IN (${ph2})`).run(resp, ...validIds);
-    const auditStmt = db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details) VALUES (?,?, 'editou', ?, ?, ?, 'Ação em massa')`);
-    for (const r of rows) if (r.response !== resp) auditStmt.run(r.id, eventId, actor, r.response, resp);
+    const auditStmt = db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details, ip, user_agent, origin) VALUES (?,?,'editou',?,?,?,'Ação em massa',?,?,'admin')`);
+    for (const r of rows) if (r.response !== resp) auditStmt.run(r.id, eventId, actor, r.response, resp, ip, ua);
     logActivity(actor, `alterou ${validIds.length} participante(s) para ${resp === 'confirmado' ? 'Confirmado' : 'Recusado'}`, null);
     return res.json({ ok: true, affected: validIds.length });
   }
   if (action === 'excluir') {
     db.prepare(`UPDATE participants SET deleted_at = datetime('now'), deleted_by = ? WHERE id IN (${ph2})`).run(actor, ...validIds);
+    const delAudit = db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, details, ip, user_agent, origin) VALUES (?,?,'excluiu',?,'Excluído em lote',?,?,'admin')`);
+    for (const r of rows) delAudit.run(r.id, eventId, actor, ip, ua);
     logActivity(actor, `moveu ${validIds.length} convidado(s) para a lixeira`, null);
+    return res.json({ ok: true, affected: validIds.length });
+  }
+  if (action === 'whatsapp') {
+    // O envio ocorre no cliente (wa.me); aqui registramos no histórico de cada participante.
+    const waAudit = db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, details, ip, user_agent, origin) VALUES (?,?,'enviou',?,'WhatsApp enviado',?,?,'admin')`);
+    for (const r of rows) waAudit.run(r.id, eventId, actor, ip, ua);
+    logActivity(actor, `enviou WhatsApp para ${validIds.length} participante(s)`, null);
     return res.json({ ok: true, affected: validIds.length });
   }
   return res.status(400).json({ error: 'Ação inválida.' });
@@ -207,11 +228,12 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
      WHERE id = ?`
   ).run(name, normalized, company, role, email, phone, response, extraJson, notes, pid);
 
+  const { ip: editIp, ua: editUa } = getReqMeta(req);
   db.prepare(
-    `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
-     VALUES (?, ?, 'editou', ?, ?, ?, ?)`
+    `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details, ip, user_agent, origin)
+     VALUES (?, ?, 'editou', ?, ?, ?, ?, ?, ?, 'admin')`
   ).run(pid, eventId, req.admin.name || req.admin.email || 'Administrador', p.response, response,
-    'Edição manual — ' + changes.join('; '));
+    'Edição manual — ' + changes.join('; '), editIp, editUa);
 
   // Registro geral: separa "alteração de status" de "alteração de dados".
   const actor = req.admin.name || req.admin.email;
@@ -253,8 +275,9 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
     // Atualizar um cadastro existente também o restaura, caso estivesse na lixeira.
     db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, extra=?, qr_token=?, deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now') WHERE id=?`)
       .run(name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, mergeExtra(existing.extra, cfg, b.extra), qrToken, existing.id);
-    db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details) VALUES (?,?,'editou',?,?,?,?)`)
-      .run(existing.id, eventId, req.admin.name || req.admin.email || 'Administrador', existing.response, response, 'Atualização de cadastro existente (inclusão manual)');
+    const { ip: fuIp, ua: fuUa } = getReqMeta(req);
+    db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details, ip, user_agent, origin) VALUES (?,?,'editou',?,?,?,?,?,?,'admin')`)
+      .run(existing.id, eventId, req.admin.name || req.admin.email || 'Administrador', existing.response, response, 'Atualização de cadastro existente (inclusão manual)', fuIp, fuUa);
     return res.json({ ok: true, updated: true, participant: db.prepare('SELECT * FROM participants WHERE id=?').get(existing.id) });
   }
 
@@ -265,11 +288,12 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
      VALUES (?,?,?,?,?,?,?,?,?,?,?)`
   ).run(eventId, name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, newExtra, newNotes === undefined ? null : newNotes, qrToken);
 
+  const { ip: addIp, ua: addUa } = getReqMeta(req);
   db.prepare(
-    `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
-     VALUES (?,?, 'criou', ?, NULL, ?, ?)`
+    `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details, ip, user_agent, origin)
+     VALUES (?,?, 'criou', ?, NULL, ?, ?, ?, ?, 'admin')`
   ).run(info.lastInsertRowid, eventId, req.admin.name || req.admin.email || 'Administrador', response,
-    'Inclusão manual pelo administrador');
+    'Inclusão manual pelo administrador', addIp, addUa);
 
   logActivity(req.admin.name || req.admin.email, 'incluiu participante manualmente', name);
   res.status(201).json({ ok: true, participant: db.prepare('SELECT * FROM participants WHERE id = ?').get(info.lastInsertRowid) });
@@ -292,10 +316,11 @@ router.post('/bulk', requirePerm('can_participants'), (req, res) => {
      VALUES (?,?,?,?,?,?,?,?,?)`
   );
   const audit = db.prepare(
-    `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details)
-     VALUES (?,?, 'criou', ?, NULL, ?, ?)`
+    `INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details, ip, user_agent, origin)
+     VALUES (?,?, 'criou', ?, NULL, ?, ?, ?, ?, 'admin')`
   );
   const actor = req.admin.name || req.admin.email || 'Administrador';
+  const { ip: blkIp, ua: blkUa } = getReqMeta(req);
 
   let added = 0; const skipped = [];
   for (const line of lines) {
@@ -306,7 +331,7 @@ router.post('/bulk', requirePerm('can_participants'), (req, res) => {
     const dup = findDup(eventId, { email: cols[1], phone: cols[4], normalized });
     if (dup) { skipped.push(name); continue; }
     const info = insert.run(eventId, name, normalized, cols[2] || null, cols[3] || null, cols[1] || null, cols[4] || null, response, response === 'confirmado' ? genQrToken() : null);
-    audit.run(info.lastInsertRowid, eventId, actor, response, 'Inclusão em lote pelo administrador');
+    audit.run(info.lastInsertRowid, eventId, actor, response, 'Inclusão em lote pelo administrador', blkIp, blkUa);
     added++;
   }
   logActivity(actor, 'incluiu participantes em lote', `${added} incluído(s)`);

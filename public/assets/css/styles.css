@@ -275,9 +275,26 @@ tbody tr:hover { background: var(--off-white); }
 .toast.show { opacity: 1; }
 
 /* Auditoria */
-.audit-line { font-size: 13px; padding: 6px 0; border-bottom: 1px dashed var(--gray); }
+.audit-line { font-size: 13px; padding: 8px 0; border-bottom: 1px dashed var(--gray); }
 .audit-line:last-child { border: none; }
-.audit-line .d { color: var(--muted); font-variant-numeric: tabular-nums; }
+.audit-line .d { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.audit-meta { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.audit-action-tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .06em;
+  text-transform: uppercase; padding: 1px 6px; border-radius: 4px; vertical-align: middle; }
+.audit-action-criou  { background: #e6f9f0; color: #1a7a4a; }
+.audit-action-editou { background: #e8f0fb; color: var(--navy); }
+.audit-action-excluiu { background: #fdecea; color: var(--danger); }
+.audit-action-enviou { background: #e6fbf0; color: #1a7a4a; }
+
+/* WhatsApp coletivo */
+.wa-preview-box { background: #e9fce9; border: 1px solid #b7e8b7; border-radius: var(--radius-sm); padding: 12px 14px; margin-top: 10px; }
+.wa-preview-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+.wa-bubble { background: #dcf8c6; border-radius: 0 10px 10px 10px; padding: 10px 14px; font-size: 14px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.wa-counter { background: var(--navy); color: #fff; border-radius: 20px; padding: 3px 10px; font-size: 12px; font-weight: 700; flex-shrink: 0; }
+.btn-wa-bulk { background: #25D366; color: #fff; border-color: #25D366; display: inline-flex; align-items: center; gap: 6px; }
+.btn-wa-bulk:hover { background: #1ebe5a; border-color: #1ebe5a; }
+.btn-wa-open { background: #25D366; color: #fff; border-color: #25D366; display: inline-flex; align-items: center; gap: 7px; }
+.btn-wa-open:hover { background: #1ebe5a; border-color: #1ebe5a; }
 
 /* ============================================================
    LOGIN

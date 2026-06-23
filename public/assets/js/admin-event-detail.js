@@ -153,12 +153,17 @@ function statCard(d) {
 
 function renderStats(s) {
   const adesao = s.confirmation_rate;
+  // Só faz sentido mostrar o índice quando há convidados esperados definidos como base.
+  const hasBase = EVENT && Number(EVENT.expected_guests) > 0;
+  const rateDisplay = hasBase ? (adesao + '%') : '—';
+  const rateTip = hasBase
+    ? 'Proporção de quem confirmou entre todos que responderam. Ex.: 62 confirmados de 65 respostas = 95%.'
+    : 'Defina a quantidade de "Convidados esperados" no evento para calcular este índice.';
   const defs = [
     { n: s.total, l: 'Respostas', tone: 'navy', ico: STAT_ICONS.respostas },
     { n: s.confirmed, l: 'Confirmados', tone: 'green', ico: STAT_ICONS.check },
     { n: s.declined, l: 'Recusas', tone: s.declined > 0 ? 'red' : 'gray', ico: STAT_ICONS.x },
-    { n: adesao + '%', l: 'Índice de adesão', tone: rateTone(adesao), ico: STAT_ICONS.rate,
-      tip: 'Proporção de quem confirmou entre todos que responderam. Ex.: 62 confirmados de 65 respostas = 95%.' },
+    { n: rateDisplay, l: 'Índice de adesão', tone: hasBase ? rateTone(adesao) : 'gray', ico: STAT_ICONS.rate, tip: rateTip },
   ];
   document.getElementById('pStats').innerHTML = defs.map(statCard).join('');
 }
@@ -365,16 +370,45 @@ async function saveParticipant(pid) {
   }
 }
 
+function auditActionLabel(action) {
+  const labels = { criou: 'Adicionado', editou: 'Editado', excluiu: 'Removido', enviou: 'Mensagem enviada' };
+  return labels[action] || action;
+}
+function auditBrowserShort(ua) {
+  if (!ua) return '';
+  if (/iPhone|iPad/i.test(ua)) return 'iPhone/iPad';
+  if (/Android/i.test(ua)) return 'Android';
+  if (/Chrome/i.test(ua)) return 'Chrome';
+  if (/Safari/i.test(ua)) return 'Safari';
+  if (/Firefox/i.test(ua)) return 'Firefox';
+  if (/Edge/i.test(ua)) return 'Edge';
+  return ua.slice(0, 40);
+}
+
 async function showAudit(pid) {
   const p = LAST_LIST.find((x) => x.id === pid);
   const name = p ? p.name : '';
   const log = await Api.get(`/api/events/${ID}/participants/${pid}/audit`);
-  const lines = log.map((a) => `
-    <div class="audit-line"><span class="d">${fmtDateTimeBR(a.created_at)}</span>${a.actor ? ' · <strong>' + esc(a.actor) + '</strong>' : ''} — ${esc(a.details || a.action)}</div>`).join('') || '<p class="muted">Sem registros.</p>';
+  const lines = log.map((a) => {
+    const meta = [];
+    if (a.ip) meta.push(`IP: ${esc(a.ip)}`);
+    if (a.user_agent) meta.push(`Navegador: ${esc(auditBrowserShort(a.user_agent))}`);
+    if (a.origin) meta.push(a.origin === 'admin' ? 'Painel admin' : a.origin === 'formulario' ? 'Formulário público' : esc(a.origin));
+    return `
+    <div class="audit-line">
+      <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+        <span class="d">${fmtDateTimeBR(a.created_at)}</span>
+        ${a.actor ? '<strong>' + esc(a.actor) + '</strong>' : ''}
+        <span class="audit-action-tag audit-action-${esc(a.action)}">${auditActionLabel(a.action)}</span>
+      </div>
+      <div style="margin:2px 0 0 0;font-size:13px">${esc(a.details || '')}</div>
+      ${meta.length ? `<div class="audit-meta">${meta.join(' · ')}</div>` : ''}
+    </div>`;
+  }).join('') || '<p class="muted">Sem registros.</p>';
   modal(`
-    <h3 style="font-size:17px;margin-bottom:4px">Histórico de alterações</h3>
-    <p class="muted" style="font-size:13px;margin:0 0 14px">${esc(name)}</p>
-    <div style="text-align:left">${lines}</div>
+    <h3 style="font-size:17px;margin-bottom:4px">Histórico — ${esc(name)}</h3>
+    <p class="muted" style="font-size:12px;margin:0 0 14px">Registro de todas as ações realizadas neste convidado.</p>
+    <div style="text-align:left;max-height:420px;overflow-y:auto">${lines}</div>
     <button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="closeModal()">Fechar</button>`);
 }
 
@@ -401,7 +435,7 @@ function syncSelectionUI() {
   }
   if (can('can_export')) actions.push('<button class="btn btn-sm btn-ghost" onclick="bulkExport()">Exportar selecionados</button>');
   if (can('can_participants')) actions.push('<button class="btn btn-sm bulk-delete" onclick="bulkAction(\'excluir\')">Excluir</button>');
-  if (can('can_messages')) actions.push('<button class="btn btn-sm btn-ghost" disabled title="Em breve">WhatsApp (em breve)</button>');
+  if (can('can_messages')) actions.push('<button class="btn btn-sm btn-wa-bulk" onclick="bulkWhatsapp()"><img src="/assets/img/whatsapp.png" width="14" height="14" style="display:block;flex-shrink:0" alt="" /> WhatsApp</button>');
   actions.push('<button class="btn btn-sm btn-ghost" onclick="clearSelection()">Cancelar seleção</button>');
 
   // "Selecionar todos os N resultados" do filtro atual (quando ainda não estão todos).
@@ -717,6 +751,122 @@ async function saveBulk() {
     toast(`${r.added} incluído(s)${r.skipped_count ? `, ${r.skipped_count} já existia(m)` : ''}.`);
     loadParticipants();
   } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
+}
+
+// ---- WhatsApp coletivo ----
+let WA_SESSION = null;
+
+function bulkWhatsapp() {
+  const sel = LAST_LIST.filter((p) => SELECTED.has(p.id) && guestWa(p.phone));
+  if (!sel.length) {
+    toast('Nenhum participante selecionado tem telefone cadastrado.');
+    return;
+  }
+  WA_SESSION = { sel, tpl: '', idx: 0 };
+  const sem = SELECTED.size > sel.length ? `<p class="muted" style="font-size:12px;margin:0 0 12px">${SELECTED.size - sel.length} participante(s) sem telefone serão ignorados.</p>` : '';
+  modal(`
+    <h3 style="font-size:17px;margin-bottom:4px">WhatsApp em massa</h3>
+    <p class="muted" style="font-size:13px;margin:0 0 4px">${sel.length} participante(s) com telefone cadastrado</p>
+    ${sem}
+    <div class="field" style="text-align:left">
+      <label>Mensagem — clique nas variáveis para inserir</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
+        <button type="button" class="btn btn-ghost btn-sm" style="font-size:12px" onclick="insertWaVar('{nome}')">+ {nome}</button>
+        <button type="button" class="btn btn-ghost btn-sm" style="font-size:12px" onclick="insertWaVar('{empresa}')">+ {empresa}</button>
+        <button type="button" class="btn btn-ghost btn-sm" style="font-size:12px" onclick="insertWaVar('{telefone}')">+ {telefone}</button>
+      </div>
+      <textarea id="wa_tpl" rows="6" style="font-size:14px" placeholder="Olá {nome},&#10;&#10;Lembramos que o evento acontece amanhã às 20h.&#10;&#10;Até lá!"></textarea>
+    </div>
+    <div class="wa-preview-box" id="wa_preview" style="display:none"></div>
+    <p class="error-msg hidden" id="wa_err" style="text-align:left"></p>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary btn-sm" onclick="startWaSend()">Iniciar envio →</button>
+    </div>`);
+  const ta = document.getElementById('wa_tpl');
+  ta.addEventListener('input', () => updateWaPreview(ta.value));
+  ta.focus();
+}
+
+function insertWaVar(v) {
+  const ta = document.getElementById('wa_tpl');
+  if (!ta) return;
+  const s = ta.selectionStart, e = ta.selectionEnd;
+  ta.value = ta.value.slice(0, s) + v + ta.value.slice(e);
+  ta.selectionStart = ta.selectionEnd = s + v.length;
+  ta.focus();
+  updateWaPreview(ta.value);
+}
+
+function applyWaTpl(tpl, p) {
+  return tpl
+    .replace(/\{nome\}/gi, p.name || '')
+    .replace(/\{empresa\}/gi, p.company || '')
+    .replace(/\{telefone\}/gi, p.phone || '');
+}
+
+function updateWaPreview(tpl) {
+  const box = document.getElementById('wa_preview');
+  if (!box || !WA_SESSION || !WA_SESSION.sel.length) return;
+  if (!tpl.trim()) { box.style.display = 'none'; return; }
+  const p = WA_SESSION.sel[0];
+  const msg = applyWaTpl(tpl, p);
+  box.style.display = '';
+  box.innerHTML = `<div class="wa-preview-label">Prévia para <strong>${esc(p.name)}</strong>:</div><div class="wa-bubble">${esc(msg).replace(/\n/g, '<br>')}</div>`;
+}
+
+function startWaSend() {
+  const ta = document.getElementById('wa_tpl');
+  const tpl = ta ? ta.value.trim() : '';
+  if (!tpl) {
+    const err = document.getElementById('wa_err');
+    if (err) { err.textContent = 'Digite a mensagem antes de continuar.'; err.classList.remove('hidden'); }
+    return;
+  }
+  if (!WA_SESSION) return;
+  WA_SESSION.tpl = tpl;
+  WA_SESSION.idx = 0;
+  closeModal();
+  sendNextWa();
+}
+
+function sendNextWa() {
+  if (!WA_SESSION) return;
+  const { sel, tpl, idx } = WA_SESSION;
+  if (idx >= sel.length) {
+    // Finalizado — registra no histórico de cada participante.
+    Api.post(`/api/events/${ID}/participants/mass`, { action: 'whatsapp', ids: sel.map((p) => p.id) }).catch(() => {});
+    toast(`WhatsApp preparado para ${sel.length} participante(s). Registrado no histórico.`);
+    WA_SESSION = null;
+    clearSelection();
+    loadParticipants();
+    return;
+  }
+  const p = sel[idx];
+  const msg = applyWaTpl(tpl, p);
+  const waUrl = `${guestWa(p.phone)}?text=${encodeURIComponent(msg)}`;
+  modal(`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <span class="wa-counter">${idx + 1}/${sel.length}</span>
+      <div>
+        <div style="font-weight:600;font-size:15px">${esc(p.name)}</div>
+        ${p.company ? `<div class="muted" style="font-size:12px">${esc(p.company)}</div>` : ''}
+        ${p.phone ? `<div class="muted" style="font-size:12px">${esc(p.phone)}</div>` : ''}
+      </div>
+    </div>
+    <div class="wa-bubble">${esc(msg).replace(/\n/g, '<br>')}</div>
+    <p class="muted" style="font-size:12px;margin:10px 0 0;text-align:center">Após enviar no WhatsApp, volte aqui para o próximo</p>
+    <div style="display:flex;gap:10px;justify-content:space-between;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" onclick="WA_SESSION=null;closeModal();clearSelection()">Cancelar</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="WA_SESSION.idx++;sendNextWa()">Pular →</button>
+        <a class="btn btn-sm btn-wa-open" href="${waUrl}" target="_blank" rel="noopener"
+           onclick="setTimeout(()=>{if(WA_SESSION){WA_SESSION.idx++;sendNextWa();}},600)">
+          <img src="/assets/img/whatsapp.png" width="15" height="15" style="display:block;flex-shrink:0" alt="" />
+          Abrir WhatsApp
+        </a>
+      </div>
+    </div>`);
 }
 
 // Leva o cursor para a busca rápida de participantes (sem rolar a página).
