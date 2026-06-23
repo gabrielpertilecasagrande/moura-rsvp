@@ -11,11 +11,12 @@ function myId() {
 }
 const ME = myId();
 
-const ROLE_LABEL = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador', editor: 'Gestor de Eventos' };
+const ROLE_LABEL = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador', cliente: 'Cliente', editor: 'Gestor de Eventos' };
 const ROLE_DESC = {
   admin: 'Acesso total ao sistema.',
   gestor: 'Cria e gerencia os eventos autorizados. Não gerencia usuários.',
   operador: 'Consulta eventos autorizados e gerencia participantes. Não cria eventos.',
+  cliente: 'Visualiza apenas os eventos liberados para ele. Acesso somente-leitura.',
 };
 const STATUS = {
   ativo: { label: 'Ativo', cls: 'pill-ok' },
@@ -98,11 +99,12 @@ function closeModal() { document.getElementById('modalSlot').innerHTML = ''; }
 const inputRow = (id, label, value, type = 'text') =>
   `<div class="field" style="text-align:left"><label>${label}</label><input type="${type}" id="${id}" value="${esc(value) || ''}" /></div>`;
 const roleSelect = (id, val) => {
-  const v = val === 'editor' ? 'gestor' : val;
+  const v = val === 'editor' ? 'gestor' : (val || 'operador');
   return `<div class="field" style="text-align:left"><label>Perfil de acesso</label><select id="${id}">
+    <option value="cliente" ${v === 'cliente' ? 'selected' : ''}>Cliente — visualiza apenas os eventos dele (somente-leitura)</option>
     <option value="operador" ${v === 'operador' ? 'selected' : ''}>Operador — consulta eventos e gerencia participantes</option>
-    <option value="gestor" ${v === 'gestor' ? 'selected' : ''}>Gestor de Eventos — cria e gerencia eventos autorizados</option>
-    <option value="admin" ${v === 'admin' ? 'selected' : ''}>Administrador — acesso total + usuários</option>
+    <option value="admin" ${v === 'admin' ? 'selected' : ''}>Administrador — acesso total ao sistema</option>
+    ${v === 'gestor' ? '<option value="gestor" selected>Gestor de Eventos — cria e gerencia eventos autorizados</option>' : ''}
   </select></div>`;
 };
 
@@ -114,7 +116,7 @@ function newUser() {
     ${inputRow('nu_email', 'E-mail', '', 'email')}
     ${inputRow('nu_pass', 'Senha (mínimo 8 caracteres)', '', 'password')}
     ${inputRow('nu_pass2', 'Repita a senha', '', 'password')}
-    ${roleSelect('nu_role', 'operador')}
+    ${roleSelect('nu_role', 'cliente')}
     <p class="muted" style="font-size:12.5px;margin:-6px 0 14px;text-align:left">Use "Acessos" depois de criar para liberar eventos específicos a Gestores e Operadores.</p>
     <p class="error-msg hidden" id="nu_err" style="text-align:left"></p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">

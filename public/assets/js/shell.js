@@ -1,9 +1,9 @@
 // Converte papéis antigos para o novo modelo de perfis.
 function normRole(role) {
   if (role === 'editor') return 'gestor';
-  return ['admin', 'gestor', 'operador'].includes(role) ? role : 'operador';
+  return ['admin', 'gestor', 'operador', 'cliente'].includes(role) ? role : 'operador';
 }
-const ROLE_LABELS = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador' };
+const ROLE_LABELS = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador', cliente: 'Cliente' };
 
 // Lê dados do usuário a partir do token JWT, sem chamada extra.
 function currentUser() {
