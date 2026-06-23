@@ -741,8 +741,12 @@ async function renderMesaMap() {
     wrap.innerHTML = `
       <div class="card">
         <div class="mesa-map-head"><h2>Mapa de mesas</h2>
-          <button class="btn btn-ghost btn-sm" onclick="renderMesaMap()">Atualizar</button></div>
-        <p class="muted" style="margin:0">Nenhuma mesa configurada ainda. Configure as mesas no aplicativo de check-in (botão ⚙ Configurar mesas) para ver o mapa colorido aqui.</p>
+          <div style="display:flex;gap:8px">
+            ${can('can_edit') ? '<button class="btn btn-primary btn-sm" onclick="modalMesasConfig()">⚙ Configurar mesas</button>' : ''}
+            <button class="btn btn-ghost btn-sm" onclick="renderMesaMap()">Atualizar</button>
+          </div>
+        </div>
+        <p class="muted" style="margin:0">Nenhuma mesa configurada ainda. Clique em "Configurar mesas" para começar.</p>
       </div>`;
     return;
   }
@@ -765,12 +769,19 @@ async function renderMesaMap() {
       if (cap > 24) seats += `<span class="mseat-more">+${cap - 24}</span>`;
     }
     const label = t.name === 'Sem mesa' ? 'Sem mesa' : `Mesa ${esc(t.name)}`;
-    return `<button class="mesa-card tone-${tone}" onclick="mesaDetail('${esc(String(t.name)).replace(/'/g, '')}')">
-      <div class="mc-top"><span class="mc-name">${label}</span>${isOver ? '<span class="mc-flag">EXCEDE</span>' : ''}</div>
-      <div class="mc-count ${isOver ? 'over' : ''}">${a}${cap > 0 ? `<span>/${cap}</span>` : '<span> aloc.</span>'}</div>
-      ${cap > 0 ? `<div class="mc-seats">${seats}</div>` : '<div class="mc-na">capacidade não definida</div>'}
-      <div class="mc-foot">${p} presente${p !== 1 ? 's' : ''}</div>
-    </button>`;
+    const tn = esc(String(t.name)).replace(/'/g, '');
+    // Zona de soltar (drop): convidados arrastados até esta mesa são re-alocados.
+    return `<div class="mesa-card tone-${tone} mesa-drop" data-table="${tn}"
+      ondragover="event.preventDefault();this.classList.add('mesa-drop-over')"
+      ondragleave="this.classList.remove('mesa-drop-over')"
+      ondrop="mesaDrop(event,'${tn}');this.classList.remove('mesa-drop-over')">
+      <button class="mc-inner" onclick="mesaDetail('${tn}')">
+        <div class="mc-top"><span class="mc-name">${label}</span>${isOver ? '<span class="mc-flag">EXCEDE</span>' : ''}</div>
+        <div class="mc-count ${isOver ? 'over' : ''}">${a}${cap > 0 ? `<span>/${cap}</span>` : '<span> aloc.</span>'}</div>
+        ${cap > 0 ? `<div class="mc-seats">${seats}</div>` : '<div class="mc-na">capacidade não definida</div>'}
+        <div class="mc-foot">${p} presente${p !== 1 ? 's' : ''}</div>
+      </button>
+    </div>`;
   }).join('');
 
   wrap.innerHTML = `
@@ -781,6 +792,7 @@ async function renderMesaMap() {
           <span class="mk"><b>${tables.length}</b> mesa${tables.length !== 1 ? 's' : ''}</span>
           ${totalCap ? `<span class="mk"><b>${totalAlloc}/${totalCap}</b> lugares</span>` : ''}
           ${overCount ? `<span class="mk over"><b>${overCount}</b> excedente${overCount !== 1 ? 's' : ''}</span>` : ''}
+          ${can('can_edit') ? '<button class="btn btn-primary btn-sm" onclick="modalMesasConfig()">⚙ Configurar</button>' : ''}
           <button class="btn btn-ghost btn-sm" onclick="renderMesaMap()">Atualizar</button>
         </div>
       </div>
@@ -789,12 +801,14 @@ async function renderMesaMap() {
         <span><span class="lg free"></span> Livre</span>
         <span><span class="lg near"></span> Próximo do limite</span>
         <span><span class="lg over"></span> Excedente</span>
+        ${can('can_participants') ? '<span class="mesa-drag-hint">↔ Arraste um convidado até uma mesa para mover</span>' : ''}
       </div>
-      <div class="mesa-grid">${cards}</div>
+      <div class="mesa-grid" id="mesaGrid">${cards}</div>
     </div>`;
 }
 
 // Abre o detalhe de uma mesa: quem está alocado e quem já fez check-in.
+// Convidados são arrastáveis entre mesas (drag-and-drop).
 function mesaDetail(name) {
   const arr = MESA_PARTS
     .filter((p) => p.response === 'confirmado' && (String(p.table_number || '').trim() || 'Sem mesa') === name)
@@ -804,16 +818,162 @@ function mesaDetail(name) {
   const conf = MESA_TABLES.find((t) => String(t.name) === name);
   const cap = conf ? conf.capacity : 0;
   const isOver = cap > 0 && total > cap;
+  const canEdit = can('can_participants');
   const list = arr.map((p) => `
-    <div class="mesa-guest ${p.checked_in_at ? 'present' : ''}">
+    <div class="mesa-guest ${p.checked_in_at ? 'present' : ''} ${canEdit ? 'draggable-guest' : ''}"
+      ${canEdit ? `draggable="true" ondragstart="guestDragStart(event,'${p.id}')" title="Arraste para mover de mesa"` : ''}>
       <span class="mg-name">${esc(p.name)}${p.company ? `<span class="mg-co"> · ${esc(p.company)}</span>` : ''}</span>
-      <span class="mg-tag">${p.checked_in_at ? '✓ Presente' : 'Ausente'}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="mg-tag">${p.checked_in_at ? '✓ Presente' : 'Ausente'}</span>
+        ${canEdit ? `<button class="btn btn-ghost btn-sm mg-mv" onclick="promptMoveGuest('${p.id}','${esc(p.name).replace(/'/g,'')}','${esc(name).replace(/'/g,'')}')">Mover</button>` : ''}
+      </div>
     </div>`).join('');
   modal(`
     <h3 style="font-size:18px;margin:0 0 4px">${name === 'Sem mesa' ? 'Sem mesa' : 'Mesa ' + esc(name)}</h3>
     <p class="muted" style="margin:0 0 14px;font-size:13.5px">${total} alocado${total !== 1 ? 's' : ''}${cap > 0 ? ' de ' + cap + ' lugares' : ''} · ${present} presente${present !== 1 ? 's' : ''}${isOver ? ' · ⚠ excedente' : ''}</p>
+    ${canEdit ? '<p class="muted" style="font-size:12px;margin:0 0 10px">↔ Arraste um convidado para uma mesa no mapa, ou clique em "Mover".</p>' : ''}
     <div class="mesa-guest-list">${list || '<p class="muted" style="margin:0">Nenhum convidado nesta mesa.</p>'}</div>
     <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-ghost btn-sm" onclick="closeModal()">Fechar</button></div>`);
+}
+
+// ── Drag & Drop de convidados entre mesas ────────────────────────────────────
+
+let _dragGuestId = null;
+
+function guestDragStart(event, guestId) {
+  _dragGuestId = String(guestId);
+  event.dataTransfer.effectAllowed = 'move';
+  event.dataTransfer.setData('text/plain', guestId);
+}
+
+async function mesaDrop(event, tableName) {
+  event.preventDefault();
+  const gid = _dragGuestId || event.dataTransfer.getData('text/plain');
+  _dragGuestId = null;
+  if (!gid) return;
+  const guest = MESA_PARTS.find((p) => String(p.id) === String(gid));
+  if (!guest) return;
+  const fromTable = (guest.table_number || '').trim();
+  const toTable = tableName === 'Sem mesa' ? null : tableName;
+  if (fromTable === (toTable || '')) return; // já está nessa mesa
+  await assignGuestTable(gid, toTable);
+}
+
+async function assignGuestTable(guestId, tableName) {
+  try {
+    await Api.req('POST', `/api/checkin/participant/${guestId}/assign`, { table_number: tableName });
+    // Atualiza o cache local imediatamente (sem recarregar tudo).
+    const p = MESA_PARTS.find((x) => String(x.id) === String(guestId));
+    if (p) p.table_number = tableName || null;
+    closeModal();
+    await renderMesaMap();
+    toast(`Convidado movido para ${tableName ? 'Mesa ' + tableName : 'sem mesa'}.`);
+  } catch (e) {
+    toast('Erro ao mover convidado: ' + e.message);
+  }
+}
+
+// Abre um seletor para escolher a mesa destino (alternativa ao drag para mobile).
+function promptMoveGuest(guestId, guestName, fromTable) {
+  const options = MESA_TABLES.map((t) => {
+    const isCurrent = t.name === fromTable;
+    return `<button class="btn ${isCurrent ? 'btn-primary' : 'btn-ghost'} btn-sm" style="text-align:left;justify-content:flex-start"
+      ${isCurrent ? 'disabled' : `onclick="assignGuestTable('${guestId}','${esc(t.name).replace(/'/g,'')}')"`}>
+      Mesa ${esc(t.name)}${isCurrent ? ' (atual)' : ''}
+    </button>`;
+  });
+  options.push(`<button class="btn btn-ghost btn-sm" style="text-align:left;color:var(--danger)"
+    onclick="assignGuestTable('${guestId}',null)">Remover da mesa</button>`);
+  modal(`
+    <h3 style="font-size:17px;margin:0 0 12px">Mover ${esc(guestName)}</h3>
+    <p class="muted" style="font-size:13px;margin:0 0 12px">Escolha a mesa destino:</p>
+    <div style="display:flex;flex-direction:column;gap:6px;max-height:50vh;overflow-y:auto">${options.join('')}</div>
+    <div style="margin-top:14px"><button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button></div>`);
+}
+
+// ── Configuração de mesas direto no painel admin ──────────────────────────────
+
+async function modalMesasConfig() {
+  await renderMesasConfigModal();
+}
+
+async function renderMesasConfigModal() {
+  // Garante que temos a lista atualizada.
+  try { MESA_TABLES = await Api.get(`/api/checkin/events/${ID}/tables`); } catch (e) { toast(e.message); return; }
+
+  const rows = MESA_TABLES.map((t) => `
+    <div class="mc-row" data-tid="${t.id}">
+      <span class="mc-row-name">Mesa ${esc(t.name)}</span>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input class="mc-cap-input" type="number" min="1" max="100" value="${t.capacity}"
+          onchange="updateMesa(${t.id}, {capacity: Math.max(1,parseInt(this.value)||1)})"
+          style="width:70px;padding:6px 8px;font-size:13px;border:1px solid var(--gray);border-radius:8px"
+          title="Lugares nesta mesa" />
+        <span class="muted" style="font-size:12px">lugares</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteMesa(${t.id})" title="Remover mesa">✕</button>
+      </div>
+    </div>`).join('');
+
+  modal(`
+    <h3 style="font-size:17px;margin:0 0 4px">Configurar mesas</h3>
+    <p class="muted" style="font-size:13px;margin:0 0 14px">Gere várias de uma vez ou adicione uma a uma. A <b>capacidade</b> define quantos convidados cabem por mesa.</p>
+    <div class="mc-gen-row">
+      <div class="field" style="flex:1;margin:0"><label>Qtd. de mesas</label>
+        <input type="number" id="genN" min="1" value="${MESA_TABLES.length || 10}" /></div>
+      <div class="field" style="width:120px;margin:0"><label>Lugares/mesa</label>
+        <input type="number" id="genCap" min="1" value="8" /></div>
+      <div style="align-self:flex-end">
+        <button class="btn btn-ghost btn-sm" onclick="generateMesas()">↻ Gerar</button>
+      </div>
+    </div>
+    <div style="margin:14px 0 6px;font-weight:700;font-size:13px;color:var(--muted)">Mesas configuradas (${MESA_TABLES.length})</div>
+    <div id="mcList" style="display:flex;flex-direction:column;gap:6px;max-height:40vh;overflow-y:auto">
+      ${rows || '<p class="muted" style="margin:0;font-size:13px">Nenhuma mesa ainda.</p>'}
+    </div>
+    <div class="mc-add-row">
+      <input id="newMesaName" placeholder="Nome ou número da nova mesa" style="flex:1" />
+      <input id="newMesaCap" type="number" min="1" value="8" style="width:80px" title="Capacidade" />
+      <button class="btn btn-ghost btn-sm" onclick="addMesa()">+ Adicionar</button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="closeModal();renderMesaMap()">Fechar</button>
+    </div>`);
+}
+
+async function generateMesas() {
+  const n = Math.max(1, parseInt(document.getElementById('genN').value) || 10);
+  const cap = Math.max(1, parseInt(document.getElementById('genCap').value) || 8);
+  try {
+    await Api.req('POST', `/api/checkin/events/${ID}/tables/generate`, { count: n, capacity: cap });
+    toast(`${n} mesa(s) geradas.`);
+    await renderMesasConfigModal();
+  } catch (e) { toast(e.message); }
+}
+
+async function addMesa() {
+  const name = (document.getElementById('newMesaName').value || '').trim();
+  const cap = Math.max(1, parseInt(document.getElementById('newMesaCap').value) || 8);
+  if (!name) { toast('Informe o nome/número da mesa.'); return; }
+  try {
+    await Api.req('POST', `/api/checkin/events/${ID}/tables`, { name, capacity: cap });
+    toast(`Mesa "${name}" adicionada.`);
+    await renderMesasConfigModal();
+  } catch (e) { toast(e.message); }
+}
+
+async function updateMesa(tid, data) {
+  try {
+    await Api.req('PATCH', `/api/checkin/tables/${tid}`, data);
+  } catch (e) { toast(e.message); }
+}
+
+async function deleteMesa(tid) {
+  if (!confirm('Remover esta mesa? Os convidados alocados ficarão sem mesa.')) return;
+  try {
+    await Api.req('DELETE', `/api/checkin/tables/${tid}`);
+    toast('Mesa removida.');
+    await renderMesasConfigModal();
+  } catch (e) { toast(e.message); }
 }
 
 (async () => {
