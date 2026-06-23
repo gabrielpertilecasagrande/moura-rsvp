@@ -231,6 +231,116 @@ function refreshButton(fn, title) {
   return wrap;
 }
 
+// ── Modal de confirmação reutilizável ─────────────────────────────────────────
+// Substitui window.confirm() (que pode ser bloqueado em alguns navegadores quando
+// "impedir que esta página crie diálogos" está ativo).
+function uiConfirm({ title = 'Confirmar', message = '', confirmText = 'Confirmar', cancelText = 'Cancelar', danger = false } = {}) {
+  return new Promise((resolve) => {
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg';
+    bg.innerHTML = `
+      <div class="modal" style="max-width:440px">
+        <h2 style="margin-bottom:10px">${esc(title)}</h2>
+        <div style="font-size:14px;color:var(--muted);line-height:1.55;margin-bottom:20px">${esc(message)}</div>
+        <div style="display:flex;gap:8px;justify-content:flex-end">
+          <button class="btn btn-ghost" data-act="cancel">${esc(cancelText)}</button>
+          <button class="btn btn-primary" data-act="ok" data-enter ${danger ? 'style="background:var(--danger);border-color:var(--danger)"' : ''}>${esc(confirmText)}</button>
+        </div>
+      </div>`;
+    const done = (val) => { bg.remove(); document.removeEventListener('keydown', onKey, true); resolve(val); };
+    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+    bg.addEventListener('click', (e) => {
+      if (e.target === bg) return done(false);
+      const act = e.target.closest('[data-act]')?.getAttribute('data-act');
+      if (act === 'ok') done(true);
+      else if (act === 'cancel') done(false);
+    });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(bg);
+    bg.querySelector('[data-act="ok"]').focus();
+  });
+}
+
+// ── Notificações push (Web Push) ──────────────────────────────────────────────
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+const Push = {
+  supported() {
+    return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  },
+  isIOS() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent || '');
+  },
+  isStandalone() {
+    return (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator.standalone === true;
+  },
+  iosNeedsInstall() {
+    return Push.isIOS() && !Push.isStandalone();
+  },
+  async status() {
+    if (Push.iosNeedsInstall()) return 'ios-install';
+    if (!Push.supported()) return 'unsupported';
+    if (Notification.permission === 'denied') return 'denied';
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg && (await reg.pushManager.getSubscription());
+      return sub ? 'on' : 'off';
+    } catch { return 'off'; }
+  },
+  async enable() {
+    if (!Push.supported()) throw new Error('Este aparelho ou navegador não suporta notificações.');
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('Permissão de notificações não concedida.');
+    const reg = await navigator.serviceWorker.ready;
+    const { publicKey } = await Api.get('/api/push/vapid-public-key');
+    if (!publicKey) throw new Error('Servidor sem notificações push disponíveis.');
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+    await Api.post('/api/push/subscribe', { subscription: sub });
+    return true;
+  },
+  async disable() {
+    try {
+      const reg = await navigator.serviceWorker.getRegistration();
+      const sub = reg && (await reg.pushManager.getSubscription());
+      if (sub) {
+        try { await Api.post('/api/push/unsubscribe', { endpoint: sub.endpoint }); } catch { /* segue */ }
+        await sub.unsubscribe();
+      }
+    } catch { /* nada a fazer */ }
+    return true;
+  },
+  test() { return Api.post('/api/push/test'); },
+  async localTest() {
+    if (!Push.supported()) throw new Error('Este navegador não suporta notificações.');
+    if (Notification.permission !== 'granted') {
+      const perm = await Notification.requestPermission();
+      if (perm !== 'granted') throw new Error('Permissão de notificações não concedida.');
+    }
+    const reg = await navigator.serviceWorker.ready;
+    await reg.showNotification('🔔 Moura RSVP — teste local', {
+      body: 'Se você está vendo isto, as notificações funcionam neste aparelho!',
+      icon: '/assets/img/icon-192.png',
+      badge: '/assets/img/icon-96.png',
+      tag: 'moura-local-test',
+    });
+    return true;
+  },
+};
+
 // Registro do Service Worker (PWA).
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
