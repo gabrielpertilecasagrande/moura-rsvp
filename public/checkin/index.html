@@ -158,6 +158,12 @@
   .mesa-card2.na{border-style:dashed}
   .td-stat{font-size:13px;font-weight:600;color:var(--ink-soft);background:#fafafa;border:1px solid var(--line-soft);border-radius:9px;padding:9px 12px;margin-bottom:12px}
   .td-stat.over{color:var(--danger);background:#FCEDED;border-color:#f0c4c4}
+  .td-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;align-items:center}
+  .td-b-item{font-size:13.5px;font-weight:700;padding:7px 13px;border-radius:9px;background:#fafafa;border:1px solid var(--line-soft);color:var(--ink)}
+  .td-b-item b{font-size:16px;display:block;line-height:1.1}
+  .td-b-ok{background:var(--teal-tint);color:#127a83;border-color:var(--teal-line)}
+  .td-b-free{background:#EBF5F0;color:#15795B;border-color:#c8e6d8}
+  .td-b-over{background:#FCEDED;color:var(--danger);border-color:#f0c4c4}
   /* Config de mesas */
   .tc-gen{display:flex;gap:10px}
   .tc-head{display:grid;grid-template-columns:1fr 80px 60px 34px;gap:8px;font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-soft);padding:0 2px 4px;font-weight:700}
@@ -1266,17 +1272,36 @@ function mapSearch(v){
   el.innerHTML='<div class="map-res">'+found.map(g=>`<div class="map-res-i" onclick="tableDetail('${esc((g.table_number||'Sem mesa')).replace(/'/g,'')}')"><span>${esc(g.name)}${g.checked_in?' <span style=\"color:#127a83\">✓</span>':''}</span><span class="map-res-t">${g.table_number?'Mesa '+esc(g.table_number):'Sem mesa'}</span></div>`).join('')+'</div>';
 }
 function tableDetail(k){
-  const arr=live(state.guests).filter(g=>((g.table_number||'').trim()||'Sem mesa')===k).sort((a,b)=>a.name.localeCompare(b.name,'pt-BR'));
-  const t=arr.length, p=arr.filter(g=>g.checked_in).length, ck=can('checkin');
+  // Presentes no topo, depois ausentes, ambos em ordem alfabética
+  const arr=live(state.guests).filter(g=>((g.table_number||'').trim()||'Sem mesa')===k)
+    .sort((a,b)=>{
+      if(a.checked_in!==b.checked_in) return a.checked_in?-1:1;
+      return a.name.localeCompare(b.name,'pt-BR');
+    });
   const conf=state.tables.find(x=>x.name===k); const cap=conf?conf.capacity:0;
-  const isOver=cap>0&&t>cap;
-  const list=arr.map(g=>`<div class="guest ${g.checked_in?'present':''}" style="margin-bottom:7px">
-    <div class="gi"><div class="gname">${esc(g.name)}${state.current.use_categories?catChip(g.category_id):''}</div>${g.checked_in&&g.check_in_time?'<div class="gsub"><span class="time">✓ '+fmtTime(g.check_in_time)+'</span></div>':''}</div>
-    <button class="ck ${g.checked_in?'done':''}" ${ck?`onclick="toggleCheckinMap('${g.id}','${esc(k).replace(/'/g,'')}')"`:'disabled style="opacity:.45"'}>${g.checked_in?'✓ Presente':'Check-in'}</button></div>`).join('');
+  const t=arr.length, p=arr.filter(g=>g.checked_in).length, ck=can('checkin');
+  const livres=cap>0?Math.max(0,cap-t):0;
+  const excedentes=cap>0?Math.max(0,t-cap):0;
+
+  const guestRows=arr.map(g=>`<div class="guest ${g.checked_in?'present':''}">
+    <div class="gi">
+      <div class="gname">${esc(g.name)}${state.current.use_categories?catChip(g.category_id):''}</div>
+      ${g.checked_in&&g.check_in_time?`<div class="gsub"><span class="time">✓ ${fmtTime(g.check_in_time)}</span></div>`:''}
+    </div>
+    <button class="ck ${g.checked_in?'done':''}" ${ck?`onclick="toggleCheckinMap('${g.id}','${esc(k).replace(/'/g,'')}')"`:'disabled style="opacity:.45"'}>${g.checked_in?'✓ Presente':'Check-in'}</button>
+  </div>`).join('');
+
+  const statsHtml=`<div class="td-bar">
+    <span class="td-b-item">${cap>0?`<b>${t}/${cap}</b> ocupados`:`<b>${t}</b> alocados`}</span>
+    ${p>0?`<span class="td-b-item td-b-ok"><b>${p}</b> presente${p>1?'s':''}</span>`:''}
+    ${livres>0?`<span class="td-b-item td-b-free"><b>${livres}</b> livre${livres>1?'s':''}</span>`:''}
+    ${excedentes>0?`<span class="td-b-item td-b-over">⚠ <b>${excedentes}</b> excedente${excedentes>1?'s':''}</span>`:''}
+  </div>`;
+
   modalRoot().innerHTML=shell((k==='Sem mesa'?'Sem mesa':'Mesa '+esc(k)),`
     <button class="btn btn-ghost btn-sm" style="margin-bottom:12px" onclick="renderTableMap()">‹ Voltar ao mapa</button>
-    <div class="td-stat ${isOver?'over':''}">${t} alocado${t!==1?'s':''}${cap>0?' de '+cap+' lugares':''} · ${p} presente${p!==1?'s':''}${isOver?' &nbsp;⚠ OVERBOOKING':''}</div>
-    <div class="list">${list||'<div style="color:var(--ink-soft)">Sem convidados nesta mesa.</div>'}</div>`);
+    ${statsHtml}
+    <div class="list">${guestRows||'<div style="color:var(--ink-soft);padding:8px 0">Sem convidados nesta mesa.</div>'}</div>`);
 }
 async function toggleCheckinMap(gid,k){ await toggleCheckin(gid); tableDetail(k); }
 
