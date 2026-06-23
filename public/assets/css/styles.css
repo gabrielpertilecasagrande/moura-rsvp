@@ -921,3 +921,45 @@ textarea {
 @media (max-width: 560px) {
   .mesa-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
 }
+
+/* ── Dashboard mais rico ──────────────────────────────────────────────────── */
+.section-label { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase;
+  letter-spacing: .06em; margin-bottom: 10px; }
+.dash-extra-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-bottom: 28px; }
+@media (max-width: 700px) { .dash-extra-grid { grid-template-columns: 1fr; } }
+
+/* Últimas confirmações */
+.recent-list { padding: 4px 0; }
+.recent-row { display: flex; flex-direction: column; gap: 2px; padding: 9px 0; border-bottom: 1px solid var(--gray-soft); }
+.recent-row:last-child { border-bottom: none; }
+.recent-name { font-weight: 600; font-size: 14px; color: var(--charcoal, #28282A); }
+.recent-meta { font-size: 12px; }
+
+/* Gráfico diário de confirmações */
+.daily-chart { display: flex; align-items: flex-end; gap: 8px; height: 110px;
+  padding: 4px 0 0; justify-content: space-around; }
+.dc-col { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; height: 100%; justify-content: flex-end; }
+.dc-val { font-size: 11px; font-weight: 700; color: var(--navy); }
+.dc-bar { width: 100%; background: var(--navy); border-radius: 5px 5px 0 0; min-height: 6px; transition: height .3s; }
+.dc-label { font-size: 10px; color: var(--muted); white-space: nowrap; }
+
+/* ── Categorias de convidados ──────────────────────────────────────────────── */
+/* Chip na linha da tabela */
+.cat-chip { display: inline-flex; align-items: center; font-size: 11px; font-weight: 700;
+  padding: 1px 8px; border-radius: 20px; border: 1px solid; margin-left: 7px;
+  vertical-align: middle; letter-spacing: .02em; white-space: nowrap; }
+
+/* Faixa de filtro por categoria */
+.cat-filter-row { padding: 8px 0 2px; }
+.cat-filter-inner { display: flex; flex-wrap: wrap; gap: 7px; align-items: center; }
+.cat-filter-btn { background: var(--off-white); border: 1px solid var(--gray-soft); border-radius: 20px;
+  padding: 4px 13px; font-size: 12.5px; font-weight: 600; cursor: pointer; display: inline-flex;
+  align-items: center; gap: 5px; color: var(--charcoal, #28282A); transition: background .12s, border-color .12s; }
+.cat-filter-btn:hover { background: #e8ecf5; }
+.cat-filter-btn.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.cat-filter-manage { background: none; border: 1px dashed var(--gray); border-radius: 20px;
+  padding: 4px 12px; font-size: 12px; color: var(--muted); cursor: pointer; margin-left: 4px; }
+.cat-filter-manage:hover { border-color: var(--navy); color: var(--navy); }
+
+/* Ponto colorido nos botões de filtro */
+.cat-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }

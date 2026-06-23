@@ -2,8 +2,9 @@ requireSession();
 mountShell();
 
 const ID = new URLSearchParams(location.search).get('id');
-let state = { filter: '', q: '' };
+let state = { filter: '', q: '', category: '' };
 let EVENT = null;
+let CATEGORIES = [];
 
 // Permissão efetiva do usuário neste evento (admin recebe tudo do backend).
 function can(perm) { return !!(EVENT && EVENT._perms && EVENT._perms[perm]); }
@@ -87,10 +88,107 @@ async function setReopen(open) {
   } catch (e) { toast(e.message); }
 }
 
+async function loadCategories() {
+  try {
+    CATEGORIES = await Api.get(`/api/events/${ID}/categories`);
+  } catch { CATEGORIES = []; }
+  renderCatFilter();
+}
+
+function renderCatFilter() {
+  const row = document.getElementById('catFilterRow');
+  if (!row) return;
+  if (!CATEGORIES.length) { row.style.display = 'none'; return; }
+  row.style.display = '';
+  const all = `<button class="cat-filter-btn ${!state.category ? 'active' : ''}" data-cat="">Todas as categorias</button>`;
+  const btns = CATEGORIES.map((c) => {
+    const dot = `<span class="cat-dot" style="background:${esc(c.color)}"></span>`;
+    return `<button class="cat-filter-btn ${state.category === String(c.id) ? 'active' : ''}" data-cat="${c.id}">${dot}${esc(c.name)}</button>`;
+  }).join('');
+  row.innerHTML = `<div class="cat-filter-inner">${all}${btns}${can('can_edit') ? '<button class="cat-filter-manage" onclick="openCatManager()">Gerenciar categorias</button>' : ''}</div>`;
+  row.querySelectorAll('.cat-filter-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      state.category = b.dataset.cat;
+      renderCatFilter();
+      loadParticipants();
+    });
+  });
+}
+
+function openCatManager() {
+  const PRESET_COLORS = ['#2C427E','#1f9d63','#c0392b','#e6a700','#8e44ad','#2980b9','#d35400','#16a085'];
+  let selColor = PRESET_COLORS[0];
+  const renderCats = () => {
+    const list = CATEGORIES.length
+      ? CATEGORIES.map((c) => `<div class="cat-item" style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--gray-soft)">
+          <span class="cat-dot" style="background:${esc(c.color)};width:14px;height:14px;border-radius:50%;flex-shrink:0"></span>
+          <span style="flex:1">${esc(c.name)}</span>
+          <button class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:12px" onclick="deleteCat(${c.id})">Remover</button>
+        </div>`).join('')
+      : '<p class="muted" style="font-size:13px">Nenhuma categoria ainda.</p>';
+    const el = document.getElementById('catList');
+    if (el) el.innerHTML = list;
+  };
+  modal(`
+    <h3 style="font-size:17px;margin-bottom:4px">Categorias de convidados</h3>
+    <p class="muted" style="font-size:13px;margin:0 0 14px">Classifique seus convidados por tipo: VIP, Imprensa, Patrocinador, etc.</p>
+    <div id="catList"></div>
+    <div style="margin-top:16px;border-top:1px solid var(--gray-soft);padding-top:14px">
+      <div class="field" style="text-align:left;margin-bottom:8px">
+        <label style="font-size:13px;font-weight:600">Nova categoria</label>
+        <input type="text" id="newCatName" placeholder="Ex.: VIP, Imprensa, Patrocinador…" style="margin-top:6px" />
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px" id="colorPicker">
+        ${PRESET_COLORS.map((col) => `<button type="button" class="color-swatch ${col === selColor ? 'selected' : ''}" data-color="${col}" style="background:${col};width:22px;height:22px;border-radius:50%;border:2px solid ${col === selColor ? '#fff' : col};box-shadow:${col === selColor ? '0 0 0 2px ' + col : 'none'};cursor:pointer" title="${col}"></button>`).join('')}
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="createCat()">Adicionar</button>
+    </div>
+    <p class="error-msg hidden" id="catErr"></p>
+    <button class="btn btn-ghost btn-sm" style="margin-top:18px;width:100%" onclick="closeModal()">Fechar</button>`);
+
+  renderCats();
+  document.getElementById('colorPicker').addEventListener('click', (e) => {
+    const b = e.target.closest('.color-swatch'); if (!b) return;
+    selColor = b.dataset.color;
+    document.querySelectorAll('.color-swatch').forEach((s) => {
+      const sel = s.dataset.color === selColor;
+      s.style.border = `2px solid ${sel ? '#fff' : s.dataset.color}`;
+      s.style.boxShadow = sel ? `0 0 0 2px ${s.dataset.color}` : 'none';
+    });
+  });
+
+  window.createCat = async () => {
+    const name = document.getElementById('newCatName').value.trim();
+    const err = document.getElementById('catErr');
+    if (!name) { err.textContent = 'Digite o nome da categoria.'; err.classList.remove('hidden'); return; }
+    try {
+      const cat = await Api.post(`/api/events/${ID}/categories`, { name, color: selColor });
+      CATEGORIES.push(cat);
+      document.getElementById('newCatName').value = '';
+      renderCats();
+      renderCatFilter();
+      err.classList.add('hidden');
+    } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
+  };
+
+  window.deleteCat = async (catId) => {
+    if (!confirm('Remover esta categoria? Os convidados vinculados a ela ficam sem categoria.')) return;
+    try {
+      await Api.del(`/api/events/${ID}/categories/${catId}`);
+      CATEGORIES = CATEGORIES.filter((c) => c.id !== catId);
+      if (state.category === String(catId)) state.category = '';
+      renderCats();
+      renderCatFilter();
+      loadParticipants();
+    } catch (e) { toast(e.message); }
+  };
+}
+
 async function loadParticipants() {
   const params = new URLSearchParams();
   if (state.filter) params.set('filter', state.filter);
   if (state.q) params.set('q', state.q);
+  if (state.category) params.set('category', state.category);
   const data = await Api.get(`/api/events/${ID}/participants?${params}`);
   renderQuickSummary(data.stats);
   renderStats(data.stats);
@@ -188,12 +286,15 @@ function renderRows(list) {
     const customVals = eventCustomFields().map((f) => fmtExtraVal(f, ex[f.key])).filter(Boolean);
     const sub = [p.company, p.phone, p.email, ...customVals].filter(Boolean).map(esc).join(' · ');
     const noteLine = (p.notes && can('can_participants')) ? `<div class="p-note">📝 ${esc(p.notes)}</div>` : '';
+    const catChip = p.guest_category_name
+      ? `<span class="cat-chip" style="background:${esc(p.guest_category_color || '#2C427E')}20;color:${esc(p.guest_category_color || '#2C427E')};border-color:${esc(p.guest_category_color || '#2C427E')}40">${esc(p.guest_category_name)}</span>`
+      : '';
     const icon = (svg, label, attrs) => `<button class="icon-btn" title="${label}" aria-label="${label}" ${attrs}>${svg}</button>`;
     return `
     <tr data-pid="${p.id}">
       <td class="col-check">${selectable ? `<input type="checkbox" class="row-check" value="${p.id}" ${SELECTED.has(p.id) ? 'checked' : ''} aria-label="Selecionar ${esc(p.name)}" />` : ''}</td>
       <td class="row-name" style="display:block">
-        <div class="p-name">${esc(p.name)}</div>
+        <div class="p-name">${esc(p.name)}${catChip}</div>
         ${sub ? `<div class="p-sub muted break-anywhere">${sub}</div>` : ''}
         ${noteLine}
       </td>
@@ -315,6 +416,7 @@ function editParticipant(pid) {
       ${fieldRow('ed_phone', 'Telefone', p.phone)}
     </div>
     ${customFieldsHtml(p.extra)}
+    ${CATEGORIES.length ? `<div class="field" style="text-align:left"><label>Categoria</label><select id="ed_cat"><option value="">— Sem categoria —</option>${CATEGORIES.map((c) => `<option value="${c.id}" ${p.guest_category_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select></div>` : ''}
     <div class="field" style="text-align:left">
       <label>Presença</label>
       <div class="edit-presence">
@@ -343,10 +445,12 @@ async function saveParticipant(pid) {
   const prev = LAST_LIST.find((x) => x.id === pid);
   const oldResp = prev ? prev.response : null;
   const newResp = document.querySelector('input[name="ed_resp"]:checked').value;
+  const catEl = document.getElementById('ed_cat');
   const payload = {
     name: val('ed_name'), company: val('ed_company'), role: val('ed_role'),
     email: val('ed_email'), phone: val('ed_phone'), response: newResp, extra: collectCustom(),
     notes: document.getElementById('ed_notes').value,
+    guest_category_id: catEl ? (catEl.value || null) : undefined,
   };
   try {
     await Api.put(`/api/events/${ID}/participants/${pid}`, payload);
@@ -727,7 +831,7 @@ function focusSearch() {
 
 (async () => {
   await loadEvent();
-  await loadParticipants();
+  await Promise.all([loadCategories(), loadParticipants()]);
   focusSearch();
 })().catch((e) => toast(e.message));
 document.getElementById('refreshSlot').appendChild(refreshButton(async () => { await loadParticipants(); focusSearch(); }, 'Atualizar lista'));

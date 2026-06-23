@@ -306,6 +306,33 @@ router.post('/:id/duplicate', requirePerm('can_duplicate'), (req, res) => {
   res.status(201).json(created);
 });
 
+// GET /api/events/:id/categories — lista categorias de convidados do evento
+router.get('/:id/categories', requirePerm('can_view'), (req, res) => {
+  const e = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+  if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
+  res.json(db.prepare('SELECT * FROM rsvp_categories WHERE event_id = ? ORDER BY sort_order, name COLLATE NOCASE').all(e.id));
+});
+
+// POST /api/events/:id/categories — cria categoria de convidados
+router.post('/:id/categories', requirePerm('can_edit'), (req, res) => {
+  const e = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+  if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
+  const color = /^#[0-9a-fA-F]{3,6}$/.test(req.body.color || '') ? req.body.color : '#2C427E';
+  const info = db.prepare('INSERT INTO rsvp_categories (event_id, name, color) VALUES (?,?,?)').run(e.id, name, color);
+  res.status(201).json(db.prepare('SELECT * FROM rsvp_categories WHERE id = ?').get(info.lastInsertRowid));
+});
+
+// DELETE /api/events/:id/categories/:catId — remove categoria (desvincula convidados)
+router.delete('/:id/categories/:catId', requirePerm('can_edit'), (req, res) => {
+  const cat = db.prepare('SELECT * FROM rsvp_categories WHERE id = ? AND event_id = ?').get(req.params.catId, req.params.id);
+  if (!cat) return res.status(404).json({ error: 'Categoria não encontrada.' });
+  db.prepare('UPDATE participants SET guest_category_id = NULL WHERE guest_category_id = ?').run(cat.id);
+  db.prepare('DELETE FROM rsvp_categories WHERE id = ?').run(cat.id);
+  res.json({ ok: true });
+});
+
 // DELETE /api/events/:id — move o evento para a LIXEIRA (soft-delete).
 // O evento fica guardado por 90 dias antes da remoção definitiva. O link público
 // para de funcionar (filtro deleted_at), mas nada é apagado: dá para restaurar.
