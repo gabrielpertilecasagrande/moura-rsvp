@@ -129,12 +129,19 @@ router.get('/', (req, res) => {
   }
   const rows = db.prepare(`
     SELECT e.*,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL) AS total_responses,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='confirmado') AS confirmed,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='recusado') AS declined
+      COALESCE((SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL), 0) AS total_responses,
+      COALESCE((SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='confirmado'), 0) AS confirmed,
+      COALESCE((SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='recusado'), 0) AS declined
     FROM events e ${where} ORDER BY e.created_at DESC
   `).all(...params);
-  res.json(rows.map((r) => ({ ...r, public_url: publicUrl(req, r.slug), _perms: permsFor(req.admin, r.id) })));
+  res.json(rows.map((r) => ({
+    ...r,
+    total_responses: Number(r.total_responses || 0),
+    confirmed:       Number(r.confirmed || 0),
+    declined:        Number(r.declined || 0),
+    public_url: publicUrl(req, r.slug),
+    _perms: permsFor(req.admin, r.id),
+  })));
 });
 
 // GET /api/events/:id

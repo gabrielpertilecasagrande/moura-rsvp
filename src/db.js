@@ -70,6 +70,10 @@ function applyMigrations(db) {
     }
   }
   addColumn('audit_log', 'actor', 'TEXT');
+  // Rastreabilidade: quem fez, de onde e com qual dispositivo.
+  addColumn('audit_log', 'ip',         'TEXT');
+  addColumn('audit_log', 'user_agent', 'TEXT');
+  addColumn('audit_log', 'origin',     'TEXT');
   addColumn('participants', 'extra', 'TEXT');
   addColumn('participants', 'notes', 'TEXT');
   // LGPD — registro de consentimento do participante (no ato da inscrição).
