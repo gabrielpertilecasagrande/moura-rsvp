@@ -383,13 +383,24 @@ router.post('/provision-event', (req, res) => {
             b.location || null, b.city || null, id);
     };
 
+    // Promove ref_code de AV- para MO- quando evento avulso é vinculado ao Moura One.
+    const promoteRefCode = (eventId, currentCode) => {
+      if (!currentCode || currentCode.startsWith('AV-')) {
+        const moCode = genRefCode(db, 'MO');
+        db.prepare('UPDATE events SET ref_code = ? WHERE id = ?').run(moCode, eventId);
+        return moCode;
+      }
+      return currentCode;
+    };
+
     // 1) Já vinculado pela origem (source_event_id) → atualiza.
     if (src) {
       const ex = db.prepare('SELECT id, slug, name, ref_code FROM events WHERE source_event_id = ? AND deleted_at IS NULL').get(src);
       if (ex) {
+        const refCode = promoteRefCode(ex.id, ex.ref_code);
         syncCore(ex.id);
         logActivity('integração (provision)', 'atualizou evento', String(b.name).trim());
-        return res.json({ id: ex.id, slug: ex.slug, ref_code: ex.ref_code, public_url: publicUrl(ex), updated: true });
+        return res.json({ id: ex.id, slug: ex.slug, ref_code: refCode, public_url: publicUrl(ex), updated: true });
       }
     }
 
@@ -399,9 +410,10 @@ router.post('/provision-event', (req, res) => {
       const ex = db.prepare('SELECT id, slug, name, source_event_id, ref_code FROM events WHERE id = ? AND deleted_at IS NULL').get(knownId);
       if (ex) {
         if (src && !ex.source_event_id) db.prepare('UPDATE events SET source_event_id = ? WHERE id = ?').run(src, ex.id);
+        const refCode = promoteRefCode(ex.id, ex.ref_code);
         syncCore(ex.id);
         logActivity('integração (provision)', 'vinculou e atualizou evento', String(b.name).trim());
-        return res.json({ id: ex.id, slug: ex.slug, ref_code: ex.ref_code, public_url: publicUrl(ex), updated: true, linked: true });
+        return res.json({ id: ex.id, slug: ex.slug, ref_code: refCode, public_url: publicUrl(ex), updated: true, linked: true });
       }
     }
 
