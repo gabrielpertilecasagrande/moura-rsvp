@@ -38,6 +38,78 @@ function whatsappButton(label) {
   return `<a class="btn-whatsapp" href="${href}" target="_blank" rel="noopener">${WA_ICON}<span>${label}</span></a>`;
 }
 
+// Contagem regressiva: retorna o HTML do bloco ou string vazia se o evento já passou.
+let countdownTimer = null;
+function buildCountdown(e) {
+  if (!e.event_date) return '';
+  const datePart = e.event_date; // YYYY-MM-DD
+  const timePart = e.event_time || '00:00';
+  const eventMs = new Date(`${datePart}T${timePart}`).getTime();
+  if (isNaN(eventMs) || eventMs <= Date.now()) return '';
+  return '<div id="countdown" class="rsvp-countdown"></div>';
+}
+
+function startCountdown(e) {
+  const el = document.getElementById('countdown');
+  if (!el) return;
+  const datePart = e.event_date;
+  const timePart = e.event_time || '00:00';
+  const eventMs = new Date(`${datePart}T${timePart}`).getTime();
+
+  function tick() {
+    const diff = eventMs - Date.now();
+    if (diff <= 0) { el.remove(); clearInterval(countdownTimer); return; }
+    const totalSec = Math.floor(diff / 1000);
+    const d = Math.floor(totalSec / 86400);
+    const h = Math.floor((totalSec % 86400) / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    const warn = d === 0;
+    const pad = (n) => String(n).padStart(2, '0');
+    let parts = '';
+    if (d > 0) parts += `<span class="cd-unit"><strong>${d}</strong><em>d</em></span>`;
+    parts += `<span class="cd-unit"><strong>${pad(h)}</strong><em>h</em></span>`;
+    parts += `<span class="cd-unit"><strong>${pad(m)}</strong><em>m</em></span>`;
+    parts += `<span class="cd-unit"><strong>${pad(s)}</strong><em>s</em></span>`;
+    el.className = `rsvp-countdown${warn ? ' rsvp-countdown-warn' : ''}`;
+    el.innerHTML = `<span class="cd-label">Faltam</span>${parts}`;
+  }
+  tick();
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(tick, 1000);
+}
+
+// Botões de ação: Google Agenda e Abrir no mapa.
+function buildActionButtons(e) {
+  const buttons = [];
+
+  if (e.event_date) {
+    const datePart = e.event_date.replace(/-/g, '');
+    const startTime = e.event_time ? e.event_time.replace(':', '') + '00' : '000000';
+    const gcStart = `${datePart}T${startTime}`;
+    // Usa apenas a data de início; sem hora de término definida, repete o mesmo dia.
+    const gcDates = `${gcStart}/${gcStart}`;
+    const gcParams = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: e.name || '',
+      dates: gcDates,
+      details: e.description || '',
+      location: [e.address, e.location, e.city].filter(Boolean).join(', '),
+    });
+    const gcUrl = `https://calendar.google.com/calendar/render?${gcParams.toString()}`;
+    buttons.push(`<a class="btn-action" href="${gcUrl}" target="_blank" rel="noopener">Adicionar ao Google Agenda</a>`);
+  }
+
+  const mapQuery = [e.address, e.location, e.city].filter(Boolean).join(' ');
+  if (mapQuery) {
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapQuery)}`;
+    buttons.push(`<a class="btn-action" href="${mapsUrl}" target="_blank" rel="noopener">Abrir no mapa</a>`);
+  }
+
+  if (!buttons.length) return '';
+  return `<div class="rsvp-actions">${buttons.join('')}</div>`;
+}
+
 function render() {
   const e = EVENT;
   const cover = e.cover_image
@@ -57,9 +129,13 @@ function render() {
         ${metaRow(ICON.pin, [e.location, e.city].filter(Boolean).join(' · '))}
       </div>
       ${e.description ? `<p class="event-desc">${esc(e.description)}</p>` : ''}
+      ${buildCountdown(e)}
+      ${buildActionButtons(e)}
       <div id="form-slot"></div>
     </div>`;
   root.innerHTML = header;
+
+  startCountdown(e);
 
   if (e.closed) {
     document.getElementById('form-slot').innerHTML = `
@@ -116,6 +192,12 @@ function optField(f) {
     default:
       control = `<input type="text" data-ckey="${key}" ${f.required ? 'required' : ''} />`;
   }
+
+  // Campo de nome do acompanhante: começa oculto, revelado pelo campo c_acomp_vem.
+  if (f.key === 'c_acomp_nome') {
+    return `<div class="field" id="field-acomp-nome" style="display:none">${label}${control}</div>`;
+  }
+
   return `<div class="field">${label}${control}</div>`;
 }
 
@@ -180,6 +262,23 @@ function renderForm() {
   yes.querySelector('input').addEventListener('change', () => { choice = 'confirmado'; yes.classList.add('sel-yes'); no.classList.remove('sel-no'); });
   no.querySelector('input').addEventListener('change', () => { choice = 'recusado'; no.classList.add('sel-no'); yes.classList.remove('sel-yes'); });
   document.getElementById('submit').addEventListener('click', submit);
+
+  // Mostrar/ocultar o campo de nome do acompanhante conforme a resposta de c_acomp_vem.
+  const acompVemRadios = document.querySelectorAll('[data-ckeyradio="c_acomp_vem"]');
+  if (acompVemRadios.length) {
+    acompVemRadios.forEach((radio) => {
+      radio.addEventListener('change', () => {
+        const nomeField = document.getElementById('field-acomp-nome');
+        if (!nomeField) return;
+        const sim = radio.value === 'Sim' && radio.checked;
+        nomeField.style.display = sim ? '' : 'none';
+        if (!sim) {
+          const nomeInput = nomeField.querySelector('[data-ckey="c_acomp_nome"]');
+          if (nomeInput) nomeInput.value = '';
+        }
+      });
+    });
+  }
 }
 
 async function submit() {
@@ -207,6 +306,11 @@ async function submit() {
   }
   for (const f of (fc.fields || [])) {
     if (!f.enabled || !f.required) continue;
+    // Ignora validação de c_acomp_nome se c_acomp_vem for "Não" ou não respondido.
+    if (f.key === 'c_acomp_nome') {
+      const vem = extra['c_acomp_vem'];
+      if (vem !== 'Sim') continue;
+    }
     const val = f.builtin ? body[f.key] : extra[f.key];
     if (!filled(val)) return showErr(`O campo "${f.label}" é obrigatório.`);
   }
