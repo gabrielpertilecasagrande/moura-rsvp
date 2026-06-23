@@ -311,6 +311,28 @@
   .u-row select{padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#fafafa;font-size:13px}
   .badge-you{font-size:10px;font-weight:800;background:var(--teal-tint);color:#127a83;padding:2px 7px;border-radius:6px;letter-spacing:.04em}
 
+  /* Painel de resumo (mini-dashboard) */
+  .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:18px 0 22px}
+  .kpi-card{background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:16px 18px;box-shadow:var(--shadow)}
+  .kpi-card .kv{font-size:26px;font-weight:800;color:var(--navy);line-height:1.1}
+  .kpi-card .kl{font-size:12px;color:var(--ink-soft);margin-top:4px;font-weight:600}
+  .panel{background:#fff;border:1px solid var(--line-soft);border-radius:14px;box-shadow:var(--shadow);margin-bottom:18px;overflow:hidden}
+  .panel h2{font-size:14px;color:var(--navy);padding:14px 18px;border-bottom:1px solid #efefef;font-weight:800}
+  .panel .pbody{padding:6px 18px 12px}
+  .ev-line{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f3f3f3}
+  .ev-line:last-child{border-bottom:none}
+  .ev-line .en{flex:1;min-width:0;font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev-line .ed{font-size:12px;color:var(--ink-soft);min-width:74px;text-align:right}
+  .ev-line .ep{font-size:14px;font-weight:800;color:var(--navy);min-width:46px;text-align:right}
+  .log-row{display:flex;gap:10px;padding:9px 0;border-bottom:1px solid #f3f3f3;font-size:13px}
+  .log-row:last-child{border-bottom:none}
+  .log-row .lt{color:var(--ink-soft);font-size:11.5px;min-width:96px}
+  .log-row .la{flex:1;min-width:0}
+  .log-row .la b{font-weight:700}
+  .log-row .ld{color:var(--ink-soft);font-size:12px}
+  .admin-cta{display:flex;flex-wrap:wrap;gap:10px;margin:6px 0 4px}
+  @media(max-width:520px){ .kpi-grid{grid-template-columns:repeat(2,1fr)} }
+
   .menu-pop{position:fixed;z-index:60;background:#fff;border:1px solid var(--line-soft);border-radius:11px;box-shadow:0 12px 32px rgba(0,0,0,.16);overflow:hidden;min-width:185px}
   .menu-pop button{display:block;width:100%;text-align:left;padding:11px 15px;font-size:14px;color:var(--ink)}
   .menu-pop button:hover{background:#f5f5f5}
@@ -367,6 +389,15 @@ let TOKEN = params.get('token') || localStorage.getItem('ci_token') || '';
 const API  = (window.CHECKIN_API || '').replace(/\/$/, '');
 if (TOKEN) localStorage.setItem('ci_token', TOKEN);
 
+// Origem do app principal (onde vivem o painel administrativo e as telas /admin/*).
+// O check-in pode ser servido por outro domínio (ex.: subdomínio ou Netlify), por
+// isso os links administrativos apontam para a origem do app principal. Pode ser
+// sobrescrito definindo window.CHECKIN_APP_URL antes deste script.
+const APP_URL = (window.CHECKIN_APP_URL
+  || (window.CHECKIN_API ? (()=>{ try{ return new URL(window.CHECKIN_API).origin; }catch(e){ return ''; } })() : '')
+  || 'https://moura-rsvp-production.up.railway.app').replace(/\/$/, '');
+function adminUrl(p){ return APP_URL + (p.charAt(0)==='/'?p:'/'+p); }
+
 // JWT tem 3 partes separadas por ponto e começa com "eyJ"; operator token é hex
 function isJwt(t){ return t && t.startsWith('eyJ') && t.split('.').length === 3; }
 
@@ -386,6 +417,12 @@ function getInitial(jwt){
   try{ const p = JSON.parse(atob(jwt.split('.')[1])); return (p.name||p.email||'?')[0].toUpperCase(); }
   catch(e){ return '?'; }
 }
+// Lê o papel (role) de dentro do token JWT: 'admin' | 'gestor' | 'operador'
+function getRole(){
+  if(!isJwt(TOKEN)) return null;
+  try{ return JSON.parse(atob(TOKEN.split('.')[1])).role || null; }catch(e){ return null; }
+}
+function isAdmin(){ return getRole()==='admin'; }
 
 /* ============ ESTADO GLOBAL ============ */
 let state={view:'home',events:[],guestCounts:{},current:null,guests:[],categories:[],tables:[],filter:'all',catFilter:'',compFilter:'',search:'',lastSync:null};
@@ -573,7 +610,10 @@ function userMenu(e){
   const pop=document.createElement('div'); pop.className='menu-pop';
   let nameTxt='', emailTxt='';
   try{ const p=JSON.parse(atob(TOKEN.split('.')[1])); nameTxt=p.name||''; emailTxt=p.email||''; }catch(_){}
-  pop.innerHTML=`<div style="padding:11px 15px;border-bottom:1px solid #efefef"><b style="font-size:13.5px">${esc(nameTxt||emailTxt||'Usuário')}</b>${emailTxt?`<div style="font-size:11.5px;color:var(--ink-soft)">${esc(emailTxt)}</div>`:''}</div>
+  const roleLbl={admin:'Administrador',gestor:'Gestor',operador:'Operador'}[getRole()]||'';
+  pop.innerHTML=`<div style="padding:11px 15px;border-bottom:1px solid #efefef"><b style="font-size:13.5px">${esc(nameTxt||emailTxt||'Usuário')}</b>${emailTxt?`<div style="font-size:11.5px;color:var(--ink-soft)">${esc(emailTxt)}</div>`:''}${roleLbl?`<div style="font-size:10.5px;color:var(--teal,#127a83);font-weight:700;margin-top:3px">${roleLbl}</div>`:''}</div>
+    <button onclick="this.parentNode.remove();openAdmin()">📊 Resumo & atividade</button>
+    <button onclick="window.location.href=adminUrl('/admin/dashboard.html')">🛠️ Painel administrativo</button>
     <button class="danger" onclick="logout();this.parentNode.remove()">Sair</button>`;
   document.body.appendChild(pop);
   const r=e.target.getBoundingClientRect();
@@ -960,6 +1000,64 @@ function renderHome(){
   h+=`</div>`;
   $('#screen').innerHTML=h;
   updateConn();
+}
+
+/* ============ PAINEL DE RESUMO (mini-dashboard dentro do check-in) ============ */
+async function openAdmin(){
+  stopRealtime(); state.view='admin'; state.current=null; state.guests=[];
+  $('#backBtn').style.display='inline-flex';
+  renderAdminPanel();
+  try{ await refetchAll(); }catch(e){ return; }
+  if(state.view==='admin') renderAdminPanel();
+  // Atividade recente é restrita a administradores
+  if(isAdmin()){
+    try{
+      const logs=await apiFetch('/api/activity?limit=25');
+      if(state.view==='admin') renderAdminLogs(Array.isArray(logs)?logs:[]);
+    }catch(e){ if(state.view==='admin') renderAdminLogs(null); }
+  }
+}
+function renderAdminPanel(){
+  if(state.view!=='admin')return;
+  const evs=state.events;
+  let totConv=0,totPres=0;
+  evs.forEach(e=>{ const c=state.guestCounts[e.id]||{t:0,p:0}; totConv+=c.t; totPres+=c.p; });
+  const pct=totConv?Math.round(totPres/totConv*100):0;
+  const rows=evs.map(e=>{
+    const c=state.guestCounts[e.id]||{t:0,p:0};
+    const p=c.t?Math.round(c.p/c.t*100):0;
+    return `<div class="ev-line" onclick="openEvent('${e.id}')" style="cursor:pointer">
+      <span class="en">${esc(e.name)}</span>
+      <span class="ed">${c.p}/${c.t}</span>
+      <span class="ep">${p}%</span></div>`;
+  }).join('') || '<div style="color:var(--ink-soft);font-size:13px;padding:10px 0">Nenhum evento ainda.</div>';
+  let h=`<div class="wrap"><div class="home-head"><div><h1>Resumo</h1><p>Visão geral do check-in</p></div></div>
+    <div class="kpi-grid">
+      <div class="kpi-card"><div class="kv">${evs.length}</div><div class="kl">Eventos</div></div>
+      <div class="kpi-card"><div class="kv">${totConv}</div><div class="kl">Convidados</div></div>
+      <div class="kpi-card"><div class="kv">${totPres}</div><div class="kl">Presentes</div></div>
+      <div class="kpi-card"><div class="kv">${pct}%</div><div class="kl">Comparecimento</div></div>
+    </div>
+    <div class="panel"><h2>Eventos</h2><div class="pbody">${rows}</div></div>`;
+  if(isAdmin()){
+    h+=`<div class="panel"><h2>Atividade recente</h2><div class="pbody" id="adminLogs">
+      <div style="color:var(--ink-soft);font-size:13px;padding:10px 0">Carregando…</div></div></div>`;
+  }
+  h+=`<div class="admin-cta">
+      ${isAdmin()?`<button class="btn btn-ghost" onclick="window.location.href=adminUrl('/admin/users.html')">👥 Gerenciar usuários</button>`:''}
+      <button class="btn btn-ghost" onclick="window.location.href=adminUrl('/admin/dashboard.html')">🛠️ Abrir painel completo</button>
+    </div></div>`;
+  $('#screen').innerHTML=h;
+  updateConn();
+}
+function renderAdminLogs(logs){
+  const box=$('#adminLogs'); if(!box) return;
+  if(logs===null){ box.innerHTML='<div style="color:var(--ink-soft);font-size:13px;padding:10px 0">Não foi possível carregar a atividade.</div>'; return; }
+  if(!logs.length){ box.innerHTML='<div style="color:var(--ink-soft);font-size:13px;padding:10px 0">Sem registros ainda.</div>'; return; }
+  box.innerHTML=logs.map(l=>`<div class="log-row">
+    <span class="lt">${esc(fmtDateTime(l.created_at))}</span>
+    <span class="la"><b>${esc(l.actor||'Sistema')}</b> ${esc(l.action||'')}${l.details?`<div class="ld">${esc(l.details)}</div>`:''}</span>
+  </div>`).join('');
 }
 
 function renderSyncbar(){
