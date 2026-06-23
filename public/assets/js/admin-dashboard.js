@@ -57,11 +57,17 @@ function renderDashExtra(recent, daily) {
 
   // Últimas confirmações
   if (recent && recent.length) {
-    const rows = recent.map((r) => `
+    const rows = recent.map((r) => {
+      const initials = (r.name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+      return `
       <div class="recent-row">
-        <span class="recent-name">${esc(r.name)}</span>
-        <span class="recent-meta muted">${esc(r.event_name)} · ${relTime(r.updated_at)}</span>
-      </div>`).join('');
+        <span class="recent-avatar">${esc(initials)}</span>
+        <span class="recent-body">
+          <span class="recent-name">${esc(r.name)}</span>
+          <span class="recent-sub"><span class="recent-event-badge">${esc(r.event_name)}</span><span class="recent-time muted">${relTime(r.updated_at)}</span></span>
+        </span>
+      </div>`;
+    }).join('');
     html += `<div><div class="section-label">Últimas confirmações</div><div class="card recent-list">${rows}</div></div>`;
   }
 
@@ -97,9 +103,18 @@ async function init() {
   renderEvents();
 }
 
+function sortByDate(arr) {
+  return [...arr].sort((a, b) => {
+    if (!a.event_date && !b.event_date) return 0;
+    if (!a.event_date) return 1;
+    if (!b.event_date) return -1;
+    return a.event_date < b.event_date ? -1 : a.event_date > b.event_date ? 1 : 0;
+  });
+}
+
 function renderEvents() {
-  const current = ALL_EVENTS.filter((e) => !isPastEvent(e));
-  const past = ALL_EVENTS.filter(isPastEvent);
+  const current = sortByDate(ALL_EVENTS.filter((e) => !isPastEvent(e)));
+  const past = sortByDate(ALL_EVENTS.filter(isPastEvent));
   const list = eventsTab === 'past' ? past : current;
 
   // Abas de eventos atuais x passados/concluídos.
@@ -150,7 +165,7 @@ function eventCard(e) {
         <div style="display:flex;justify-content:space-between;align-items:start;gap:8px">
           <h3>${esc(e.name)}</h3>${statusPill}
         </div>
-        <div class="meta">${e.event_date ? fmtDateBR(e.event_date) : 'Data a definir'}${e.location ? ' · ' + esc(e.location) : ''}</div>
+        <div class="meta">${e.event_date ? fmtDateBR(e.event_date) : '<span class="badge-sem-data">Sem data</span>'}${e.location ? ' · ' + esc(e.location) : ''}</div>
         <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">${e.source_event_id ? '<span class="origin-selo">◆ Moura One</span>' : ''}${e.ref_code ? `<span class="origin-ref">${esc(e.ref_code)}</span>` : ''}</div>
         <div style="margin-top:2px">${deadlineTag(e)}</div>
         <div class="nums">

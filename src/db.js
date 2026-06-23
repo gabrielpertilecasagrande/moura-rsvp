@@ -48,6 +48,7 @@ function applyMigrations(db) {
   // "Sair de todos os outros aparelhos": JWTs de acesso emitidos ANTES deste
   // instante (epoch em segundos) são recusados na hora pelo requireAuth.
   addColumn('admins', 'sessions_invalidated_at', 'INTEGER');
+  addColumn('admins', 'source', 'TEXT');
   addColumn('events', 'whatsapp', 'TEXT');
   addColumn('events', 'force_open', 'INTEGER DEFAULT 0');
   addColumn('events', 'whatsapp_enabled', 'INTEGER DEFAULT 1');
