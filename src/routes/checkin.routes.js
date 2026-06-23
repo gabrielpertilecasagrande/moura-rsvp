@@ -8,6 +8,7 @@ const { rateLimit }  = require('../middleware/rateLimit');
 const { SECRET }     = require('../middleware/auth');
 const { normalizeName } = require('../utils/normalize');
 const { genQrToken }    = require('../utils/qrToken');
+const { genRefCode }    = require('../utils/refCode');
 
 const router = express.Router();
 
@@ -59,7 +60,8 @@ router.get('/events', (req, res) => {
   const { event_id } = req.operatorToken;
   if (event_id) {
     const ev = db.prepare(`
-      SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories
+      SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories,
+             source_event_id, ref_code
       FROM events WHERE id = ? AND deleted_at IS NULL
     `).get(event_id);
     if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
@@ -67,7 +69,7 @@ router.get('/events', (req, res) => {
   }
   const evs = db.prepare(`
     SELECT e.id, e.name, e.slug, e.event_date, e.event_time, e.location, e.city,
-           e.has_tables, e.use_categories,
+           e.has_tables, e.use_categories, e.source_event_id, e.ref_code,
            (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.response = 'confirmado' AND p.deleted_at IS NULL) AS total_confirmed,
            (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.response = 'confirmado' AND p.deleted_at IS NULL AND p.checked_in_at IS NOT NULL) AS checked_in
     FROM events e WHERE e.deleted_at IS NULL ORDER BY e.event_date DESC LIMIT 50
@@ -90,12 +92,14 @@ router.post('/events', (req, res) => {
   let slug = base, n = 1;
   while (db.prepare('SELECT 1 FROM events WHERE slug = ?').get(slug)) { slug = `${base}-${++n}`; }
 
+  // Evento criado aqui é sempre avulso (sem origem no Moura One) → prefixo AV.
+  const refCode = genRefCode(db, 'AV');
   const info = db.prepare(`
-    INSERT INTO events (slug, name, event_date, location, has_tables, use_categories)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO events (slug, name, event_date, location, has_tables, use_categories, ref_code)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(slug, name, String(b.event_date || '').trim() || null, String(b.location || '').trim() || null,
-         b.has_tables ? 1 : 0, b.use_categories ? 1 : 0);
-  const ev = db.prepare('SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories FROM events WHERE id = ?').get(info.lastInsertRowid);
+         b.has_tables ? 1 : 0, b.use_categories ? 1 : 0, refCode);
+  const ev = db.prepare('SELECT id, name, slug, event_date, event_time, location, city, has_tables, use_categories, source_event_id, ref_code FROM events WHERE id = ?').get(info.lastInsertRowid);
   res.json({ ok: true, event: ev });
 });
 

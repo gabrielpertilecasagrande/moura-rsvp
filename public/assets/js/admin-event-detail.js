@@ -25,6 +25,11 @@ async function loadEvent() {
   EVENT = await Api.get(`/api/events/${ID}`);
   document.getElementById('evName').textContent = EVENT.name;
   document.title = `${EVENT.name} — Moura RSVP`;
+  // Selo de origem (Moura One) + código de referência curto (logs/rastreio).
+  const eyebrow = document.getElementById('eyebrow');
+  if (eyebrow) {
+    eyebrow.innerHTML = `Evento${EVENT.source_event_id ? ' <span class="origin-selo">◆ Moura One</span>' : ''}${EVENT.ref_code ? ` <span class="origin-ref">${esc(EVENT.ref_code)}</span>` : ''}`;
+  }
   document.getElementById('evMeta').textContent =
     `${EVENT.event_date ? fmtDateBR(EVENT.event_date) : 'Data a definir'}${EVENT.event_time ? ' · ' + EVENT.event_time : ''}${EVENT.location ? ' · ' + EVENT.location : ''}`;
   document.getElementById('openPublic').href = EVENT.public_url;
@@ -610,6 +615,7 @@ async function saveOne(force) {
     closeModal();
     toast(r.updated ? 'Cadastro atualizado.' : 'Participante adicionado.');
     loadParticipants();
+    renderMesaMap().catch(() => {});
   } catch (e) {
     // Possível duplicado: o backend devolve 409 com a mensagem; oferecemos atualizar.
     if (/já existe/i.test(e.message)) {
@@ -656,6 +662,7 @@ async function saveBulk() {
     closeModal();
     toast(`${r.added} incluído(s)${r.skipped_count ? `, ${r.skipped_count} já existia(m)` : ''}.`);
     loadParticipants();
+    renderMesaMap().catch(() => {});
   } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
 }
 
@@ -665,5 +672,154 @@ function focusSearch() {
   if (el && !('ontouchstart' in window)) el.focus({ preventScroll: true });
 }
 
-(async () => { await loadEvent(); await loadParticipants(); focusSearch(); })().catch((e) => toast(e.message));
+// ════════════════════════════════════════════════════════════════════════════
+//  MAPA VISUAL DE MESAS
+//  Visão gráfica (em vez de só lista): cada mesa vira um cartão colorido pela
+//  ocupação. 🟢 livre · 🟡 próximo do limite · 🔴 excedente (overbooking).
+// ════════════════════════════════════════════════════════════════════════════
+
+let MESA_PARTS = [];  // convidados (cache p/ o detalhe de cada mesa)
+let MESA_TABLES = []; // mesas configuradas (cache p/ o detalhe de cada mesa)
+
+// Classifica a mesa pela ocupação para escolher a cor.
+function mesaTone(allocated, capacity) {
+  if (!capacity || capacity <= 0) return 'na';        // sem capacidade definida
+  if (allocated > capacity) return 'over';            // 🔴 excedente
+  if (allocated >= Math.max(1, Math.ceil(capacity * 0.85))) return 'near'; // 🟡 próximo do limite / cheio
+  return 'free';                                       // 🟢 livre
+}
+
+// Agrupa convidados confirmados por nome de mesa (igual ao app de check-in).
+function mesaAssigned(parts) {
+  const m = {};
+  parts.forEach((p) => {
+    if (p.response !== 'confirmado') return;
+    const t = String(p.table_number || '').trim();
+    if (!t) return;
+    m[t] = m[t] || { allocated: 0, present: 0 };
+    m[t].allocated++;
+    if (p.checked_in_at) m[t].present++;
+  });
+  return m;
+}
+
+async function renderMesaMap() {
+  const wrap = document.getElementById('mesaMap');
+  if (!wrap) return;
+  // Só faz sentido em eventos marcados como "com mesas".
+  if (!EVENT || !EVENT.has_tables) { wrap.classList.add('hidden'); wrap.innerHTML = ''; return; }
+  wrap.classList.remove('hidden');
+
+  let tables = [];
+  try {
+    // Mesas configuradas (nome + capacidade). A mesma API usada no check-in.
+    tables = await Api.get(`/api/checkin/events/${ID}/tables`);
+    MESA_TABLES = tables;
+    // Convidados (para o detalhe por mesa e para detectar mesas "extras").
+    const data = await Api.get(`/api/events/${ID}/participants`);
+    MESA_PARTS = data.participants || [];
+  } catch (e) {
+    wrap.innerHTML = `<div class="card"><div class="mesa-map-head"><h2>Mapa de mesas</h2></div><p class="muted" style="margin:0">Não foi possível carregar as mesas: ${esc(e.message)}</p></div>`;
+    return;
+  }
+
+  const assigned = mesaAssigned(MESA_PARTS);
+  const confNames = new Set(tables.map((t) => String(t.name)));
+  // Mesas digitadas nos convidados que não estão na configuração (capacidade desconhecida).
+  const extras = Object.keys(assigned)
+    .filter((n) => !confNames.has(n))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    .map((n) => ({ name: n, capacity: 0, extra: true, allocated: assigned[n].allocated, present: assigned[n].present }));
+
+  const all = tables
+    .slice()
+    .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+    .map((t) => ({ ...t, allocated: assigned[t.name] ? assigned[t.name].allocated : (t.allocated || 0), present: assigned[t.name] ? assigned[t.name].present : (t.present || 0) }))
+    .concat(extras);
+
+  if (!all.length) {
+    wrap.innerHTML = `
+      <div class="card">
+        <div class="mesa-map-head"><h2>Mapa de mesas</h2>
+          <button class="btn btn-ghost btn-sm" onclick="renderMesaMap()">Atualizar</button></div>
+        <p class="muted" style="margin:0">Nenhuma mesa configurada ainda. Configure as mesas no aplicativo de check-in (botão ⚙ Configurar mesas) para ver o mapa colorido aqui.</p>
+      </div>`;
+    return;
+  }
+
+  const totalCap = tables.reduce((s, t) => s + (t.capacity || 0), 0);
+  const totalAlloc = all.reduce((s, t) => s + (t.allocated || 0), 0);
+  const overCount = all.filter((t) => t.capacity > 0 && t.allocated > t.capacity).length;
+
+  const cards = all.map((t) => {
+    const cap = t.capacity || 0;
+    const a = t.allocated || 0;
+    const p = t.present || 0;
+    const tone = t.extra ? 'na' : mesaTone(a, cap);
+    const isOver = cap > 0 && a > cap;
+    let seats = '';
+    if (cap > 0) {
+      const shown = Math.min(cap, 24);
+      for (let i = 0; i < shown; i++) seats += `<span class="mseat ${i < a ? 'occ' : 'free'}"></span>`;
+      if (isOver) { const ov = Math.min(a - cap, 10); for (let i = 0; i < ov; i++) seats += '<span class="mseat over"></span>'; }
+      if (cap > 24) seats += `<span class="mseat-more">+${cap - 24}</span>`;
+    }
+    const label = t.name === 'Sem mesa' ? 'Sem mesa' : `Mesa ${esc(t.name)}`;
+    return `<button class="mesa-card tone-${tone}" onclick="mesaDetail('${esc(String(t.name)).replace(/'/g, '')}')">
+      <div class="mc-top"><span class="mc-name">${label}</span>${isOver ? '<span class="mc-flag">EXCEDE</span>' : ''}</div>
+      <div class="mc-count ${isOver ? 'over' : ''}">${a}${cap > 0 ? `<span>/${cap}</span>` : '<span> aloc.</span>'}</div>
+      ${cap > 0 ? `<div class="mc-seats">${seats}</div>` : '<div class="mc-na">capacidade não definida</div>'}
+      <div class="mc-foot">${p} presente${p !== 1 ? 's' : ''}</div>
+    </button>`;
+  }).join('');
+
+  wrap.innerHTML = `
+    <div class="card">
+      <div class="mesa-map-head">
+        <h2>Mapa de mesas</h2>
+        <div class="mesa-kpis">
+          <span class="mk"><b>${tables.length}</b> mesa${tables.length !== 1 ? 's' : ''}</span>
+          ${totalCap ? `<span class="mk"><b>${totalAlloc}/${totalCap}</b> lugares</span>` : ''}
+          ${overCount ? `<span class="mk over"><b>${overCount}</b> excedente${overCount !== 1 ? 's' : ''}</span>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="renderMesaMap()">Atualizar</button>
+        </div>
+      </div>
+      ${overCount ? `<div class="mesa-warn">⚠ ${overCount} mesa${overCount !== 1 ? 's' : ''} com mais convidados do que lugares.</div>` : ''}
+      <div class="mesa-legend">
+        <span><span class="lg free"></span> Livre</span>
+        <span><span class="lg near"></span> Próximo do limite</span>
+        <span><span class="lg over"></span> Excedente</span>
+      </div>
+      <div class="mesa-grid">${cards}</div>
+    </div>`;
+}
+
+// Abre o detalhe de uma mesa: quem está alocado e quem já fez check-in.
+function mesaDetail(name) {
+  const arr = MESA_PARTS
+    .filter((p) => p.response === 'confirmado' && (String(p.table_number || '').trim() || 'Sem mesa') === name)
+    .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+  const total = arr.length;
+  const present = arr.filter((p) => p.checked_in_at).length;
+  const conf = MESA_TABLES.find((t) => String(t.name) === name);
+  const cap = conf ? conf.capacity : 0;
+  const isOver = cap > 0 && total > cap;
+  const list = arr.map((p) => `
+    <div class="mesa-guest ${p.checked_in_at ? 'present' : ''}">
+      <span class="mg-name">${esc(p.name)}${p.company ? `<span class="mg-co"> · ${esc(p.company)}</span>` : ''}</span>
+      <span class="mg-tag">${p.checked_in_at ? '✓ Presente' : 'Ausente'}</span>
+    </div>`).join('');
+  modal(`
+    <h3 style="font-size:18px;margin:0 0 4px">${name === 'Sem mesa' ? 'Sem mesa' : 'Mesa ' + esc(name)}</h3>
+    <p class="muted" style="margin:0 0 14px;font-size:13.5px">${total} alocado${total !== 1 ? 's' : ''}${cap > 0 ? ' de ' + cap + ' lugares' : ''} · ${present} presente${present !== 1 ? 's' : ''}${isOver ? ' · ⚠ excedente' : ''}</p>
+    <div class="mesa-guest-list">${list || '<p class="muted" style="margin:0">Nenhum convidado nesta mesa.</p>'}</div>
+    <div style="display:flex;justify-content:flex-end;margin-top:14px"><button class="btn btn-ghost btn-sm" onclick="closeModal()">Fechar</button></div>`);
+}
+
+(async () => {
+  await loadEvent();
+  await loadParticipants();
+  renderMesaMap().catch(() => {});
+  focusSearch();
+})().catch((e) => toast(e.message));
 document.getElementById('refreshSlot').appendChild(refreshButton(async () => { await loadParticipants(); focusSearch(); }, 'Atualizar lista'));
