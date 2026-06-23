@@ -71,7 +71,7 @@ function renderRows(list) {
     const isMe = u.id === ME;
     return `
     <tr>
-      <td class="row-name">${esc(u.name)}${isMe ? ' <span class="muted" style="font-weight:400">(você)</span>' : ''}</td>
+      <td class="row-name">${esc(u.name)}${isMe ? ' <span class="muted" style="font-weight:400">(você)</span>' : ''}${u.source === 'moura_one' ? ' <span class="origin-selo">◆ Moura One</span>' : ''}</td>
       <td data-label="E-mail" class="break-anywhere">${esc(u.email)}</td>
       <td data-label="Permissão">${ROLE_LABEL[u.role] || u.role}</td>
       <td data-label="Situação"><span class="pill ${st.cls}">${st.label}</span></td>

@@ -554,7 +554,7 @@ tbody tr:hover { background: var(--off-white); }
     display: flex; flex-direction: column; align-items: center;
     padding: 36px 24px 28px; text-align: center; min-height: auto;
   }
-  .login-aside .logo img { filter: brightness(0) invert(1); height: 28px; width: auto; }
+  .login-aside .logo img { filter: brightness(0) invert(1); height: 44px; width: auto; }
   .login-aside .accent-rule { margin: 18px auto 0; }
   .login-aside h2 { font-size: 18px; margin-top: 14px; line-height: 1.3; }
   .login-aside p { font-size: 13px; margin-top: 8px; }
@@ -1165,10 +1165,19 @@ body.lp-body .lp-footer { margin-top: 0; }
 
 /* Últimas confirmações */
 .recent-list { padding: 4px 0; }
-.recent-row { display: flex; flex-direction: column; gap: 2px; padding: 9px 0; border-bottom: 1px solid var(--gray-soft); }
+.recent-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--gray-soft); }
 .recent-row:last-child { border-bottom: none; }
-.recent-name { font-weight: 600; font-size: 14px; color: var(--charcoal, #28282A); }
-.recent-meta { font-size: 12px; }
+.recent-avatar { flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%;
+  background: var(--grad-principal); color: #fff; font-size: 12px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center; letter-spacing: .02em; }
+.recent-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.recent-name { font-weight: 600; font-size: 14px; color: var(--charcoal, #28282A); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.recent-sub { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.recent-event-badge { font-size: 11px; font-weight: 600; background: var(--cyan-soft); color: #0a6b66;
+  padding: 1px 7px; border-radius: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+.recent-time { font-size: 11px; }
+.badge-sem-data { display: inline-block; font-size: 11px; font-weight: 700; background: #f1f5f9;
+  color: #64748b; padding: 1px 7px; border-radius: 6px; vertical-align: middle; letter-spacing: .02em; }
 
 /* Gráfico diário de confirmações */
 .daily-chart { display: flex; align-items: flex-end; gap: 8px; height: 110px;

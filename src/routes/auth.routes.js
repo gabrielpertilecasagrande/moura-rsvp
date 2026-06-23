@@ -330,8 +330,8 @@ router.post('/sync-user', (req, res) => {
   const existing = tenantDb.prepare('SELECT id FROM admins WHERE email = ?').get(mail);
   if (existing) {
     // Monta o UPDATE incluindo status e/ou senha apenas quando informados.
-    const sets = ['name = ?', 'role = ?'];
-    const vals = [n, r];
+    const sets = ['name = ?', 'role = ?', 'source = ?'];
+    const vals = [n, r, 'moura_one'];
     if (newStatus) { sets.push('status = ?'); vals.push(newStatus); }
     if (pwHash && !deleted) { sets.push('password_hash = ?'); vals.push(pwHash); }
     vals.push(mail);
@@ -346,8 +346,8 @@ router.post('/sync-user', (req, res) => {
   // acesso real virá por SSO ou por "Esqueci a senha".
   const hash = pwHash || bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   tenantDb.prepare(
-    'INSERT INTO admins (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)'
-  ).run(n, mail, hash, r, newStatus || 'ativo');
+    'INSERT INTO admins (name, email, password_hash, role, status, source) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(n, mail, hash, r, newStatus || 'ativo', 'moura_one');
   registerAdminEmail(mail, DEFAULT_TENANT);
   runWithDb(DEFAULT_TENANT, () => logActivity('integração (sync)', 'criou usuário', mail));
   res.status(201).json({ ok: true, action: 'created' });
