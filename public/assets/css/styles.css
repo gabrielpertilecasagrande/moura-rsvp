@@ -726,11 +726,8 @@ tbody tr:hover { background: var(--off-white); }
   transition: background .15s, border-color .15s; }
 .side-account:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.4); color: #fff; }
 
-/* ---- Acesso rápido a outras plataformas (sidebar) ---- */
-.side-quick { padding: 12px 14px; border-top: 1px solid rgba(255,255,255,.1); margin-bottom: 4px; }
-.side-quick-label { color: #7e90bb; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 6px; }
-.side-quick-link { display: block; padding: 7px 10px; margin-bottom: 4px; color: rgba(255,255,255,.75); font-size: 13px; border-radius: 7px; text-decoration: none; transition: background .15s, color .15s; }
-.side-quick-link:hover { background: rgba(255,255,255,.08); color: #fff; }
+/* ---- Separador no nav do sidebar (acesso rápido a outras plataformas) ---- */
+.nav-sep { border-top: 1px solid rgba(255,255,255,.1); margin: 6px 0; }
 
 /* ---- Matriz de acesso por evento (gestão de usuários) ---- */
 .access-modal { max-width: 760px; width: 96vw; text-align: left; }

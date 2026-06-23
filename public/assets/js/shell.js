@@ -44,9 +44,8 @@ function renderShell(active) {
       <a href="/admin/dashboard.html" style="display:block;text-decoration:none" title="Moura RSVP"><img src="/assets/img/logo-moura.png" alt="Moura RSVP" style="width:100%;height:auto;display:block"></a>
       <div class="logo-tag">Confirmação de Presença</div>
     </div>
-    <nav>${nav}</nav>
+    <nav>${nav}<div id="navQuickLinks"></div></nav>
     <div class="spacer"></div>
-    <div id="sideQuickLinks"></div>
     <div class="side-foot">
       <div class="side-user">
         <span class="side-avatar">${esc(initials || '?')}</span>
@@ -84,16 +83,16 @@ function mountShell(active) {
 }
 
 async function loadSideQuickLinks() {
-  const slot = document.getElementById('sideQuickLinks');
+  const slot = document.getElementById('navQuickLinks');
   if (!slot) return;
   let cfg = {};
   try { cfg = await Api.get('/api/public/app-config'); } catch { /* sem config → links ocultos */ }
   const links = [
-    cfg.moura_one_url ? `<a href="${cfg.moura_one_url}/admin/dashboard.html" target="_blank" rel="noopener" class="side-quick-link">◆ Moura One</a>` : '',
-    cfg.checkin_url   ? `<a href="${cfg.checkin_url}"                        target="_blank" rel="noopener" class="side-quick-link">📱 Check-in</a>` : '',
-  ].filter(Boolean).join('');
-  if (!links) return;
-  slot.innerHTML = `<div class="side-quick"><div class="side-quick-label">Acesso rápido</div>${links}</div>`;
+    cfg.moura_one_url ? `<a href="${cfg.moura_one_url}/admin/dashboard.html" target="_blank" rel="noopener">◆ Moura One</a>` : '',
+    cfg.checkin_url   ? `<a href="${cfg.checkin_url}"                        target="_blank" rel="noopener">📱 Check-in</a>`   : '',
+  ].filter(Boolean);
+  if (!links.length) return;
+  slot.innerHTML = `<div class="nav-sep"></div>${links.join('')}`;
 }
 
 // ---- Selo de notificação de solicitações de acesso pendentes ----
