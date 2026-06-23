@@ -1,9 +1,9 @@
 /* ============================================================
-   Moura One — sistema de design (RSVP)
+   Moura One — sistema de design
    Identidade da marca (Plataforma de Operações e Eventos)
    Azul Profundo #0E1B3D · Azul Institucional #152C6B · Turquesa #00C2B8
-   Neutras: Carvão #16203A · Slate #64748B
-   Cinza Claro #E2E8F0 · Extra Claro #F4F6FA · Branco #FFFFFF
+   Neutras: Carvão #1A1F2B · Slate #475569/#64748B/#94A3B8
+   Cinza Claro #E2E8F0 · Extra Claro #F1F5F9 · Branco #FFFFFF
    ============================================================ */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
 
@@ -39,11 +39,18 @@
   --display: 'Space Grotesk', system-ui, sans-serif;
   --display-soft: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --body: 'Inter', system-ui, -apple-system, sans-serif;
+  /* Numerais tabulares — alinhamento de dados (métricas, tabelas, valores) */
   --tnum: 'tnum' 1, 'lnum' 1;
 }
 
 * { box-sizing: border-box; }
+/* Evita rolagem horizontal acidental (tooltips/cards que vazam alguns px da
+   viewport no mobile). overflow-x:hidden no <html> tem suporte universal
+   (inclusive Safari iOS antigo) e mantém a topbar position:sticky funcionando,
+   pois o <html> continua sendo o container de rolagem. NÃO aplicar no <body>
+   para não transformar o body em scroll container e quebrar o sticky. */
 html { -webkit-text-size-adjust: 100%; overflow-x: hidden; }
+/* Comporta como app nativo: sem zoom por toque-duplo (o viewport já bloqueia pinça/+/-). */
 html, body { touch-action: manipulation; }
 body {
   margin: 0;
@@ -64,12 +71,15 @@ img { max-width: 100%; display: block; }
 .center { text-align: center; }
 .hidden { display: none !important; }
 .break-anywhere { overflow-wrap: anywhere; word-break: break-word; }
+/* Numerais tabulares — para dados que precisam alinhar (métricas, valores, datas) */
+.tnum, .stat .n, .ov-stat-val, table td, .bar-val, .cc-count { font-variant-numeric: tabular-nums; font-feature-settings: var(--tnum); }
 
 /* ---- Botões ---- */
 .btn {
   font-family: var(--body); font-weight: 600; font-size: 14px;
   border: 1px solid transparent; border-radius: var(--radius-sm);
-  padding: 11px 18px; cursor: pointer; transition: .15s ease;
+  padding: 11px 18px; cursor: pointer;
+  transition: transform .14s ease, box-shadow .14s ease, background .14s ease, border-color .14s ease, filter .14s ease;
   display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   text-decoration: none; line-height: 1;
 }
@@ -95,7 +105,7 @@ input[type=text], input[type=email], input[type=tel], input[type=password],
 input[type=date], input[type=time], input[type=number], textarea, select {
   width: 100%; font-family: var(--body); font-size: 15px; color: var(--charcoal);
   background: var(--white); border: 1px solid var(--gray); border-radius: var(--radius-sm);
-  padding: 11px 13px; transition: .15s ease;
+  padding: 11px 13px; transition: border-color .15s ease, box-shadow .15s ease;
 }
 textarea { resize: vertical; min-height: 72px; }
 input[type=file] { width: 100%; max-width: 100%; font-size: 13px; }
@@ -105,6 +115,10 @@ input:focus, textarea:focus, select:focus {
   outline: none; border-color: var(--cyan); box-shadow: var(--ring);
 }
 ::placeholder { color: #9aa7ba; }
+.pw-wrap { position: relative; }
+.pw-wrap input[type=password], .pw-wrap input[type=text] { padding-right: 40px; }
+.pw-toggle { position: absolute; right: 1px; top: 1px; bottom: 1px; width: 38px; display: flex; align-items: center; justify-content: center; background: transparent; border: none; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; cursor: pointer; font-size: 15px; color: var(--muted, #9aa7ba); padding: 0; transition: color .15s; }
+.pw-toggle:hover { color: var(--navy); }
 
 /* ---- Cartões / superfícies ---- */
 .card {
@@ -114,12 +128,14 @@ input:focus, textarea:focus, select:focus {
 
 /* ---- Pílulas de status ---- */
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
-  padding: 4px 10px; border-radius: 100px; }
+  padding: 4px 11px; border-radius: 100px; letter-spacing: .005em; }
 .pill::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.pill-ok { color: #0f8a93; background: var(--cyan-soft); }
-.pill-no { color: var(--danger); background: #f7ebe7; }
-.pill-active { color: #0f8a93; background: var(--cyan-soft); }
+.pill-ok { color: #0a8f88; background: var(--cyan-soft); }
+.pill-no { color: var(--danger); background: #fdecec; }
+.pill-active { color: #0a8f88; background: var(--cyan-soft); }
 .pill-inactive { color: var(--muted); background: var(--gray-soft); }
+/* Pulso "ao vivo" — reservado para um único momento de assinatura (tela de acesso) */
+@keyframes livePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(0,194,184,.5); } 50% { box-shadow: 0 0 0 5px rgba(0,194,184,0); } }
 
 /* ============================================================
    ADMIN — layout com barra lateral
