@@ -135,6 +135,17 @@ const PRESETS = {
 };
 
 function addPreset(key) {
+  if (key === 'acompanhante') {
+    const fields = formConfig.fields || (formConfig.fields = []);
+    const alreadyVem = fields.some((f) => f.key === 'c_acomp_vem');
+    const alreadyNome = fields.some((f) => f.key === 'c_acomp_nome');
+    if (alreadyVem || alreadyNome) { alert('Os campos de acompanhante já foram adicionados.'); return; }
+    fields.push({ key: 'c_acomp_vem', label: 'Levará acompanhante?', type: 'boolean', enabled: true, required: false, builtin: false });
+    fields.push({ key: 'c_acomp_nome', label: 'Nome do acompanhante', type: 'text', enabled: true, required: false, builtin: false });
+    markDirty(); renderBuilder();
+    document.getElementById('fieldBuilder').scrollIntoView({ behavior: 'smooth', block: 'end' });
+    return;
+  }
   const preset = PRESETS[key];
   if (!preset) return;
   const fields = formConfig.fields || (formConfig.fields = []);
@@ -349,7 +360,6 @@ function normalizeLandingConfig(raw) {
       if (def.type === 'location') return { ...base, embed_url: saved.embed_url || '' };
       return { ...base, items: Array.isArray(saved.items) ? saved.items : [] };
     };
-    // Preserva a ordem salva; adiciona ao final qualquer tipo novo não salvo ainda.
     const savedSecs = (Array.isArray(p.sections) ? p.sections : []).filter((s) => defByType[s.type]);
     const savedTypes = new Set(savedSecs.map((s) => s.type));
     const extra = LP_SECTION_DEFAULTS.filter((d) => !savedTypes.has(d.type))
@@ -457,7 +467,6 @@ function renderLandingEditor() {
       landingConfig.sections.splice(toIdx, 0, moved);
       lpDragFrom = null; markDirty(); renderLandingEditor();
     });
-    // Impede que clique na alça de arrasto abra/feche o painel.
     row.querySelector('.lp-ed-drag')?.addEventListener('mousedown', (e) => e.stopPropagation());
   });
 }

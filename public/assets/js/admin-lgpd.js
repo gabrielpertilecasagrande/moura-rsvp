@@ -61,6 +61,25 @@ function updateSelCount() {
   document.getElementById('eraseBtn').disabled = n === 0;
 }
 
+// ── Download PDF autenticado ──────────────────────────────────────────────────
+async function downloadReceipt(id, receiptNo) {
+  try {
+    const res = await fetch(`/api/lgpd/erasures/${id}/receipt.pdf`, {
+      headers: { Authorization: `Bearer ${Api.token()}` },
+    });
+    if (!res.ok) throw new Error('Erro ' + res.status);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `comprovante-exclusao-${receiptNo || id}.pdf`;
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert('Não foi possível baixar o comprovante: ' + (e.message || 'Tente novamente.'));
+  }
+}
+
 // ── Exclusão ─────────────────────────────────────────────────────────────────
 async function runErase() {
   const checked = Array.from(document.querySelectorAll('#eraseResults input[type=checkbox]:checked'));
@@ -92,7 +111,7 @@ async function runErase() {
       <div style="background:#d4f7e8;border-radius:10px;padding:14px 16px">
         <div style="font-weight:700;font-size:15px;color:#1a7a50">✅ ${result.count} participante(s) excluído(s) com sucesso.</div>
         <div style="font-size:13px;margin-top:6px">Comprovante: <strong style="font-family:monospace">${esc(result.receipt_no)}</strong></div>
-        <a class="btn btn-ghost btn-sm" href="${pdfUrl}" target="_blank" style="margin-top:10px;display:inline-block">⬇ Baixar comprovante PDF</a>
+        <button class="btn btn-ghost btn-sm" onclick="downloadReceipt(${result.id}, '${esc(result.receipt_no)}')" style="margin-top:10px">⬇ Baixar comprovante PDF</button>
       </div>`;
     document.getElementById('eraseActions').style.display = 'none';
     document.getElementById('eraseSearch').value = '';
@@ -125,7 +144,7 @@ async function loadErasures() {
           </div>
           ${(r.summary || []).length ? `<div class="hist-items">${r.summary.map((s) => `<div class="hist-item">${esc(s)}</div>`).join('')}</div>` : ''}
         </div>
-        <a class="btn btn-ghost btn-sm" href="/api/lgpd/erasures/${esc(r.id)}/receipt.pdf" target="_blank">⬇ PDF</a>
+        <button class="btn btn-ghost btn-sm" onclick="downloadReceipt(${r.id}, '${esc(r.receipt_no)}')">⬇ PDF</button>
       </div>
     `).join('');
   } catch {
