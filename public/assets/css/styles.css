@@ -132,8 +132,15 @@ input:focus, textarea:focus, select:focus {
     radial-gradient(115% 50% at -10% -5%, rgba(0,194,184,.13) 0%, rgba(0,194,184,0) 55%),
     radial-gradient(120% 55% at 0% 100%, rgba(0,194,184,.10) 0%, rgba(0,194,184,0) 60%),
     linear-gradient(180deg, #0E1B3D 0%, #0A1228 100%); }
+.logo-mo { font-family: var(--display-soft); font-weight: 800; font-size: 26px; line-height: 1;
+  display: inline-flex; align-items: center; text-decoration: none; }
+.logo-mo .lm { color: #fff; }
+.logo-mo .lo { color: var(--cyan); position: relative; margin-left: .14em; }
+.logo-mo .lo::before { content: ''; position: absolute; top: -.30em; left: .04em; width: .26em; height: .26em;
+  border-radius: 50%; background: var(--cyan); }
+.logo-tag { font-family: var(--body); font-size: 10.5px; color: #8aa0c7; letter-spacing: .01em; margin-top: 7px; }
 .sidebar .brand { padding: 4px 6px 0; margin-bottom: 22px; }
-.sidebar .brand img { height: 28px; width: auto; filter: brightness(0) invert(1); display: block; }
+.sidebar .logo-mo { font-size: 21px; }
 .sidebar nav { display: flex; flex-direction: column; gap: 2px;
   flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
   scrollbar-width: thin; scrollbar-color: rgba(255,255,255,.18) transparent; }
@@ -145,10 +152,7 @@ input:focus, textarea:focus, select:focus {
 .sidebar nav a { position: relative; color: #c2cde6; text-decoration: none; padding: 10px 13px; border-radius: 9px;
   font-weight: 500; font-size: 14px; transition: background .14s, color .14s; }
 .sidebar nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
-.sidebar nav a.active { color: #fff; font-weight: 600;
-  background: linear-gradient(90deg, var(--navy) 0%, rgba(21,44,107,.55) 100%); }
-.sidebar nav a.active::after { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px;
-  border-radius: 0 3px 3px 0; background: var(--cyan); box-shadow: 0 0 10px rgba(0,194,184,.7); }
+.sidebar nav a.active { background: var(--cyan); color: var(--navy-deep); font-weight: 600; }
 .side-foot { border-top: 1px solid rgba(255,255,255,.12); padding-top: 14px; }
 .side-user { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .side-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--cyan); color: var(--navy-deep);
@@ -376,7 +380,7 @@ tbody tr:hover { background: var(--off-white); }
     position: sticky; top: 0; z-index: 40;
     background: var(--navy); padding: 10px 14px;
   }
-  .topbar-logo { height: 26px; width: auto; }
+  .topbar .logo-mo { font-size: 20px; }
   .hamburger {
     display: inline-flex; align-items: center; justify-content: center;
     width: 44px; height: 44px; border: none; background: rgba(255,255,255,.12);
