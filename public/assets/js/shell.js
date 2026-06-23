@@ -88,8 +88,8 @@ async function loadSideQuickLinks() {
   let cfg = {};
   try { cfg = await Api.get('/api/public/app-config'); } catch { /* sem config → links ocultos */ }
   const links = [
-    cfg.moura_one_url ? `<a href="${cfg.moura_one_url}/admin/dashboard.html" target="_blank" rel="noopener">◆ Moura One</a>` : '',
-    cfg.checkin_url   ? `<a href="${cfg.checkin_url}"                        target="_blank" rel="noopener">📱 Check-in</a>`   : '',
+    cfg.moura_one_url ? `<a href="${cfg.moura_one_url}/admin/dashboard.html" target="_blank" rel="noopener">Moura One</a>` : '',
+    cfg.checkin_url   ? `<a href="${cfg.checkin_url}"                        target="_blank" rel="noopener">Check-in</a>`   : '',
   ].filter(Boolean);
   if (!links.length) return;
   slot.innerHTML = `<div class="nav-sep"></div>${links.join('')}`;
