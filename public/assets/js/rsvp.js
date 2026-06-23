@@ -39,19 +39,21 @@ function whatsappButton(label) {
 }
 
 // Contagem regressiva: retorna o HTML do bloco ou string vazia se o evento já passou.
+// baseClass permite uma variação de estilo (ex.: 'lp-countdown' no hero da landing).
 let countdownTimer = null;
-function buildCountdown(e) {
+function buildCountdown(e, baseClass = 'rsvp-countdown') {
   if (!e.event_date) return '';
   const datePart = e.event_date; // YYYY-MM-DD
   const timePart = e.event_time || '00:00';
   const eventMs = new Date(`${datePart}T${timePart}`).getTime();
   if (isNaN(eventMs) || eventMs <= Date.now()) return '';
-  return '<div id="countdown" class="rsvp-countdown"></div>';
+  return `<div id="countdown" class="${baseClass}" data-base="${baseClass}"></div>`;
 }
 
 function startCountdown(e) {
   const el = document.getElementById('countdown');
   if (!el) return;
+  const base = el.dataset.base || 'rsvp-countdown';
   const datePart = e.event_date;
   const timePart = e.event_time || '00:00';
   const eventMs = new Date(`${datePart}T${timePart}`).getTime();
@@ -67,12 +69,12 @@ function startCountdown(e) {
     const warn = d === 0;
     const pad = (n) => String(n).padStart(2, '0');
     let parts = '';
-    if (d > 0) parts += `<span class="cd-unit"><strong>${d}</strong><em>d</em></span>`;
-    parts += `<span class="cd-unit"><strong>${pad(h)}</strong><em>h</em></span>`;
-    parts += `<span class="cd-unit"><strong>${pad(m)}</strong><em>m</em></span>`;
-    parts += `<span class="cd-unit"><strong>${pad(s)}</strong><em>s</em></span>`;
-    el.className = `rsvp-countdown${warn ? ' rsvp-countdown-warn' : ''}`;
-    el.innerHTML = `<span class="cd-label">Faltam</span>${parts}`;
+    if (d > 0) parts += `<span class="cd-unit"><strong>${d}</strong><em>dias</em></span>`;
+    parts += `<span class="cd-unit"><strong>${pad(h)}</strong><em>horas</em></span>`;
+    parts += `<span class="cd-unit"><strong>${pad(m)}</strong><em>min</em></span>`;
+    parts += `<span class="cd-unit"><strong>${pad(s)}</strong><em>seg</em></span>`;
+    el.className = `${base}${warn ? ` ${base}-warn` : ''}`;
+    el.innerHTML = `<span class="cd-label">Faltam</span><div class="cd-units">${parts}</div>`;
   }
   tick();
   if (countdownTimer) clearInterval(countdownTimer);
@@ -172,43 +174,69 @@ function lpMetaItem(icon, text) {
   return `<div class="lp-hero-meta-item">${icon}<span>${esc(text)}</span></div>`;
 }
 
+// Ícones de seção da landing (mostrados ao lado do título).
+const LP_SECTION_ICON = {
+  video:    '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="m10 9 5 3-5 3z" fill="currentColor" stroke="none"/></svg>',
+  agenda:   '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>',
+  location: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>',
+  sponsors: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.65A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/></svg>',
+  faq:      '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 0 1 4.5 1.5c0 1.5-2 2-2 3"/><circle cx="12" cy="16.5" r=".6" fill="currentColor"/></svg>',
+};
+
 function renderLanding() {
   const e = EVENT;
   const lc = e.landing_config || { sections: [] };
-  const sections = Array.isArray(lc.sections) ? lc.sections : [];
-  const byType = {};
-  sections.forEach((s) => { byType[s.type] = s; });
+  // Respeita a ORDEM definida pelo organizador (drag-and-drop no editor).
+  const sections = (Array.isArray(lc.sections) ? lc.sections : []).filter((s) => s && s.enabled);
 
   document.body.classList.add('lp-body');
 
   const heroBg = e.cover_image ? `style="background-image:url('${e.cover_image}')"` : '';
   const dateTxt = e.event_date ? fmtDateBR(e.event_date) : '';
   const locationTxt = [e.location, e.city].filter(Boolean).join(' · ');
+  const heroActions = buildActionButtons(e);
 
   root.innerHTML = `
     <div class="lp-page">
-      <section class="lp-hero" ${heroBg}>
+      <section class="lp-hero ${e.cover_image ? '' : 'lp-hero-nocover'}" ${heroBg}>
         <div class="lp-hero-inner">
           ${e.client_logo ? `<img class="lp-hero-logo" src="${e.client_logo}" alt="" />` : ''}
-          <div class="lp-hero-eyebrow">Confirmação de presença</div>
+          <div class="lp-hero-eyebrow">Você está convidado</div>
           <h1 class="lp-hero-title">${esc(e.name)}</h1>
           <div class="lp-hero-meta">
             ${lpMetaItem(ICON.cal, dateTxt)}
             ${lpMetaItem(ICON.clock, e.event_time)}
             ${lpMetaItem(ICON.pin, locationTxt)}
           </div>
-          <a href="#lp-rsvp" class="lp-hero-cta">Confirmar Presença</a>
+          ${buildCountdown(e, 'lp-countdown')}
+          <div class="lp-hero-ctarow">
+            <a href="#lp-rsvp" class="lp-hero-cta">Confirmar Presença</a>
+          </div>
         </div>
+        <a href="#lp-content" class="lp-scroll-hint" aria-label="Ver mais">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m6 9 6 6 6-6"/></svg>
+        </a>
       </section>
 
-      <div class="lp-sections">
-        <section class="lp-section" id="lp-rsvp">
+      <div class="lp-sections" id="lp-content">
+        ${e.description ? `
+        <section class="lp-section lp-reveal">
+          <div class="lp-about">${esc(e.description)}</div>
+        </section>` : ''}
+
+        ${renderLpSections(sections)}
+
+        ${heroActions ? `<section class="lp-section lp-reveal"><div class="lp-quickactions">${heroActions}</div></section>` : ''}
+
+        <section class="lp-section lp-reveal" id="lp-rsvp">
+          <div class="lp-rsvp-head">
+            <h2 class="lp-section-title">Confirme sua presença</h2>
+            <p class="lp-rsvp-sub">Preencha os dados abaixo para garantir seu lugar.</p>
+          </div>
           <div class="lp-rsvp-card">
-            ${e.description ? `<p class="lp-rsvp-desc">${esc(e.description)}</p>` : ''}
             <div id="form-slot"></div>
           </div>
         </section>
-        ${renderLpSections(byType)}
       </div>
 
       <footer class="lp-footer rsvp-footer">
@@ -219,11 +247,17 @@ function renderLanding() {
           <a href="/legal.html#terms" target="_blank" rel="noopener">Termos de Uso</a>
         </div>
       </footer>
-    </div>`;
+    </div>
+
+    <a href="#lp-rsvp" class="lp-sticky-cta">Confirmar Presença</a>`;
+
+  startCountdown(e);
+  initReveal();
+  initStickyCta();
 
   if (e.closed) {
+    document.querySelector('.lp-sticky-cta')?.remove();
     document.getElementById('form-slot').innerHTML = `
-      <div class="divider"></div>
       <div class="closed-box">
         <h2>Confirmações encerradas</h2>
         <p class="muted">${e.closed_reason === 'prazo'
@@ -237,16 +271,17 @@ function renderLanding() {
   initFaq();
 }
 
-function renderLpSections(byType) {
-  const order = ['video', 'agenda', 'location', 'sponsors', 'faq'];
-  return order.map((type) => {
-    const sec = byType[type];
-    if (!sec || !sec.enabled) return '';
-    const title = sec.title ? `<h2 class="lp-section-title">${esc(sec.title)}</h2>` : '';
+// Renderiza as seções premium na ORDEM salva pelo organizador.
+function renderLpSections(sections) {
+  return sections.map((sec) => {
+    const type = sec.type;
+    const icon = LP_SECTION_ICON[type] || '';
+    const title = sec.title
+      ? `<h2 class="lp-section-title"><span class="lp-section-ico">${icon}</span>${esc(sec.title)}</h2>` : '';
     if (type === 'video') {
       const embed = toEmbedUrl(sec.url);
       if (!embed) return '';
-      return `<section class="lp-section">${title}
+      return `<section class="lp-section lp-reveal">${title}
         <div class="lp-video-wrap"><iframe src="${esc(embed)}" allowfullscreen loading="lazy"></iframe></div>
       </section>`;
     }
@@ -255,18 +290,20 @@ function renderLpSections(byType) {
       if (!items.length) return '';
       const rows = items.map((it) => `
         <div class="lp-timeline-item">
-          <span class="lp-timeline-time">${esc(it.time || '')}</span>
-          <div class="lp-timeline-dot"></div>
+          <div class="lp-timeline-marker">
+            <span class="lp-timeline-time">${esc(it.time || '')}</span>
+            <div class="lp-timeline-dot"></div>
+          </div>
           <div class="lp-timeline-body">
             <strong>${esc(it.title)}</strong>
             ${it.description ? `<p>${esc(it.description)}</p>` : ''}
           </div>
         </div>`).join('');
-      return `<section class="lp-section">${title}<div class="lp-timeline">${rows}</div></section>`;
+      return `<section class="lp-section lp-reveal">${title}<div class="lp-timeline">${rows}</div></section>`;
     }
     if (type === 'location') {
       if (!sec.embed_url) return '';
-      return `<section class="lp-section">${title}
+      return `<section class="lp-section lp-reveal">${title}
         <div class="lp-map-wrap"><iframe src="${esc(sec.embed_url)}" allowfullscreen loading="lazy"></iframe></div>
       </section>`;
     }
@@ -281,7 +318,7 @@ function renderLpSections(byType) {
           ? `<a class="lp-sponsor-card" href="${esc(it.website)}" target="_blank" rel="noopener">${inner}${it.logo_url && it.name ? `<span class="lp-sponsor-name">${esc(it.name)}</span>` : ''}</a>`
           : `<div class="lp-sponsor-card">${inner}</div>`;
       }).join('');
-      return `<section class="lp-section">${title}<div class="lp-sponsors-grid">${cards}</div></section>`;
+      return `<section class="lp-section lp-reveal">${title}<div class="lp-sponsors-grid">${cards}</div></section>`;
     }
     if (type === 'faq') {
       const items = (sec.items || []).filter((it) => it.question);
@@ -289,10 +326,10 @@ function renderLpSections(byType) {
       const chevron = '<svg class="lp-faq-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>';
       const rows = items.map((it, i) => `
         <div class="lp-faq-item" data-faq="${i}">
-          <div class="lp-faq-q">${esc(it.question)}${chevron}</div>
-          <div class="lp-faq-a">${esc(it.answer || '')}</div>
+          <button type="button" class="lp-faq-q">${esc(it.question)}${chevron}</button>
+          <div class="lp-faq-a"><div class="lp-faq-a-inner">${esc(it.answer || '')}</div></div>
         </div>`).join('');
-      return `<section class="lp-section">${title}<div class="lp-faq">${rows}</div></section>`;
+      return `<section class="lp-section lp-reveal">${title}<div class="lp-faq">${rows}</div></section>`;
     }
     return '';
   }).join('');
@@ -302,6 +339,33 @@ function initFaq() {
   document.querySelectorAll('.lp-faq-q').forEach((q) => {
     q.addEventListener('click', () => q.closest('.lp-faq-item').classList.toggle('open'));
   });
+}
+
+// Revela as seções suavemente conforme entram na tela.
+function initReveal() {
+  const els = document.querySelectorAll('.lp-reveal');
+  if (!('IntersectionObserver' in window) || !els.length) {
+    els.forEach((el) => el.classList.add('lp-revealed'));
+    return;
+  }
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) { entry.target.classList.add('lp-revealed'); io.unobserve(entry.target); }
+    });
+  }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
+  els.forEach((el) => io.observe(el));
+}
+
+// Botão flutuante "Confirmar Presença": some quando o formulário está visível.
+function initStickyCta() {
+  const cta = document.querySelector('.lp-sticky-cta');
+  const target = document.getElementById('lp-rsvp');
+  if (!cta || !target) return;
+  if (!('IntersectionObserver' in window)) return;
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => cta.classList.toggle('lp-sticky-hidden', entry.isIntersecting));
+  }, { threshold: 0.15 });
+  io.observe(target);
 }
 
 // Renderiza um campo configurável (builtin → name=chave; personalizado → data-ckey*).
