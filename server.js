@@ -142,25 +142,6 @@ if (RSVP_DOMAIN) {
   });
 }
 
-// ── Subdomínio de check-in (ex.: checkin.mouracom.com.br) ─────────────────────
-// Quando CHECKIN_DOMAIN está definido, o SPA de check-in é servido na raiz do
-// subdomínio sem o prefixo /checkin/ na URL — link mais limpo para operadoras.
-const CHECKIN_DOMAIN = (process.env.CHECKIN_DOMAIN || '').toLowerCase().trim();
-if (CHECKIN_DOMAIN) {
-  app.use((req, res, next) => {
-    if ((req.hostname || '').toLowerCase() !== CHECKIN_DOMAIN) return next();
-    // Passa /api/* e /uploads/* para os handlers normais.
-    if (req.path.startsWith('/api/') || req.path.startsWith('/uploads/')) return next();
-    // Serve arquivos estáticos da pasta checkin (logo, etc.) se existirem.
-    const filePath = path.join(__dirname, 'public', 'checkin', req.path);
-    if (req.path !== '/' && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-      return res.sendFile(filePath);
-    }
-    // SPA: tudo mais entrega o index.html (o JS lida com a rota via URL params).
-    res.sendFile(path.join(__dirname, 'public', 'checkin', 'index.html'));
-  });
-}
-
 // ── Páginas ────────────────────────────────────────────────────────────────────
 app.get('/sw.js', (_req, res) => {
   res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
@@ -187,14 +168,6 @@ app.get(['/legal.html', '/privacidade', '/termos', '/cookies', '/lgpd'], (_req, 
 // Caminho configurável via PLATFORM_PATH para não expor URL previsível em produção.
 const PLATFORM_PATH = (process.env.PLATFORM_PATH || '/platform').replace(/\/+$/, '');
 app.get(PLATFORM_PATH, (_req, res) => res.sendFile(path.join(__dirname, 'public', 'platform', 'index.html')));
-
-// App de check-in para operadores (servido também via moura-checkin.netlify.app).
-app.use('/checkin/assets', express.static(path.join(__dirname, 'public', 'checkin', 'assets')));
-// Estáticos da pasta do check-in (ex.: logo-moura.png). index:false p/ não
-// servir o index.html automaticamente — o SPA é entregue pela rota abaixo.
-app.use('/checkin', express.static(path.join(__dirname, 'public', 'checkin'), { index: false }));
-app.get('/checkin/event', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin', 'event.html')));
-app.get(['/checkin', '/checkin/'], (_req, res) => res.sendFile(path.join(__dirname, 'public', 'checkin', 'index.html')));
 
 // ── Tratador de erros ──────────────────────────────────────────────────────────
 // eslint-disable-next-line no-unused-vars
