@@ -78,8 +78,18 @@
 
       <div class="card" style="margin-bottom:18px">
         <h2 style="font-size:16px;margin-bottom:4px">Campos do formulário público</h2>
-        <p class="muted" style="font-size:13px;margin:0 0 14px">Nome e a confirmação de presença são sempre exigidos. Ative os campos extras que desejar.</p>
+        <p class="muted" style="font-size:13px;margin:0 0 10px">Nome e a confirmação de presença são sempre exigidos. Ative os campos extras que desejar.</p>
         <div id="fieldBuilder"></div>
+        <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--gray)">
+          <p style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:0 0 8px">Adicionar campo de informação rápida</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('vegetariano')">🥗 Vegetariano/Vegano</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('restricao')">⚠ Restrição alimentar</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('alergia')">💊 Alergia</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('acessibilidade')">♿ Acessibilidade</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('observacao')">📝 Observação livre</button>
+          </div>
+        </div>
       </div>
 
       <div class="card" style="margin-bottom:18px">
