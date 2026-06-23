@@ -352,27 +352,42 @@ let landingConfig = { sections: LP_SECTION_DEFAULTS.map((s) => ({ ...s, items: s
 function normalizeLandingConfig(raw) {
   try {
     const p = (raw && typeof raw === 'object') ? raw : JSON.parse(raw || '{}');
-    const byType = {};
-    (p.sections || []).forEach((s) => { byType[s.type] = s; });
-    return {
-      sections: LP_SECTION_DEFAULTS.map((def) => {
-        const saved = byType[def.type] || {};
-        const base = { type: def.type, enabled: !!saved.enabled, title: saved.title || def.title };
-        if (def.type === 'video')    return { ...base, url: saved.url || '' };
-        if (def.type === 'location') return { ...base, embed_url: saved.embed_url || '' };
-        return { ...base, items: Array.isArray(saved.items) ? saved.items : [] };
-      }),
+    const defByType = {};
+    LP_SECTION_DEFAULTS.forEach((d) => { defByType[d.type] = d; });
+    const merge = (def, saved) => {
+      const base = { type: def.type, enabled: !!saved.enabled, title: saved.title || def.title };
+      if (def.type === 'video')    return { ...base, url: saved.url || '' };
+      if (def.type === 'location') return { ...base, embed_url: saved.embed_url || '' };
+      return { ...base, items: Array.isArray(saved.items) ? saved.items : [] };
     };
-  } catch { return { sections: LP_SECTION_DEFAULTS.map((s) => ({ ...s })) }; }
+    const savedSecs = (Array.isArray(p.sections) ? p.sections : []).filter((s) => defByType[s.type]);
+    const savedTypes = new Set(savedSecs.map((s) => s.type));
+    const extra = LP_SECTION_DEFAULTS.filter((d) => !savedTypes.has(d.type))
+      .map((d) => merge(d, {}));
+    return { sections: [...savedSecs.map((s) => merge(defByType[s.type], s)), ...extra] };
+  } catch { return { sections: LP_SECTION_DEFAULTS.map((d) => ({ ...d, items: d.items ? [] : undefined })) }; }
 }
+
+let lpDragFrom = null;
 
 function renderLandingEditor() {
   const el = document.getElementById('landingEditor');
   if (!el) return;
-  el.innerHTML = landingConfig.sections.map((sec) => renderLpSection(sec)).join('');
+  el.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+      <button type="button" id="lpResetOrder" class="btn-link-muted" title="Volta à ordem original: Vídeo, Agenda, Localização, Patrocinadores, FAQ">redefinir ordem</button>
+    </div>
+    ${landingConfig.sections.map((sec) => renderLpSection(sec)).join('')}`;
+
+  document.getElementById('lpResetOrder').addEventListener('click', () => {
+    const order = LP_SECTION_DEFAULTS.map((d) => d.type);
+    landingConfig.sections.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
+    markDirty(); renderLandingEditor();
+  });
+
   el.querySelectorAll('.lp-ed-head').forEach((head) => {
     head.addEventListener('click', (e) => {
-      if (e.target.closest('input[type=checkbox]')) return;
+      if (e.target.closest('input[type=checkbox]') || e.target.closest('.lp-ed-drag')) return;
       head.closest('.lp-ed-section').classList.toggle('open');
     });
   });
@@ -425,15 +440,45 @@ function renderLandingEditor() {
       if (sec && sec.items[Number(idx)]) { sec.items[Number(idx)][field] = inp.value; markDirty(); }
     });
   });
+
+  // ---- Drag-and-drop para reordenar seções ----
+  el.querySelectorAll('.lp-ed-section[data-lp-type]').forEach((row) => {
+    const type = row.dataset.lpType;
+    row.addEventListener('dragstart', (e) => {
+      lpDragFrom = type; row.classList.add('lp-ed-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      lpDragFrom = null;
+      el.querySelectorAll('.lp-ed-section').forEach((r) => r.classList.remove('lp-ed-dragging', 'lp-ed-over'));
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      if (lpDragFrom && lpDragFrom !== type) row.classList.add('lp-ed-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('lp-ed-over'));
+    row.addEventListener('drop', (e) => {
+      e.preventDefault(); row.classList.remove('lp-ed-over');
+      if (!lpDragFrom || lpDragFrom === type) return;
+      const fromIdx = landingConfig.sections.findIndex((s) => s.type === lpDragFrom);
+      const toIdx   = landingConfig.sections.findIndex((s) => s.type === type);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const [moved] = landingConfig.sections.splice(fromIdx, 1);
+      landingConfig.sections.splice(toIdx, 0, moved);
+      lpDragFrom = null; markDirty(); renderLandingEditor();
+    });
+    row.querySelector('.lp-ed-drag')?.addEventListener('mousedown', (e) => e.stopPropagation());
+  });
 }
 
 function renderLpSection(sec) {
   const def = LP_SECTION_DEFAULTS.find((d) => d.type === sec.type) || {};
   const inner = renderLpSectionBody(sec);
   return `
-  <div class="lp-ed-section${sec.enabled ? ' open' : ''}" id="lp-sec-${sec.type}">
+  <div class="lp-ed-section${sec.enabled ? ' open' : ''}" data-lp-type="${sec.type}" draggable="true">
     <div class="lp-ed-head">
       <div class="lp-ed-head-label">
+        <span class="lp-ed-drag" title="Arraste para reordenar" aria-hidden="true">${DRAG}</span>
         <span>${def.emoji || ''} ${def.label || sec.type}</span>
       </div>
       <div style="display:flex;align-items:center;gap:14px">
