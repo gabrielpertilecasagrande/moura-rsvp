@@ -102,6 +102,7 @@ function eventCard(e) {
           <h3>${esc(e.name)}</h3>${statusPill}
         </div>
         <div class="meta">${e.event_date ? fmtDateBR(e.event_date) : 'Data a definir'}${e.location ? ' · ' + esc(e.location) : ''}</div>
+        <div style="margin-top:4px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">${e.source_event_id ? '<span class="origin-selo">◆ Moura One</span>' : ''}${e.ref_code ? `<span class="origin-ref">${esc(e.ref_code)}</span>` : ''}</div>
         <div style="margin-top:2px">${deadlineTag(e)}</div>
         <div class="nums">
           <span><b>${e.total_responses}</b> respostas</span>

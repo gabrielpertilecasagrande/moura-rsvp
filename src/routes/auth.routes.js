@@ -10,6 +10,7 @@ const { logActivity }               = require('../utils/activity');
 const { normalizeRole }             = require('../utils/permissions');
 const { uniqueSlug }                = require('../utils/slug');
 const { parseFormConfig }           = require('../utils/formConfig');
+const { genRefCode }                = require('../utils/refCode');
 const {
   findTenantByEmail,
   registerAdminEmail,
@@ -384,23 +385,23 @@ router.post('/provision-event', (req, res) => {
 
     // 1) Já vinculado pela origem (source_event_id) → atualiza.
     if (src) {
-      const ex = db.prepare('SELECT id, slug, name FROM events WHERE source_event_id = ? AND deleted_at IS NULL').get(src);
+      const ex = db.prepare('SELECT id, slug, name, ref_code FROM events WHERE source_event_id = ? AND deleted_at IS NULL').get(src);
       if (ex) {
         syncCore(ex.id);
         logActivity('integração (provision)', 'atualizou evento', String(b.name).trim());
-        return res.json({ id: ex.id, slug: ex.slug, public_url: publicUrl(ex), updated: true });
+        return res.json({ id: ex.id, slug: ex.slug, ref_code: ex.ref_code, public_url: publicUrl(ex), updated: true });
       }
     }
 
     // 2) Backfill: o Moura One conhece o ID deste evento no RSVP mas ainda não
     //    havia carimbado a origem → vincula (stamp) e atualiza, sem duplicar.
     if (knownId) {
-      const ex = db.prepare('SELECT id, slug, name, source_event_id FROM events WHERE id = ? AND deleted_at IS NULL').get(knownId);
+      const ex = db.prepare('SELECT id, slug, name, source_event_id, ref_code FROM events WHERE id = ? AND deleted_at IS NULL').get(knownId);
       if (ex) {
         if (src && !ex.source_event_id) db.prepare('UPDATE events SET source_event_id = ? WHERE id = ?').run(src, ex.id);
         syncCore(ex.id);
         logActivity('integração (provision)', 'vinculou e atualizou evento', String(b.name).trim());
-        return res.json({ id: ex.id, slug: ex.slug, public_url: publicUrl(ex), updated: true, linked: true });
+        return res.json({ id: ex.id, slug: ex.slug, ref_code: ex.ref_code, public_url: publicUrl(ex), updated: true, linked: true });
       }
     }
 
@@ -408,24 +409,26 @@ router.post('/provision-event', (req, res) => {
     const slug       = uniqueSlug(db, b.slug && String(b.slug).trim() ? b.slug : b.name);
     const formConfig = JSON.stringify(parseFormConfig(b.form_config));
 
+    // Evento criado pela integração é do Moura One → prefixo MO no código.
+    const refCode = genRefCode(db, 'MO');
     const info = db.prepare(`
       INSERT INTO events (slug, name, description, event_date, event_time, location, city, address,
         cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
-        expected_guests, whatsapp, whatsapp_enabled, force_open, form_config, source_event_id)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        expected_guests, whatsapp, whatsapp_enabled, force_open, form_config, source_event_id, ref_code)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     `).run(
       slug, String(b.name).trim(), b.description || null, b.event_date || null, b.event_time || null,
       b.location || null, b.city || null, b.address || null, null, null, b.rsvp_deadline || null, 'ativo',
       b.confirm_message || 'Olá, {nome}. Sua presença no evento foi confirmada com sucesso.',
       b.decline_message || 'Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.',
-      parseInt(b.expected_guests, 10) || 0, b.whatsapp || null, 1, 0, formConfig, src
+      parseInt(b.expected_guests, 10) || 0, b.whatsapp || null, 1, 0, formConfig, src, refCode
     );
 
-    const created = db.prepare('SELECT id, slug, name FROM events WHERE id = ?').get(info.lastInsertRowid);
+    const created = db.prepare('SELECT id, slug, name, ref_code FROM events WHERE id = ?').get(info.lastInsertRowid);
     registerEventSlug(created.slug, tenantSlug);
 
     logActivity('integração (provision)', 'criou evento', created.name);
-    res.status(201).json({ id: created.id, slug: created.slug, public_url: publicUrl(created) });
+    res.status(201).json({ id: created.id, slug: created.slug, ref_code: created.ref_code, public_url: publicUrl(created) });
   });
 });
 

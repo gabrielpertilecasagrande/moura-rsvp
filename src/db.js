@@ -57,6 +57,18 @@ function applyMigrations(db) {
   // seja IDEMPOTENTE: reenviar os dados ATUALIZA o evento em vez de duplicar.
   addColumn('events', 'source_event_id', 'TEXT');
   db.exec('CREATE INDEX IF NOT EXISTS idx_events_source ON events(source_event_id)');
+  // Código de referência curto/único do evento (logs, rastreio e diferenciação
+  // entre eventos do Moura One [MO-] e avulsos [AV-]). Backfill abaixo.
+  addColumn('events', 'ref_code', 'TEXT');
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_events_ref ON events(ref_code)');
+  {
+    const { genRefCode } = require('./utils/refCode');
+    const pending = db.prepare('SELECT id, source_event_id FROM events WHERE ref_code IS NULL OR ref_code = ?').all('');
+    if (pending.length) {
+      const upd = db.prepare('UPDATE events SET ref_code = ? WHERE id = ?');
+      for (const ev of pending) upd.run(genRefCode(db, ev.source_event_id ? 'MO' : 'AV'), ev.id);
+    }
+  }
   addColumn('audit_log', 'actor', 'TEXT');
   addColumn('participants', 'extra', 'TEXT');
   addColumn('participants', 'notes', 'TEXT');

@@ -713,6 +713,12 @@ textarea {
    MAPA VISUAL DE MESAS (admin event-detail)
    Visão gráfica das mesas: cartões coloridos por ocupação.
    ════════════════════════════════════════════════════════════════════════════ */
+/* Selo de origem (Moura One) + código de referência no cabeçalho do evento */
+.origin-selo { display: inline-block; font-size: 10px; font-weight: 800; background: var(--navy);
+  color: #fff; padding: 2px 8px; border-radius: 6px; letter-spacing: .03em; vertical-align: middle; }
+.origin-ref { display: inline-block; font-size: 11px; font-weight: 700; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #eef0f4; color: #4a5673; padding: 2px 7px; border-radius: 6px; letter-spacing: .04em; vertical-align: middle; }
+
 .mesa-map { margin-bottom: 28px; }
 .mesa-map.hidden { display: none; }
 .mesa-map-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }

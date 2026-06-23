@@ -25,6 +25,11 @@ async function loadEvent() {
   EVENT = await Api.get(`/api/events/${ID}`);
   document.getElementById('evName').textContent = EVENT.name;
   document.title = `${EVENT.name} — Moura RSVP`;
+  // Selo de origem (Moura One) + código de referência curto (logs/rastreio).
+  const eyebrow = document.getElementById('eyebrow');
+  if (eyebrow) {
+    eyebrow.innerHTML = `Evento${EVENT.source_event_id ? ' <span class="origin-selo">◆ Moura One</span>' : ''}${EVENT.ref_code ? ` <span class="origin-ref">${esc(EVENT.ref_code)}</span>` : ''}`;
+  }
   document.getElementById('evMeta').textContent =
     `${EVENT.event_date ? fmtDateBR(EVENT.event_date) : 'Data a definir'}${EVENT.event_time ? ' · ' + EVENT.event_time : ''}${EVENT.location ? ' · ' + EVENT.location : ''}`;
   document.getElementById('openPublic').href = EVENT.public_url;
