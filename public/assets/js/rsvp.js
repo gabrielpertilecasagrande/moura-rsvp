@@ -39,6 +39,8 @@ function whatsappButton(label) {
 }
 
 function render() {
+  if (EVENT.landing_enabled) { renderLanding(); return; }
+
   const e = EVENT;
   const cover = e.cover_image
     ? `<div class="rsvp-cover" style="background-image:url('${e.cover_image}')"></div>` : '';
@@ -74,6 +76,156 @@ function render() {
     return;
   }
   renderForm();
+}
+
+// ---- Landing Page Premium ----
+
+function toEmbedUrl(url) {
+  if (!url) return null;
+  const u = url.trim();
+  const yt = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = u.match(/vimeo\.com\/(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  if (/youtube\.com\/embed\/|player\.vimeo\.com\//.test(u)) return u;
+  return null;
+}
+
+function lpMetaItem(icon, text) {
+  if (!text) return '';
+  return `<div class="lp-hero-meta-item">${icon}<span>${esc(text)}</span></div>`;
+}
+
+function renderLanding() {
+  const e = EVENT;
+  const lc = e.landing_config || { sections: [] };
+  const sections = Array.isArray(lc.sections) ? lc.sections : [];
+  const byType = {};
+  sections.forEach((s) => { byType[s.type] = s; });
+
+  document.body.classList.add('lp-body');
+
+  const heroBg = e.cover_image ? `style="background-image:url('${e.cover_image}')"` : '';
+  const dateTxt = e.event_date ? fmtDateBR(e.event_date) : '';
+  const locationTxt = [e.location, e.city].filter(Boolean).join(' · ');
+
+  root.innerHTML = `
+    <div class="lp-page">
+      <section class="lp-hero" ${heroBg}>
+        <div class="lp-hero-inner">
+          ${e.client_logo ? `<img class="lp-hero-logo" src="${e.client_logo}" alt="" />` : ''}
+          <div class="lp-hero-eyebrow">Confirmação de presença</div>
+          <h1 class="lp-hero-title">${esc(e.name)}</h1>
+          <div class="lp-hero-meta">
+            ${lpMetaItem(ICON.cal, dateTxt)}
+            ${lpMetaItem(ICON.clock, e.event_time)}
+            ${lpMetaItem(ICON.pin, locationTxt)}
+          </div>
+          <a href="#lp-rsvp" class="lp-hero-cta">Confirmar Presença</a>
+        </div>
+      </section>
+
+      <div class="lp-sections">
+        <section class="lp-section" id="lp-rsvp">
+          <div class="lp-rsvp-card">
+            ${e.description ? `<p class="lp-rsvp-desc">${esc(e.description)}</p>` : ''}
+            <div id="form-slot"></div>
+          </div>
+        </section>
+        ${renderLpSections(byType)}
+      </div>
+
+      <footer class="lp-footer rsvp-footer">
+        <img class="footer-logo" src="/assets/img/logo-moura.png" alt="Moura" />
+        <div class="footer-title">Plataforma de Confirmação de Presença</div>
+        <div class="footer-links">
+          <a href="/legal.html#privacy" target="_blank" rel="noopener">Política de Privacidade</a> ·
+          <a href="/legal.html#terms" target="_blank" rel="noopener">Termos de Uso</a>
+        </div>
+      </footer>
+    </div>`;
+
+  if (e.closed) {
+    document.getElementById('form-slot').innerHTML = `
+      <div class="divider"></div>
+      <div class="closed-box">
+        <h2>Confirmações encerradas</h2>
+        <p class="muted">${e.closed_reason === 'prazo'
+          ? 'O prazo para confirmar presença foi encerrado.'
+          : 'Este evento não está recebendo confirmações no momento.'}</p>
+        ${whatsappButton('Falar com a organização')}
+      </div>`;
+    return;
+  }
+  renderForm();
+  initFaq();
+}
+
+function renderLpSections(byType) {
+  const order = ['video', 'agenda', 'location', 'sponsors', 'faq'];
+  return order.map((type) => {
+    const sec = byType[type];
+    if (!sec || !sec.enabled) return '';
+    const title = sec.title ? `<h2 class="lp-section-title">${esc(sec.title)}</h2>` : '';
+    if (type === 'video') {
+      const embed = toEmbedUrl(sec.url);
+      if (!embed) return '';
+      return `<section class="lp-section">${title}
+        <div class="lp-video-wrap"><iframe src="${esc(embed)}" allowfullscreen loading="lazy"></iframe></div>
+      </section>`;
+    }
+    if (type === 'agenda') {
+      const items = (sec.items || []).filter((it) => it.title);
+      if (!items.length) return '';
+      const rows = items.map((it) => `
+        <div class="lp-timeline-item">
+          <span class="lp-timeline-time">${esc(it.time || '')}</span>
+          <div class="lp-timeline-dot"></div>
+          <div class="lp-timeline-body">
+            <strong>${esc(it.title)}</strong>
+            ${it.description ? `<p>${esc(it.description)}</p>` : ''}
+          </div>
+        </div>`).join('');
+      return `<section class="lp-section">${title}<div class="lp-timeline">${rows}</div></section>`;
+    }
+    if (type === 'location') {
+      if (!sec.embed_url) return '';
+      return `<section class="lp-section">${title}
+        <div class="lp-map-wrap"><iframe src="${esc(sec.embed_url)}" allowfullscreen loading="lazy"></iframe></div>
+      </section>`;
+    }
+    if (type === 'sponsors') {
+      const items = (sec.items || []).filter((it) => it.name || it.logo_url);
+      if (!items.length) return '';
+      const cards = items.map((it) => {
+        const inner = it.logo_url
+          ? `<img src="${esc(it.logo_url)}" alt="${esc(it.name)}" />`
+          : `<span class="lp-sponsor-name">${esc(it.name)}</span>`;
+        return it.website
+          ? `<a class="lp-sponsor-card" href="${esc(it.website)}" target="_blank" rel="noopener">${inner}${it.logo_url && it.name ? `<span class="lp-sponsor-name">${esc(it.name)}</span>` : ''}</a>`
+          : `<div class="lp-sponsor-card">${inner}</div>`;
+      }).join('');
+      return `<section class="lp-section">${title}<div class="lp-sponsors-grid">${cards}</div></section>`;
+    }
+    if (type === 'faq') {
+      const items = (sec.items || []).filter((it) => it.question);
+      if (!items.length) return '';
+      const chevron = '<svg class="lp-faq-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>';
+      const rows = items.map((it, i) => `
+        <div class="lp-faq-item" data-faq="${i}">
+          <div class="lp-faq-q">${esc(it.question)}${chevron}</div>
+          <div class="lp-faq-a">${esc(it.answer || '')}</div>
+        </div>`).join('');
+      return `<section class="lp-section">${title}<div class="lp-faq">${rows}</div></section>`;
+    }
+    return '';
+  }).join('');
+}
+
+function initFaq() {
+  document.querySelectorAll('.lp-faq-q').forEach((q) => {
+    q.addEventListener('click', () => q.closest('.lp-faq-item').classList.toggle('open'));
+  });
 }
 
 // Renderiza um campo configurável (builtin → name=chave; personalizado → data-ckey*).

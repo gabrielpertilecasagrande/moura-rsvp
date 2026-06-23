@@ -102,6 +102,8 @@ function applyMigrations(db) {
   // Toggles por evento: habilitam o recurso de mesas e de categorias no check-in.
   addColumn('events', 'has_tables',     'INTEGER DEFAULT 0');
   addColumn('events', 'use_categories', 'INTEGER DEFAULT 0');
+  addColumn('events', 'landing_enabled', 'INTEGER DEFAULT 0');
+  addColumn('events', 'landing_config',  "TEXT DEFAULT '{}'"  );
   db.exec(`
     CREATE TABLE IF NOT EXISTS checkin_tables (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
