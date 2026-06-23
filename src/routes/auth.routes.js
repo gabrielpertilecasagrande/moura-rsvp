@@ -318,11 +318,14 @@ router.post('/sync-user', (req, res) => {
   if (!secret || !token || !safeEqual(token, secret)) {
     return res.status(401).json({ error: 'Não autorizado.' });
   }
-  const { name, email, role, status, deleted } = req.body || {};
+  const { name, email, role, status, deleted, password_hash } = req.body || {};
   if (!email) return res.status(400).json({ error: 'E-mail obrigatório.' });
   const mail = String(email).toLowerCase().trim();
   const r    = normalizeRole(role);
   const n    = name ? String(name).trim() : mail;
+  // Senha única: o Moura One pode enviar o hash bcrypt da senha para que a mesma
+  // senha valha aqui. Aceita só hash bcrypt válido (nunca senha em texto puro).
+  const pwHash = (typeof password_hash === 'string' && /^\$2[aby]\$/.test(password_hash)) ? password_hash : null;
   // Espelha a situação vinda do Moura One. 'deleted' revoga o acesso (inativo).
   // Mapeamento: ativo→ativo, bloqueado→bloqueado, demais (inativo/recusado/
   // pendente)→inativo. Assim bloquear/excluir lá também bloqueia o login aqui.
@@ -339,19 +342,22 @@ router.post('/sync-user', (req, res) => {
   const tenantDb = openTenantDb(DEFAULT_TENANT);
   const existing = tenantDb.prepare('SELECT id FROM admins WHERE email = ?').get(mail);
   if (existing) {
-    if (newStatus) {
-      tenantDb.prepare('UPDATE admins SET name = ?, role = ?, status = ? WHERE email = ?').run(n, r, newStatus, mail);
-    } else {
-      tenantDb.prepare('UPDATE admins SET name = ?, role = ? WHERE email = ?').run(n, r, mail);
-    }
+    // Monta o UPDATE incluindo status e/ou senha apenas quando informados.
+    const sets = ['name = ?', 'role = ?'];
+    const vals = [n, r];
+    if (newStatus) { sets.push('status = ?'); vals.push(newStatus); }
+    if (pwHash && !deleted) { sets.push('password_hash = ?'); vals.push(pwHash); }
+    vals.push(mail);
+    tenantDb.prepare(`UPDATE admins SET ${sets.join(', ')} WHERE email = ?`).run(...vals);
     const act = deleted ? 'revogou usuário' : 'atualizou usuário';
     runWithDb(DEFAULT_TENANT, () => logActivity('integração (sync)', act, mail));
     return res.json({ ok: true, action: deleted ? 'revoked' : 'updated' });
   }
   // Pedido de exclusão para conta inexistente aqui: nada a fazer.
   if (deleted) return res.json({ ok: true, action: 'noop' });
-  const randomPwd = crypto.randomBytes(32).toString('hex');
-  const hash = bcrypt.hashSync(randomPwd, 10);
+  // Usa o hash enviado (senha única) ou, na falta, uma senha aleatória — o
+  // acesso real virá por SSO ou por "Esqueci a senha".
+  const hash = pwHash || bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   tenantDb.prepare(
     'INSERT INTO admins (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)'
   ).run(n, mail, hash, r, newStatus || 'ativo');
