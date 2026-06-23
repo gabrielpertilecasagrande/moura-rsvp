@@ -738,14 +738,25 @@ textarea {
 .mesa-legend .lg.near { background: #e6a700; }
 .mesa-legend .lg.over { background: var(--danger); }
 
+.mesa-drag-hint { font-size: 11.5px; color: #127a83; font-style: italic; }
+
 .mesa-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-.mesa-card { text-align: left; border: 1px solid var(--gray); border-radius: 14px; padding: 13px;
-  background: #fff; cursor: pointer; transition: transform .12s, box-shadow .12s, border-color .12s; font: inherit; }
+
+/* Zona de drop — div que envolve o cartão */
+.mesa-drop { border-radius: 14px; transition: outline .1s; }
+.mesa-drop.mesa-drop-over { outline: 2px dashed var(--cyan); outline-offset: 2px; }
+
+/* Cartão visual (agora é um <div>, o botão fica dentro) */
+.mesa-card { border: 1px solid var(--gray); border-radius: 14px; background: #fff;
+  transition: transform .12s, box-shadow .12s, border-color .12s; overflow: hidden; }
 .mesa-card:hover { transform: translateY(-2px); box-shadow: var(--shadow, 0 6px 18px rgba(0,0,0,.08)); }
 .mesa-card.tone-free { border-left: 5px solid #2bb673; }
 .mesa-card.tone-near { border-left: 5px solid #e6a700; background: #fdfaf0; }
 .mesa-card.tone-over { border-left: 5px solid var(--danger); background: #fcecea; }
 .mesa-card.tone-na   { border-style: dashed; }
+/* Botão interno (clicável) — herda tamanho do cartão */
+.mesa-card .mc-inner { display: block; width: 100%; text-align: left; padding: 13px;
+  background: none; border: none; cursor: pointer; font: inherit; }
 .mesa-card .mc-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
 .mesa-card .mc-name { font-weight: 700; font-size: 14px; color: var(--navy); }
 .mesa-card .mc-flag { font-size: 9px; font-weight: 800; background: var(--danger); color: #fff;
@@ -766,10 +777,21 @@ textarea {
 .mesa-guest { display: flex; align-items: center; justify-content: space-between; gap: 10px;
   border: 1px solid var(--gray); border-radius: 10px; padding: 9px 12px; font-size: 13.5px; }
 .mesa-guest.present { border-color: #bfe6cf; background: #f3fbf6; }
+.mesa-guest.draggable-guest { cursor: grab; }
+.mesa-guest.draggable-guest:active { cursor: grabbing; opacity: .7; }
 .mesa-guest .mg-name { font-weight: 600; color: var(--charcoal, #28282A); }
 .mesa-guest .mg-co { color: var(--muted); font-weight: 400; }
 .mesa-guest .mg-tag { font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
 .mesa-guest.present .mg-tag { color: #1f9d63; }
+.mesa-guest .mg-mv { padding: 4px 8px; font-size: 11.5px; }
+
+/* Configuração de mesas (modal) */
+.mc-gen-row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-bottom: 4px; }
+.mc-row { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 10px; border: 1px solid var(--gray-soft); border-radius: 10px; background: var(--off-white); }
+.mc-row-name { font-weight: 600; font-size: 14px; color: var(--navy); }
+.mc-add-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+.mc-add-row input { flex: 1; min-width: 100px; }
 
 @media (max-width: 560px) {
   .mesa-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); }
