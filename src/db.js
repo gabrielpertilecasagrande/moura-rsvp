@@ -131,6 +131,22 @@ function applyMigrations(db) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_checkin_tables_event     ON checkin_tables(event_id)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_checkin_categories_event ON checkin_categories(event_id)');
 
+  // Categorias de convidados no RSVP (VIP, Imprensa, etc.) — por evento.
+  // Separadas das checkin_categories (usadas pelo módulo de check-in).
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS rsvp_categories (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id   INTEGER NOT NULL,
+      name       TEXT    NOT NULL,
+      color      TEXT    DEFAULT '#2C427E',
+      sort_order INTEGER DEFAULT 0,
+      created_at TEXT    NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+    );
+  `);
+  db.exec('CREATE INDEX IF NOT EXISTS idx_rsvp_cats_event ON rsvp_categories(event_id)');
+  addColumn('participants', 'guest_category_id', 'INTEGER');
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS data_erasures (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,

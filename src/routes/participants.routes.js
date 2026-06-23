@@ -55,27 +55,35 @@ function findDup(eventId, { email, phone, normalized }) {
 const router = express.Router({ mergeParams: true });
 router.use(requireAuth);
 
-// Monta a consulta de participantes respeitando filtro de status e busca por nome.
-function queryParticipants(eventId, { filter, q, ids }) {
-  let sql = 'SELECT * FROM participants WHERE event_id = ? AND deleted_at IS NULL';
+// Monta a consulta de participantes respeitando filtros de status, categoria e busca.
+function queryParticipants(eventId, { filter, q, ids, category }) {
+  let sql = `
+    SELECT p.*, rc.name AS guest_category_name, rc.color AS guest_category_color
+    FROM participants p
+    LEFT JOIN rsvp_categories rc ON rc.id = p.guest_category_id
+    WHERE p.event_id = ? AND p.deleted_at IS NULL`;
   const params = [eventId];
   if (filter === 'confirmado' || filter === 'recusado') {
-    sql += ' AND response = ?';
+    sql += ' AND p.response = ?';
     params.push(filter);
   }
+  if (category && String(category).trim()) {
+    sql += ' AND p.guest_category_id = ?';
+    params.push(Number(category));
+  }
   if (q && q.trim()) {
-    sql += ' AND name LIKE ?';
+    sql += ' AND p.name LIKE ?';
     params.push(`%${q.trim()}%`);
   }
   // Exportar selecionados: lista de ids separada por vírgula.
   if (ids && String(ids).trim()) {
     const list = String(ids).split(',').map((n) => parseInt(n, 10)).filter(Boolean);
     if (list.length) {
-      sql += ` AND id IN (${list.map(() => '?').join(',')})`;
+      sql += ` AND p.id IN (${list.map(() => '?').join(',')})`;
       params.push(...list);
     }
   }
-  sql += ' ORDER BY name COLLATE NOCASE ASC';
+  sql += ' ORDER BY p.name COLLATE NOCASE ASC';
   return db.prepare(sql).all(...params);
 }
 
@@ -189,6 +197,9 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   const phone = b.phone != null ? String(b.phone).trim() : p.phone;
   let response = p.response;
   if (b.response === 'confirmado' || b.response === 'recusado') response = b.response;
+  const guestCatId = b.guest_category_id !== undefined
+    ? (b.guest_category_id ? Number(b.guest_category_id) : null)
+    : p.guest_category_id;
 
   const normalized = normalizeName(name);
   // Verifica conflito de nome com OUTRO participante do mesmo evento.
@@ -224,9 +235,9 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   db.prepare(
     `UPDATE participants
        SET name = ?, name_normalized = ?, company = ?, role = ?, email = ?, phone = ?, response = ?,
-           extra = ?, notes = ?, updated_at = datetime('now')
+           extra = ?, notes = ?, guest_category_id = ?, updated_at = datetime('now')
      WHERE id = ?`
-  ).run(name, normalized, company, role, email, phone, response, extraJson, notes, pid);
+  ).run(name, normalized, company, role, email, phone, response, extraJson, notes, guestCatId, pid);
 
   const { ip: editIp, ua: editUa } = getReqMeta(req);
   db.prepare(
