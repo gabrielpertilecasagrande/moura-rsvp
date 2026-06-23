@@ -1,6 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const fs   = require('fs');
+const push = require('./src/utils/push');
 
 // ── Parâmetros do tenant padrão (organização inicial / Moura) ─────────────────
 const DEFAULT_TENANT_SLUG = process.env.DEFAULT_TENANT_SLUG || 'moura';
@@ -125,6 +126,7 @@ app.use('/api/lgpd',                                        require('./src/route
 app.use('/api/trash',                                       require('./src/routes/trash.routes'));
 app.use('/api/checkin',                                     require('./src/routes/checkin.routes'));
 app.use('/api/admin/checkin',                               require('./src/routes/checkin-admin.routes'));
+app.use('/api/push',                                        require('./src/routes/push.routes'));
 
 // ── Subdomínio de check-in (ex.: checkin.mouracom.com.br) ─────────────────────
 // Quando CHECKIN_DOMAIN está definido, o SPA de check-in é servido na raiz do
@@ -146,6 +148,17 @@ if (CHECKIN_DOMAIN) {
 }
 
 // ── Páginas ────────────────────────────────────────────────────────────────────
+app.get('/sw.js', (_req, res) => {
+  res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  res.setHeader('Service-Worker-Allowed', '/');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.sendFile(path.join(__dirname, 'public', 'sw.js'));
+});
+app.get('/offline.html', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'offline.html')));
+app.get('/manifest.webmanifest', (_req, res) => {
+  res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+  res.sendFile(path.join(__dirname, 'public', 'manifest.webmanifest'));
+});
 app.get('/', (_req, res) => res.redirect('/admin/login.html'));
 app.get('/admin', (_req, res) => res.redirect('/admin/login.html'));
 app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
@@ -192,4 +205,6 @@ app.listen(PORT, () => {
   // Robô diário da Lixeira: apaga definitivamente itens guardados há mais de 90 dias.
   try { require('./src/utils/trash').scheduleTrashCleanup(); }
   catch (e) { console.error('[trash] não foi possível agendar a limpeza:', e.message); }
+
+  try { push.init(); } catch (e) { console.error('[push] falha ao inicializar:', e.message); }
 });
