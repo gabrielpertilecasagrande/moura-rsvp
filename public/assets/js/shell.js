@@ -46,6 +46,7 @@ function renderShell(active) {
     </div>
     <nav>${nav}</nav>
     <div class="spacer"></div>
+    <div id="sideQuickLinks"></div>
     <div class="side-foot">
       <div class="side-user">
         <span class="side-avatar">${esc(initials || '?')}</span>
@@ -77,6 +78,22 @@ function mountShell(active) {
 
   // Notificação: solicitações de acesso pendentes (apenas administradores).
   if (currentRole() === 'admin') refreshPendingBadge();
+
+  // Links de acesso rápido a outras plataformas (Moura One e Check-in).
+  loadSideQuickLinks();
+}
+
+async function loadSideQuickLinks() {
+  const slot = document.getElementById('sideQuickLinks');
+  if (!slot) return;
+  let cfg = {};
+  try { cfg = await Api.get('/api/public/app-config'); } catch { /* sem config → links ocultos */ }
+  const links = [
+    cfg.moura_one_url ? `<a href="${cfg.moura_one_url}/admin/dashboard.html" target="_blank" rel="noopener" class="side-quick-link">◆ Moura One</a>` : '',
+    cfg.checkin_url   ? `<a href="${cfg.checkin_url}"                        target="_blank" rel="noopener" class="side-quick-link">📱 Check-in</a>` : '',
+  ].filter(Boolean).join('');
+  if (!links) return;
+  slot.innerHTML = `<div class="side-quick"><div class="side-quick-label">Acesso rápido</div>${links}</div>`;
 }
 
 // ---- Selo de notificação de solicitações de acesso pendentes ----
