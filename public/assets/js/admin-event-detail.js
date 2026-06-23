@@ -49,11 +49,6 @@ async function setupQuickLinks() {
     moBtn.href = `${cfg.moura_one_url}/admin/event-detail.html?id=${encodeURIComponent(EVENT.source_event_id)}`;
     moBtn.style.display = '';
   }
-  const ciBtn = document.getElementById('checkinBtn');
-  if (ciBtn && cfg.checkin_url) {
-    ciBtn.href = cfg.checkin_url;
-    ciBtn.style.display = '';
-  }
 }
 
 // Verifica se o prazo passou (apenas data).

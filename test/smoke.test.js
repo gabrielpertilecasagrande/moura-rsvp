@@ -148,38 +148,6 @@ test('imagem do QR retorna PNG válido', async () => {
   assert.deepEqual([...buf.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47]);
 });
 
-test('check-in: lookup pelo QR encontra o convidado e o registro é idempotente', async () => {
-  const token = await adminToken();
-  const slug = `smoke-checkin-${SUFFIX}`;
-  await json('/api/events', {
-    method: 'POST', token,
-    body: { name: 'Evento Checkin', slug, event_date: '2026-12-01', location: 'Hall' },
-  });
-  const rsvp = await json(`/api/public/events/${slug}/rsvp`, {
-    method: 'POST',
-    body: {
-      name: 'Carlos Checkin', email: `carlos-${SUFFIX}@teste.com`, response: 'confirmado',
-      accepted_terms: true, accepted_privacy_policy: true, accepted_data_processing: true,
-    },
-  });
-  const qr = rsvp.data.qr_token;
-  assert.ok(qr);
-
-  const lookup = await json(`/api/checkin/lookup?qr=${qr}`, { token });
-  assert.equal(lookup.status, 200);
-  assert.equal(lookup.data.name, 'Carlos Checkin');
-  const pid = lookup.data.id;
-
-  const first = await json('/api/checkin/register', { method: 'POST', token, body: { participant_id: pid } });
-  assert.equal(first.status, 200);
-  assert.equal(first.data.already_checked_in, false);
-
-  const second = await json('/api/checkin/register', { method: 'POST', token, body: { participant_id: pid } });
-  assert.equal(second.status, 200);
-  assert.equal(second.data.already_checked_in, true, 'segundo registro deve ser idempotente');
-  assert.equal(second.data.checked_in_at, first.data.checked_in_at);
-});
-
 test('provisionamento via serviço (Moura One) cria evento com o segredo compartilhado', async () => {
   const slug = `smoke-prov-${SUFFIX}`;
   const ok = await json('/api/auth/provision-event', {
