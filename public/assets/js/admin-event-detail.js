@@ -486,19 +486,16 @@ function showUndo(message, onUndo) {
   el._t = setTimeout(hide, 5000);
 }
 
-// ---- Excluir participante com desfazer (a remoção só efetiva após 5s) ----
-function deleteParticipant(pid) {
+// ---- Excluir participante ----
+async function deleteParticipant(pid) {
   const p = LAST_LIST.find((x) => x.id === pid);
   if (!p) return;
-  let undone = false;
-  LAST_LIST = LAST_LIST.filter((x) => x.id !== pid);
-  renderRows(LAST_LIST);
-  const timer = setTimeout(async () => {
-    if (undone) return;
-    try { await Api.del(`/api/events/${ID}/participants/${pid}`); } catch (e) { toast(e.message); }
+  if (!confirm(`Remover "${p.name}"? Esta ação não pode ser desfeita.`)) return;
+  try {
+    await Api.del(`/api/events/${ID}/participants/${pid}`);
+    toast(`${p.name} removido.`);
     loadParticipants();
-  }, 5000);
-  showUndo(`${p.name} removido.`, () => { undone = true; clearTimeout(timer); loadParticipants(); });
+  } catch (e) { toast(e.message); }
 }
 
 // ---- Duplicar evento ----
