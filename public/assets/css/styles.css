@@ -377,6 +377,47 @@ tbody tr:hover { background: var(--off-white); }
 .closed-box { text-align: center; padding: 36px 20px; }
 .closed-box h2 { font-size: 22px; margin-bottom: 8px; }
 
+/* Contagem regressiva */
+.rsvp-countdown {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  margin: 18px 0 4px; padding: 12px 16px;
+  background: var(--off-white); border-radius: var(--radius-sm);
+  border: 1px solid var(--gray-soft);
+}
+.rsvp-countdown-warn {
+  background: #fef9ec; border-color: #f5dfa0;
+}
+.cd-label {
+  font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em;
+  color: var(--muted); white-space: nowrap; margin-right: 2px;
+}
+.rsvp-countdown-warn .cd-label { color: #8a6200; }
+.cd-unit {
+  display: inline-flex; align-items: baseline; gap: 2px;
+}
+.cd-unit strong {
+  font-family: var(--display); font-size: 20px; font-weight: 700; line-height: 1;
+  color: var(--navy); font-variant-numeric: tabular-nums;
+}
+.rsvp-countdown-warn .cd-unit strong { color: #a06500; }
+.cd-unit em {
+  font-style: normal; font-size: 11px; font-weight: 600; color: var(--muted);
+  text-transform: lowercase; letter-spacing: .03em;
+}
+
+/* Botões de ação (Google Agenda / Mapa) */
+.rsvp-actions {
+  display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 4px;
+}
+.btn-action {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 8px 16px; border-radius: 999px; font-size: 13px; font-weight: 600;
+  border: 1.5px solid var(--gray); background: var(--white); color: var(--navy);
+  text-decoration: none; transition: border-color .14s, background .14s, color .14s;
+  line-height: 1;
+}
+.btn-action:hover { border-color: var(--navy); background: var(--off-white); }
+
 .rsvp-footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 26px; }
 .rsvp-footer .footer-links { margin: 10px 0; font-size: 12px; line-height: 1.8; }
 .rsvp-footer .footer-links a { color: var(--navy); text-decoration: none; }
