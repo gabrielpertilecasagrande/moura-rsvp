@@ -148,4 +148,24 @@ router.get('/events/:id/stats', (req, res) => {
   });
 });
 
+// ── GET /api/admin/checkin/events/:id/guests ──────────────────────────────────
+// FONTE da sincronização: entrega a lista de convidados CONFIRMADOS de um evento
+// para o serviço externo de Check-in (moura-checkin) espelhar no banco próprio.
+// O RSVP continua sendo o "dono" da confirmação — este endpoint apenas fornece.
+// Autenticado por requireServiceOrAuth (service token target:'rsvp' ou sessão).
+router.get('/events/:id/guests', (req, res) => {
+  const eventId = Number(req.params.id);
+  const ev = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(eventId);
+  if (!ev) return res.status(404).json({ error: 'Evento não encontrado.' });
+
+  const guests = db.prepare(`
+    SELECT id, name, company, role, email, phone
+    FROM participants
+    WHERE event_id = ? AND response = 'confirmado' AND deleted_at IS NULL
+    ORDER BY name COLLATE NOCASE ASC
+  `).all(eventId);
+
+  res.json({ event_id: eventId, total: guests.length, participants: guests });
+});
+
 module.exports = router;
