@@ -23,8 +23,8 @@ const PERMS = [
 ];
 const PERM_KEYS = PERMS.map((p) => p.key);
 
-const ROLES = ['admin', 'gestor', 'operador'];
-const ROLE_LABELS = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador', editor: 'Gestor de Eventos' };
+const ROLES = ['admin', 'gestor', 'operador', 'cliente'];
+const ROLE_LABELS = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador', cliente: 'Cliente', editor: 'Gestor de Eventos' };
 
 // Normaliza papéis antigos ('editor') para o novo modelo.
 function normalizeRole(role) {
@@ -33,9 +33,16 @@ function normalizeRole(role) {
 }
 
 // Permissões padrão sugeridas ao liberar um evento para um usuário ("aplicar padrão").
-// Regra: marca todas as permissões, EXCETO duplicar e excluir evento (ações sensíveis).
 function defaultPermsForRole(role) {
   const out = {};
+  if (normalizeRole(role) === 'cliente') {
+    // Cliente: apenas visualizar evento e lista de participantes por padrão.
+    for (const k of PERM_KEYS) out[k] = 0;
+    out.can_view = 1;
+    out.can_participants = 1;
+    return out;
+  }
+  // Gestor / Operador: todas exceto duplicar e excluir (ações sensíveis).
   for (const k of PERM_KEYS) out[k] = 1;
   out.can_duplicate = 0;
   out.can_delete = 0;
