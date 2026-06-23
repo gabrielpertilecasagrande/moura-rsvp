@@ -1645,12 +1645,11 @@ function modalImport(){
     <div id="importPreview"></div>`);
 }
 function renderImportPreview(rows,cols){
-  const show=rows.slice(0,5);
   let t=`<table class="preview-tbl"><tr><th>Nome</th>${cols.table?'<th>Mesa</th>':''}${cols.category?'<th>Categoria</th>':''}${cols.company?'<th>Empresa</th>':''}</tr>`;
-  show.forEach(r=>{ t+=`<tr><td>${esc(r.name)}</td>${cols.table?'<td>'+esc(r.table)+'</td>':''}${cols.category?'<td>'+esc(r.categoryName||'')+(r.categoryName&&!r.category_id?' <span style="color:var(--danger)">(?)</span>':'')+'</td>':''}${cols.company?'<td>'+esc(r.company)+'</td>':''}</tr>`; });
+  rows.forEach(r=>{ t+=`<tr><td>${esc(r.name)}</td>${cols.table?'<td>'+esc(r.table)+'</td>':''}${cols.category?'<td>'+esc(r.categoryName||'')+(r.categoryName&&!r.category_id?' <span style="color:var(--danger)">(?)</span>':'')+'</td>':''}${cols.company?'<td>'+esc(r.company)+'</td>':''}</tr>`; });
   t+=`</table>`;
   const warn=cols.category&&rows.some(r=>r.categoryName&&!r.category_id)?'<div style="font-size:12px;color:var(--danger);margin-top:6px">Itens com (?) têm categoria que não existe no evento — serão importados sem categoria. Crie a categoria antes, se necessário.</div>':'';
-  $('#importPreview').innerHTML=`<div style="margin-top:14px;font-weight:600;font-size:14px">${rows.length} convidados detectados</div>${t}${warn}${rows.length>5?'<div style="font-size:12px;color:var(--ink-soft);margin-top:4px">...e mais '+(rows.length-5)+'</div>':''}<button class="btn btn-primary btn-block" style="margin-top:14px" onclick="confirmImport()">Importar ${rows.length} convidados</button>`;
+  $('#importPreview').innerHTML=`<div style="margin-top:14px;font-weight:600;font-size:14px">${rows.length} convidados detectados</div><div style="max-height:240px;overflow-y:auto;border:1px solid #efefef;border-radius:6px;margin-top:6px">${t}</div>${warn}<button class="btn btn-primary btn-block" style="margin-top:14px" onclick="confirmImport()">Importar ${rows.length} convidados</button>`;
 }
 
 function modalExport(){
