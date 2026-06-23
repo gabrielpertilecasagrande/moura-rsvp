@@ -149,11 +149,11 @@ input:focus, textarea:focus, select:focus {
     radial-gradient(120% 55% at 0% 100%, rgba(0,194,184,.10) 0%, rgba(0,194,184,0) 60%),
     linear-gradient(180deg, #0E1B3D 0%, #0A1228 100%); }
 .logo-mo { font-family: var(--display-soft); font-weight: 800; font-size: 26px; line-height: 1;
-  display: inline-flex; align-items: center; text-decoration: none; }
+  letter-spacing: -.02em; display: inline-flex; align-items: baseline; text-decoration: none; }
 .logo-mo .lm { color: #fff; }
 .logo-mo .lo { color: var(--cyan); position: relative; margin-left: .14em; }
 .logo-mo .lo::before { content: ''; position: absolute; top: -.30em; left: .04em; width: .26em; height: .26em;
-  border-radius: 50%; background: var(--cyan); }
+  border-radius: 50% 50% 50% 0; transform: rotate(45deg); background: var(--cyan); }
 .logo-tag { font-family: var(--body); font-size: 10.5px; color: #8aa0c7; letter-spacing: .01em; margin-top: 7px; }
 .sidebar .brand { padding: 4px 6px 0; margin-bottom: 22px; }
 .sidebar .logo-mo { font-size: 21px; }
@@ -168,7 +168,10 @@ input:focus, textarea:focus, select:focus {
 .sidebar nav a { position: relative; color: #c2cde6; text-decoration: none; padding: 10px 13px; border-radius: 9px;
   font-weight: 500; font-size: 14px; transition: background .14s, color .14s; }
 .sidebar nav a:hover { background: rgba(255,255,255,.06); color: #fff; }
-.sidebar nav a.active { background: var(--cyan); color: var(--navy-deep); font-weight: 600; }
+.sidebar nav a.active { color: #fff; font-weight: 600;
+  background: linear-gradient(90deg, var(--navy) 0%, rgba(21,44,107,.55) 100%); }
+.sidebar nav a.active::after { content: ''; position: absolute; left: 0; top: 7px; bottom: 7px; width: 3px;
+  border-radius: 0 3px 3px 0; background: var(--cyan); box-shadow: 0 0 10px rgba(0,194,184,.7); }
 .side-foot { border-top: 1px solid rgba(255,255,255,.12); padding-top: 14px; }
 .side-user { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .side-avatar { width: 34px; height: 34px; border-radius: 50%; background: var(--cyan); color: var(--navy-deep);
@@ -722,7 +725,7 @@ tbody tr:hover { background: var(--off-white); }
 /* ---- Botão "Minha conta" na barra lateral ---- */
 .side-account { display: block; width: 100%; margin-bottom: 8px; padding: 9px 12px;
   border: 1px solid rgba(255,255,255,.22); background: transparent; color: rgba(255,255,255,.85);
-  border-radius: 8px; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: center;
+  border-radius: 8px; font-size: 13.5px; font-weight: 500; cursor: pointer; text-align: center; text-decoration: none;
   transition: background .15s, border-color .15s; }
 .side-account:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.4); color: #fff; }
 
