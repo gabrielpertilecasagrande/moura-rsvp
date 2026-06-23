@@ -1136,6 +1136,14 @@ textarea {
 .btn-link-muted { background: none; border: none; padding: 0; font-size: 12px; color: var(--muted);
   cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .btn-link-muted:hover { color: var(--navy); }
+.lp-preview-modal { position: fixed; inset: 0; z-index: 9999; display: flex; flex-direction: column; background: #000; }
+.lp-preview-bar { flex-shrink: 0; height: 46px; background: #12192e; color: #fff; display: flex; align-items: center;
+  justify-content: space-between; padding: 0 18px; font-size: 13px; }
+.lp-preview-bar > span { opacity: .65; }
+.lp-preview-close { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.22); color: #fff;
+  padding: 5px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.lp-preview-close:hover { background: rgba(255,255,255,.2); }
+.lp-preview-frame { flex: 1; border: none; background: #f0f2f7; }
 
 @media (max-width: 600px) {
   .lp-hero { min-height: 92svh; }
