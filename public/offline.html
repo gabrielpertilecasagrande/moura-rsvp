@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#152C6B" />
+  <title>Sem conexão — Moura RSVP</title>
+  <link rel="icon" href="/assets/img/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/assets/img/favicon-32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/assets/img/favicon-16.png" />
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="stylesheet" href="/assets/css/styles.css" />
+</head>
+<body style="display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px">
+  <div class="card" style="max-width:440px;text-align:center">
+    <div style="font-size:46px;margin-bottom:10px">📡</div>
+    <h1 style="font-size:22px;margin-bottom:8px">Você está sem conexão</h1>
+    <p class="muted" style="font-size:14px;line-height:1.6;margin-bottom:18px">
+      Não foi possível carregar esta página agora. Verifique sua internet —
+      as telas já visitadas continuam disponíveis offline.
+    </p>
+    <button class="btn btn-primary" onclick="location.reload()">Tentar novamente</button>
+  </div>
+  <script>
+    window.addEventListener('online', () => location.reload());
+  </script>
+</body>
+</html>
