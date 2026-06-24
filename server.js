@@ -123,6 +123,7 @@ const authLimiter   = rateLimit({ windowMs: 15 * 60 * 1000, max: 20,  message: '
 const publicLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 60,  message: 'Muitas respostas em sequência. Aguarde um instante e tente novamente.' });
 
 // ── API ────────────────────────────────────────────────────────────────────────
+app.use('/api/maintenance',                              require('./src/routes/maintenance.routes'));
 app.use('/api/auth',                         authLimiter,   require('./src/routes/auth.routes'));
 app.use('/api/users',                                       require('./src/routes/users.routes'));
 app.use('/api/dashboard',                                   require('./src/routes/dashboard.routes'));
@@ -167,6 +168,9 @@ app.get('/', (_req, res) => res.redirect('/admin/login.html'));
 app.get('/admin', (_req, res) => res.redirect('/admin/login.html'));
 app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 
+// Health check — usado pelo Railway para confirmar que o servidor subiu corretamente.
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
 // Link público do evento: /rsvp/:slug  (o slug é lido pelo JS da página via API pública)
 app.get('/rsvp/:slug', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html')));
 
@@ -194,7 +198,7 @@ app.use((err, _req, res, _next) => {
 process.on('uncaughtException',  (e) => console.error('[uncaughtException]', e.message));
 process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\n  Moura RSVP rodando em ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
   console.log(`  Área administrativa: /admin/login.html\n`);
 
@@ -208,3 +212,15 @@ app.listen(PORT, () => {
 
   try { push.init(); } catch (e) { console.error('[push] falha ao inicializar:', e.message); }
 });
+
+// ── Encerramento gracioso ──────────────────────────────────────────────────────
+// Em troca de versão/reinício, o Railway envia SIGTERM. Fechamos o servidor e
+// saímos com código 0 (sucesso) — assim o desligamento normal NÃO é confundido
+// com "crash" (evita o falso e-mail de "Deployment crashed").
+function gracefulShutdown(signal) {
+  console.log(`[shutdown] ${signal} recebido — encerrando com elegância...`);
+  server.close(() => { console.log('[shutdown] conexões encerradas. Até logo.'); process.exit(0); });
+  setTimeout(() => process.exit(0), 10_000).unref();
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));

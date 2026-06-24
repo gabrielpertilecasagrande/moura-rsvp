@@ -112,7 +112,6 @@ function applyMigrations(db) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_participants_deleted ON participants(deleted_at)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_admins_deleted       ON admins(deleted_at)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_participants_qr      ON participants(qr_token)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_participants_checkin ON participants(event_id, checked_in_at)');
 
   // Categorias de convidados no RSVP (VIP, Imprensa, etc.) — por evento.
   db.exec(`
