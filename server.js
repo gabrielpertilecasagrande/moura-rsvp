@@ -157,6 +157,9 @@ app.get('/', (_req, res) => res.redirect('/admin/login.html'));
 app.get('/admin', (_req, res) => res.redirect('/admin/login.html'));
 app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 
+// Health check — usado pelo Railway para confirmar que o servidor subiu corretamente.
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
 // Link público do evento: /rsvp/:slug  (o slug é lido pelo JS da página via API pública)
 app.get('/rsvp/:slug', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html')));
 
