@@ -24,11 +24,10 @@ router.get('/legal-config', async (_req, res) => {
 });
 
 // Config pública do app admin: URLs dos sistemas vizinhos para os atalhos de
-// navegação (voltar ao Moura One, abrir o Check-in). Só URLs — nenhum segredo.
+// navegação (voltar ao Moura One). Só URLs — nenhum segredo.
 router.get('/app-config', (_req, res) => {
   res.json({
     moura_one_url: (process.env.MOURA_ONE_URL || process.env.LEGAL_BASE_URL || '').replace(/\/+$/, ''),
-    checkin_url:   (process.env.CHECKIN_APP_URL || process.env.CHECKIN_URL || '').replace(/\/+$/, ''),
   });
 });
 
@@ -55,9 +54,8 @@ async function currentConsentVersion() {
 }
 
 // GET /api/public/qr/:token.png — imagem do QR de entrada do convidado.
-// O conteúdo do QR é o próprio token (lido pelo app de check-in em
-// /api/checkin/lookup?qr=<token>). Não exige login nem contexto de tenant:
-// é apenas a renderização visual de um código aleatório (hex), seguro de expor.
+// O conteúdo do QR é o próprio token, lido pelo app Check-in (serviço separado).
+// Não exige login: é apenas a renderização visual de um código aleatório (hex), seguro de expor.
 router.get('/qr/:token', async (req, res) => {
   const token = String(req.params.token || '').replace(/\.png$/i, '').replace(/[^a-fA-F0-9]/g, '').slice(0, 64);
   if (token.length < 8) return res.status(400).json({ error: 'Código inválido.' });
