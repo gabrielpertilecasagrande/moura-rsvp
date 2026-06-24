@@ -50,6 +50,8 @@ function backup(slug) {
   const db = openDb(dbPath);
   try {
     db.exec(`VACUUM INTO '${out.replace(/'/g, "''")}'`);
+    // Backup contém dados pessoais: leitura só para o dono do arquivo.
+    try { fs.chmodSync(out, 0o600); } catch { /* best-effort */ }
   } catch (e) {
     console.error(`✗ ${slug}: ${e.message}`);
     return false;

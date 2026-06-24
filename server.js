@@ -44,7 +44,10 @@ try {
   const tenantDb  = openTenantDb(DEFAULT_TENANT_SLUG);
   const seedEmail = (process.env.ADMIN_EMAIL    || 'admin@moura.com.br').toLowerCase();
   const seedName  =  process.env.ADMIN_NAME     || 'Administrador';
-  const seedPass  =  process.env.ADMIN_PASSWORD || 'moura2026';
+  // Nunca usamos a antiga senha padrão "moura2026". Se ADMIN_PASSWORD não estiver
+  // definido, geramos uma senha forte e aleatória e a mostramos UMA vez no log.
+  const envPass   =  process.env.ADMIN_PASSWORD;
+  const seedPass  =  envPass || require('crypto').randomBytes(15).toString('base64').replace(/[+/=]/g, '').slice(0, 20);
 
   const exists = tenantDb.prepare('SELECT id FROM admins WHERE email = ?').get(seedEmail);
   if (exists) {
@@ -55,7 +58,15 @@ try {
     tenantDb.prepare(
       "INSERT INTO admins (name, email, password_hash, role, status) VALUES (?,?,?,'admin','ativo')"
     ).run(seedName, seedEmail, hash);
-    console.log(`[seed] admin criado: ${seedEmail}`);
+    if (envPass) {
+      console.log(`[seed] admin criado: ${seedEmail}`);
+    } else {
+      console.log(
+        `[seed] admin criado: ${seedEmail}\n` +
+        `[seed] ⚠️  ADMIN_PASSWORD não definido — senha aleatória gerada: ${seedPass}\n` +
+        `[seed] ⚠️  Anote AGORA e troque após o primeiro login (ou defina ADMIN_PASSWORD no Railway).`
+      );
+    }
   }
 
   // Garante que o e-mail do admin seed está no índice global.
@@ -194,6 +205,10 @@ app.listen(PORT, () => {
   // Robô diário da Lixeira: apaga definitivamente itens guardados há mais de 90 dias.
   try { require('./src/utils/trash').scheduleTrashCleanup(); }
   catch (e) { console.error('[trash] não foi possível agendar a limpeza:', e.message); }
+
+  // Backup automático: snapshot de todos os bancos + uploads → Cloudflare R2/S3.
+  try { require('./src/utils/backup').scheduleBackups(); }
+  catch (e) { console.error('[backup] não foi possível agendar backups:', e.message); }
 
   try { push.init(); } catch (e) { console.error('[push] falha ao inicializar:', e.message); }
 });
