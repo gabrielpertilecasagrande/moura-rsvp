@@ -112,6 +112,7 @@ const authLimiter   = rateLimit({ windowMs: 15 * 60 * 1000, max: 20,  message: '
 const publicLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 60,  message: 'Muitas respostas em sequência. Aguarde um instante e tente novamente.' });
 
 // ── API ────────────────────────────────────────────────────────────────────────
+app.use('/api/maintenance',                              require('./src/routes/maintenance.routes'));
 app.use('/api/auth',                         authLimiter,   require('./src/routes/auth.routes'));
 app.use('/api/users',                                       require('./src/routes/users.routes'));
 app.use('/api/dashboard',                                   require('./src/routes/dashboard.routes'));
