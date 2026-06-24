@@ -121,10 +121,10 @@
       .mo-onb-dismiss{font-size:11.5px;color:rgba(255,255,255,.5);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
       .mo-onb-dismiss:hover{color:rgba(255,255,255,.8)}
       .mo-onb-counter{font-size:11px;color:rgba(255,255,255,.35);margin-left:auto}
-      .mo-onb-box{display:flex;align-items:center;gap:10px;background:#eef2ff;border:1px solid #c7d2fe;border-left:4px solid #152C6B;border-radius:10px;padding:8px 14px;margin-bottom:14px;flex-wrap:wrap}
+      .mo-onb-box{display:flex;align-items:center;gap:10px;background:#eef2ff;border:1px solid #c7d2fe;border-left:4px solid #152C6B;border-radius:10px;padding:8px 14px;margin-bottom:14px}
       .mo-onb-box-ico{font-size:15px;flex-shrink:0}
       .mo-onb-box-ttl{font-size:13px;font-weight:700;color:#0f1e4a;white-space:nowrap}
-      .mo-onb-box-body{font-size:12.5px;color:#2d3a5e;flex:1;min-width:0}
+      .mo-onb-box-body{font-size:12.5px;color:#2d3a5e}
       .mo-onb-box-ok{background:#152C6B;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:background .2s;flex-shrink:0;white-space:nowrap}
       .mo-onb-box-ok:hover{background:#1a3890}
     `;
@@ -162,7 +162,9 @@
   function insert(el) {
     const pageHead = document.querySelector('main .page-head');
     const main     = document.querySelector('main');
+    const wrap     = main && main.querySelector(':scope > div');
     if (pageHead)  pageHead.insertAdjacentElement('afterend', el);
+    else if (wrap) wrap.insertBefore(el, wrap.firstChild);
     else if (main) main.insertBefore(el, main.firstChild);
   }
 
