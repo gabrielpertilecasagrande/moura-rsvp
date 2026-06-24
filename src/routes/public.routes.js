@@ -8,6 +8,7 @@ const { runWithDb } = require('../db');
 const { normalizeName }  = require('../utils/normalize');
 const { genQrToken } = require('../utils/qrToken');
 const { parseFormConfig, customFields, sanitizeAnswer, isFilled } = require('../utils/formConfig');
+const { encrypt } = require('../utils/crypto');
 
 const router = express.Router();
 
@@ -227,7 +228,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
           consent_date=datetime('now'), consent_ip=?, terms_version=?, privacy_version=?,
           deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now')
         WHERE id=?
-      `).run(String(name).trim(), company || null, role || null, email || null,
+      `).run(String(name).trim(), encrypt(company || null), encrypt(role || null), email || null,
              phone || null, response, normalized, extraJson, qrToken,
              consentIp, termsVersion, privacyVersion, target.id);
 
@@ -258,7 +259,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
         INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra, qr_token,
           accepted_terms, accepted_privacy_policy, accepted_data_processing, consent_date, consent_ip, terms_version, privacy_version)
         VALUES (?,?,?,?,?,?,?,?,?,?, 1, 1, 1, datetime('now'), ?, ?, ?)
-      `).run(e.id, String(name).trim(), normalized, company || null, role || null,
+      `).run(e.id, String(name).trim(), normalized, encrypt(company || null), encrypt(role || null),
              email || null, phone || null, response, extraJson, qrToken,
              consentIp, termsVersion, privacyVersion);
 
