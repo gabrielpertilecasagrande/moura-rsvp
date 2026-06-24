@@ -99,6 +99,37 @@ function applyMigrations(db) {
   addColumn('participants', 'terms_version', 'TEXT');
   addColumn('participants', 'privacy_version', 'TEXT');
 
+  // Migração automática (uma vez por banco de tenant): cifra company/role de
+  // participantes que ainda estejam em texto puro. Roda no primeiro acesso de
+  // cada tenant (openTenantDb é cacheado) — cobre tenants atuais e futuros.
+  // Segurança: só roda com a chave definida (senão encrypt() seria operação nula
+  // e gravaria texto puro). Seleciona apenas linhas NÃO cifradas (NOT LIKE
+  // 'enc:%') — em banco já migrado retorna 0 linhas (custo desprezível). Tudo em
+  // try/catch para NUNCA travar o boot e em transação (tudo-ou-nada por banco).
+  if (process.env.DATA_ENCRYPTION_KEY) {
+    try {
+      const { encrypt } = require('./utils/crypto');
+      const pendentes = db.prepare(
+        "SELECT id, company, role FROM participants " +
+        "WHERE (company IS NOT NULL AND company NOT LIKE 'enc:%') " +
+        "   OR (role    IS NOT NULL AND role    NOT LIKE 'enc:%')"
+      ).all();
+      if (pendentes.length) {
+        const upd = db.prepare('UPDATE participants SET company = ?, role = ? WHERE id = ?');
+        db.transaction(() => {
+          for (const p of pendentes) {
+            const company = (p.company && !String(p.company).startsWith('enc:')) ? encrypt(p.company) : p.company;
+            const role    = (p.role    && !String(p.role).startsWith('enc:'))    ? encrypt(p.role)    : p.role;
+            upd.run(company, role, p.id);
+          }
+        })();
+        console.log(`[db] migração: ${pendentes.length} participante(s) com company/role cifrado(s)`);
+      }
+    } catch (e) {
+      console.error('[db] migração de cifra de participantes falhou (boot segue normal):', e.message);
+    }
+  }
+
   // Lixeira (soft-delete): itens excluídos ficam guardados por um período antes
   // da remoção definitiva. deleted_at = quando foi para a lixeira; deleted_by =
   // quem moveu (auditoria). NULL = item ativo (não está na lixeira).
