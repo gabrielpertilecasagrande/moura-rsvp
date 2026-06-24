@@ -93,17 +93,19 @@ routerDb.exec(`
 })();
 
 // Aviso de manutenção programada — row única nível sistema (não por tenant).
-routerDb.exec(`
-  CREATE TABLE IF NOT EXISTS maintenance_notice (
-    id         INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
-    enabled    INTEGER NOT NULL DEFAULT 0,
-    start_at   TEXT,
-    end_at     TEXT,
-    message    TEXT,
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-  );
-  INSERT OR IGNORE INTO maintenance_notice (id, enabled) VALUES (1, 0);
-`);
+try {
+  routerDb.exec(`
+    CREATE TABLE IF NOT EXISTS maintenance_notice (
+      id         INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+      enabled    INTEGER NOT NULL DEFAULT 0,
+      start_at   TEXT,
+      end_at     TEXT,
+      message    TEXT,
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+    INSERT OR IGNORE INTO maintenance_notice (id, enabled) VALUES (1, 0);
+  `);
+} catch (e) { console.error('[router] maintenance_notice setup:', e.message); }
 
 // ── Organizações ──────────────────────────────────────────────────────────────
 
