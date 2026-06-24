@@ -121,17 +121,11 @@
       .mo-onb-dismiss{font-size:11.5px;color:rgba(255,255,255,.5);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
       .mo-onb-dismiss:hover{color:rgba(255,255,255,.8)}
       .mo-onb-counter{font-size:11px;color:rgba(255,255,255,.35);margin-left:auto}
-      .mo-onb-box{background:#eef2ff;border:1px solid #c7d2fe;border-left:4px solid #152C6B;border-radius:14px;padding:16px 18px;margin-bottom:20px}
-      .mo-onb-badge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#152C6B;background:rgba(21,44,107,.12);border-radius:30px;padding:3px 10px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em}
-      .mo-onb-box-head{display:flex;align-items:center;gap:7px;margin-bottom:6px}
-      .mo-onb-box-ico{font-size:17px}
-      .mo-onb-box-ttl{font-size:14px;font-weight:700;color:#0f1e4a}
-      .mo-onb-box-body{font-size:13px;color:#2d3a5e;line-height:1.55;margin:0 0 10px}
-      .mo-onb-box-tips{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
-      .mo-onb-box-tips li{font-size:12.5px;color:#1e2d54;display:flex;gap:6px;align-items:flex-start;line-height:1.4}
-      .mo-onb-box-tips li::before{content:'→';color:#152C6B;font-weight:700;flex-shrink:0;margin-top:1px}
-      .mo-onb-box-foot{margin-top:14px;padding-top:12px;border-top:1px solid rgba(21,44,107,.1)}
-      .mo-onb-box-ok{background:#152C6B;color:#fff;border:none;border-radius:8px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s}
+      .mo-onb-box{display:flex;align-items:center;gap:10px;background:#eef2ff;border:1px solid #c7d2fe;border-left:4px solid #152C6B;border-radius:10px;padding:8px 14px;margin-bottom:14px;flex-wrap:wrap}
+      .mo-onb-box-ico{font-size:15px;flex-shrink:0}
+      .mo-onb-box-ttl{font-size:13px;font-weight:700;color:#0f1e4a;white-space:nowrap}
+      .mo-onb-box-body{font-size:12.5px;color:#2d3a5e;flex:1;min-width:0}
+      .mo-onb-box-ok{background:#152C6B;color:#fff;border:none;border-radius:6px;padding:4px 12px;font-size:12px;font-weight:600;cursor:pointer;transition:background .2s;flex-shrink:0;white-space:nowrap}
       .mo-onb-box-ok:hover{background:#1a3890}
     `;
     document.head.appendChild(s);
@@ -156,16 +150,10 @@
     const el = document.createElement('div');
     el.className = 'mo-onb-box';
     el.innerHTML = `
-      <div class="mo-onb-badge">💡 Orientação — some automaticamente</div>
-      <div class="mo-onb-box-head">
-        <span class="mo-onb-box-ico">${cfg.icon}</span>
-        <span class="mo-onb-box-ttl">${cfg.title}</span>
-      </div>
-      <p class="mo-onb-box-body">${cfg.body}</p>
-      <ul class="mo-onb-box-tips">${cfg.tips.map(t => `<li>${t}</li>`).join('')}</ul>
-      <div class="mo-onb-box-foot">
-        <button class="mo-onb-box-ok">Entendido ✓</button>
-      </div>`;
+      <span class="mo-onb-box-ico">${cfg.icon}</span>
+      <strong class="mo-onb-box-ttl">${cfg.title}</strong>
+      <span class="mo-onb-box-body">${cfg.body}</span>
+      <button class="mo-onb-box-ok">Entendido ✓</button>`;
     el.querySelector('.mo-onb-box-ok').onclick = () => { dismiss(key); el.remove(); };
     return el;
   }
