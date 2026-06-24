@@ -63,23 +63,6 @@ routerDb.exec(`
     created_at   TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions(tenant_slug, user_id);
-
-  -- Tokens de acesso para operadores de check-in no local do evento.
-  -- Ficam no índice global para que o middleware de check-in encontre o tenant
-  -- correto sem precisar de contexto prévio (assim como auth_sessions).
-  CREATE TABLE IF NOT EXISTS operator_tokens (
-    id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    token           TEXT    NOT NULL UNIQUE,
-    tenant_slug     TEXT    NOT NULL,
-    event_id        INTEGER,
-    label           TEXT,
-    expires_at      TEXT    NOT NULL,
-    revoked_at      TEXT,
-    created_by_name TEXT,
-    created_at      TEXT    NOT NULL DEFAULT (datetime('now'))
-  );
-  CREATE INDEX IF NOT EXISTS idx_op_tokens_token ON operator_tokens(token);
-  CREATE INDEX IF NOT EXISTS idx_op_tokens_tenant ON operator_tokens(tenant_slug, event_id);
 `);
 
 // Migração idempotente: IP de origem e cidade aproximada das sessões (para a tela
