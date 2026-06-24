@@ -45,6 +45,14 @@
           <button class="btn btn-primary btn-sm" id="pw_save">Alterar senha</button>
         </div>
 
+        <!-- Verificação em duas etapas (2FA) -->
+        <div class="card">
+          <h2 style="font-size:17px;margin-bottom:4px">Verificação em duas etapas</h2>
+          <p class="muted" style="font-size:13px;margin:0 0 16px">Camada extra de segurança: além da senha, o login pede um código de um app autenticador (Google Authenticator, Authy…). Mesmo que descubram sua senha, não entram sem o código.</p>
+          <p id="tfa_status" style="font-size:14px;margin:0 0 14px">Carregando…</p>
+          <button class="btn btn-primary btn-sm" id="tfa_toggle" style="display:none"></button>
+        </div>
+
         <!-- Aparelhos conectados -->
         <div class="card">
           <h2 style="font-size:17px;margin-bottom:4px">Aparelhos conectados</h2>
@@ -59,5 +67,6 @@
   <script src="/assets/js/api.js"></script>
   <script src="/assets/js/shell.js"></script>
   <script src="/assets/js/admin-account.js"></script>
+  <script src="/assets/js/tfa-card.js"></script>
 </body>
 </html>
