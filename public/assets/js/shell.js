@@ -78,7 +78,7 @@ function mountShell(active) {
   // Notificação: solicitações de acesso pendentes (apenas administradores).
   if (currentRole() === 'admin') refreshPendingBadge();
 
-  // Links de acesso rápido a outras plataformas (Moura One e Check-in).
+  // Links de acesso rápido a outras plataformas (Moura One).
   loadSideQuickLinks();
 
   checkMaintenance();
@@ -94,7 +94,6 @@ async function loadSideQuickLinks() {
   const extAttrs = isPwa ? '' : 'target="_blank" rel="noopener"';
   const links = [
     cfg.moura_one_url ? `<a href="${cfg.moura_one_url}/admin/dashboard.html" ${extAttrs}>Moura One</a>` : '',
-    cfg.checkin_url   ? `<a href="${cfg.checkin_url}" ${extAttrs}>Check-in</a>` : '',
   ].filter(Boolean);
   if (!links.length) return;
   slot.innerHTML = `<div class="nav-sep"></div>${links.join('')}`;

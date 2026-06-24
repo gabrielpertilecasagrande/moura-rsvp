@@ -552,7 +552,7 @@ function showResult(r) {
   const qr = (ok && r.qr_token) ? `
       <div class="entry-qr" style="margin-top:22px;padding-top:18px;border-top:1px solid rgba(0,0,0,.08)">
         <p style="font-weight:600;margin:0 0 4px">Seu código de entrada</p>
-        <p class="muted" style="margin:0 0 12px;font-size:14px">Apresente este QR Code na recepção do evento para agilizar seu check-in.</p>
+        <p class="muted" style="margin:0 0 12px;font-size:14px">Apresente este QR Code na entrada do evento.</p>
         <img src="/api/public/qr/${encodeURIComponent(r.qr_token)}.png" alt="QR Code de entrada"
              width="200" height="200" style="border-radius:12px;background:#fff;padding:8px;box-shadow:0 1px 6px rgba(0,0,0,.12)" />
       </div>` : '';
