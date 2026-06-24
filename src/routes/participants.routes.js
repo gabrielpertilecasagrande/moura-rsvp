@@ -8,6 +8,7 @@ const { genQrToken } = require('../utils/qrToken');
 const { logActivity } = require('../utils/activity');
 const { parseFormConfig, customFields, sanitizeAnswer, extraValueToText } = require('../utils/formConfig');
 const { requirePerm } = require('../utils/permissions');
+const { encrypt, decrypt, decryptFields } = require('../utils/crypto');
 
 // Mescla as respostas de campos personalizados recebidas no corpo com as já salvas.
 function mergeExtra(prevRaw, eventCfg, bodyExtra) {
@@ -84,7 +85,7 @@ function queryParticipants(eventId, { filter, q, ids, category }) {
     }
   }
   sql += ' ORDER BY p.name COLLATE NOCASE ASC';
-  return db.prepare(sql).all(...params);
+  return db.prepare(sql).all(...params).map(r => decryptFields(r, ['company', 'role']));
 }
 
 // GET /api/events/:id/participants?filter=&q=
@@ -187,12 +188,13 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   if (!p) return res.status(404).json({ error: 'Participante não encontrado.' });
   const ev = db.prepare('SELECT form_config FROM events WHERE id = ?').get(eventId);
   const cfg = parseFormConfig(ev ? ev.form_config : '{}');
+  const pDecrypted = decryptFields(p, ['company', 'role']);
 
   const b = req.body || {};
   const name = b.name != null ? String(b.name).trim() : p.name;
   if (!name) return res.status(400).json({ error: 'O nome é obrigatório.' });
-  const company = b.company != null ? String(b.company).trim() : p.company;
-  const role = b.role != null ? String(b.role).trim() : p.role;
+  const company = b.company != null ? String(b.company).trim() : pDecrypted.company;
+  const role = b.role != null ? String(b.role).trim() : pDecrypted.role;
   const email = b.email != null ? String(b.email).trim() : p.email;
   const phone = b.phone != null ? String(b.phone).trim() : p.phone;
   let response = p.response;
@@ -214,8 +216,8 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   const changes = [];
   const label = (r) => (r === 'confirmado' ? 'Confirmado' : 'Recusado');
   if (name !== p.name) changes.push(`nome: "${p.name}" → "${name}"`);
-  if ((company || '') !== (p.company || '')) changes.push(`empresa: "${p.company || ''}" → "${company || ''}"`);
-  if ((role || '') !== (p.role || '')) changes.push(`cargo: "${p.role || ''}" → "${role || ''}"`);
+  if ((company || '') !== (pDecrypted.company || '')) changes.push(`empresa: "${pDecrypted.company || ''}" → "${company || ''}"`);
+  if ((role || '') !== (pDecrypted.role || '')) changes.push(`cargo: "${pDecrypted.role || ''}" → "${role || ''}"`);
   if ((email || '') !== (p.email || '')) changes.push(`e-mail: "${p.email || ''}" → "${email || ''}"`);
   if ((phone || '') !== (p.phone || '')) changes.push(`telefone: "${p.phone || ''}" → "${phone || ''}"`);
   if (response !== p.response) changes.push(`resposta: ${label(p.response)} → ${label(response)}`);
@@ -229,7 +231,7 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
   if (notesNew !== undefined && (notes || '') !== (p.notes || '')) changes.push('observações internas');
 
   if (!changes.length) {
-    return res.json({ ok: true, unchanged: true, participant: p });
+    return res.json({ ok: true, unchanged: true, participant: pDecrypted });
   }
 
   db.prepare(
@@ -237,7 +239,7 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
        SET name = ?, name_normalized = ?, company = ?, role = ?, email = ?, phone = ?, response = ?,
            extra = ?, notes = ?, guest_category_id = ?, updated_at = datetime('now')
      WHERE id = ?`
-  ).run(name, normalized, company, role, email, phone, response, extraJson, notes, guestCatId, pid);
+  ).run(name, normalized, encrypt(company || null), encrypt(role || null), email, phone, response, extraJson, notes, guestCatId, pid);
 
   const { ip: editIp, ua: editUa } = getReqMeta(req);
   db.prepare(
@@ -255,7 +257,7 @@ router.put('/:pid', requirePerm('can_participants'), (req, res) => {
     logActivity(actor, 'editou dados de participante', name);
   }
 
-  res.json({ ok: true, participant: db.prepare('SELECT * FROM participants WHERE id = ?').get(pid) });
+  res.json({ ok: true, participant: decryptFields(db.prepare('SELECT * FROM participants WHERE id = ?').get(pid), ['company', 'role']) });
 });
 
 // POST /api/events/:id/participants — inclusão manual de um participante
@@ -285,11 +287,11 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
     const qrToken = response === 'confirmado' ? (existing.qr_token || genQrToken()) : (existing.qr_token || null);
     // Atualizar um cadastro existente também o restaura, caso estivesse na lixeira.
     db.prepare(`UPDATE participants SET name=?, name_normalized=?, company=?, role=?, email=?, phone=?, response=?, extra=?, qr_token=?, deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now') WHERE id=?`)
-      .run(name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, mergeExtra(existing.extra, cfg, b.extra), qrToken, existing.id);
+      .run(name, normalized, encrypt(b.company || null), encrypt(b.role || null), b.email || null, b.phone || null, response, mergeExtra(existing.extra, cfg, b.extra), qrToken, existing.id);
     const { ip: fuIp, ua: fuUa } = getReqMeta(req);
     db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, old_response, new_response, details, ip, user_agent, origin) VALUES (?,?,'editou',?,?,?,?,?,?,'admin')`)
       .run(existing.id, eventId, req.admin.name || req.admin.email || 'Administrador', existing.response, response, 'Atualização de cadastro existente (inclusão manual)', fuIp, fuUa);
-    return res.json({ ok: true, updated: true, participant: db.prepare('SELECT * FROM participants WHERE id=?').get(existing.id) });
+    return res.json({ ok: true, updated: true, participant: decryptFields(db.prepare('SELECT * FROM participants WHERE id=?').get(existing.id), ['company', 'role']) });
   }
 
   const newNotes = sanitizeNotes(b.notes);
@@ -297,7 +299,7 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
   const info = db.prepare(
     `INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra, notes, qr_token)
      VALUES (?,?,?,?,?,?,?,?,?,?,?)`
-  ).run(eventId, name, normalized, b.company || null, b.role || null, b.email || null, b.phone || null, response, newExtra, newNotes === undefined ? null : newNotes, qrToken);
+  ).run(eventId, name, normalized, encrypt(b.company || null), encrypt(b.role || null), b.email || null, b.phone || null, response, newExtra, newNotes === undefined ? null : newNotes, qrToken);
 
   const { ip: addIp, ua: addUa } = getReqMeta(req);
   db.prepare(
@@ -307,7 +309,7 @@ router.post('/', requirePerm('can_participants'), (req, res) => {
     'Inclusão manual pelo administrador', addIp, addUa);
 
   logActivity(req.admin.name || req.admin.email, 'incluiu participante manualmente', name);
-  res.status(201).json({ ok: true, participant: db.prepare('SELECT * FROM participants WHERE id = ?').get(info.lastInsertRowid) });
+  res.status(201).json({ ok: true, participant: decryptFields(db.prepare('SELECT * FROM participants WHERE id = ?').get(info.lastInsertRowid), ['company', 'role']) });
 });
 
 // POST /api/events/:id/participants/bulk — inclusão em lote (colar lista)
@@ -341,7 +343,7 @@ router.post('/bulk', requirePerm('can_participants'), (req, res) => {
     const normalized = normalizeName(name);
     const dup = findDup(eventId, { email: cols[1], phone: cols[4], normalized });
     if (dup) { skipped.push(name); continue; }
-    const info = insert.run(eventId, name, normalized, cols[2] || null, cols[3] || null, cols[1] || null, cols[4] || null, response, response === 'confirmado' ? genQrToken() : null);
+    const info = insert.run(eventId, name, normalized, encrypt(cols[2] || null), encrypt(cols[3] || null), cols[1] || null, cols[4] || null, response, response === 'confirmado' ? genQrToken() : null);
     audit.run(info.lastInsertRowid, eventId, actor, response, 'Inclusão em lote pelo administrador', blkIp, blkUa);
     added++;
   }
