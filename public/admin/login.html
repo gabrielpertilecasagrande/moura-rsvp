@@ -79,6 +79,12 @@
       document.getElementById('step_login').style.display = 'none';
       document.getElementById('step_mfa').style.display = '';
       const c = document.getElementById('mfa_code');
+      // Restaura o modo padrão (código do app de 6 dígitos), revertendo o estado
+      // do modo "código de recuperação" caso tenha sido acionado antes.
+      c.setAttribute('maxlength', '6');
+      c.setAttribute('inputmode', 'numeric');
+      c.placeholder = '000000';
+      document.querySelector('#step_mfa .sub').textContent = 'Abra seu app autenticador e digite o código de 6 dígitos.';
       c.value = ''; c.focus();
     }
     function backToLogin() {

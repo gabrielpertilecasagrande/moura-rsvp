@@ -26,7 +26,7 @@ function sign(admin, tenantSlug) {
       tenant_slug: tenantSlug,
     },
     SECRET,
-    { expiresIn: '12h' }
+    { expiresIn: '12h', algorithm: 'HS256' }
   );
 }
 
@@ -34,7 +34,7 @@ function sign(admin, tenantSlug) {
 // aceita, mas NÃO é uma sessão. Carrega o tenant_slug (o /2fa/verify não passa
 // pelo requireAuth, então precisa saber em qual banco buscar o admin). Vale 5 min.
 function signMfa(adminId, tenantSlug) {
-  return jwt.sign({ id: adminId, tenant_slug: tenantSlug, mfa_pending: true }, SECRET, { expiresIn: '5m' });
+  return jwt.sign({ id: adminId, tenant_slug: tenantSlug, mfa_pending: true }, SECRET, { expiresIn: '5m', algorithm: 'HS256' });
 }
 
 // Protege rotas administrativas. Espera header Authorization: Bearer <token>.
@@ -49,7 +49,7 @@ function requireAuth(req, res, next) {
 
   let payload;
   try {
-    payload = jwt.verify(token, SECRET);
+    payload = jwt.verify(token, SECRET, { algorithms: ['HS256'] });
   } catch {
     return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
   }

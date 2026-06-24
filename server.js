@@ -3,6 +3,18 @@ const path = require('path');
 const fs   = require('fs');
 const push = require('./src/utils/push');
 
+// ── Exige a chave de criptografia em PRODUÇÃO ─────────────────────────────────
+// Espelha a exigência do JWT_SECRET (src/middleware/auth.js): sem DATA_ENCRYPTION_KEY
+// válida (64 caracteres hex = 256 bits), dados sensíveis (empresa/cargo dos
+// convidados, segredo do 2FA) seriam gravados em texto puro silenciosamente.
+// Falha imediata e explícita no boot. Em desenvolvimento, segue sem a chave.
+if (process.env.NODE_ENV === 'production') {
+  const k = process.env.DATA_ENCRYPTION_KEY;
+  if (!k || !/^[0-9a-fA-F]{64}$/.test(k)) {
+    throw new Error('DATA_ENCRYPTION_KEY ausente ou inválida. Defina 64 caracteres hexadecimais (256 bits) em produção.');
+  }
+}
+
 // ── Parâmetros do tenant padrão (organização inicial / Moura) ─────────────────
 const DEFAULT_TENANT_SLUG = process.env.DEFAULT_TENANT_SLUG || 'moura';
 const DEFAULT_TENANT_NAME = process.env.DEFAULT_TENANT_NAME || 'Organização';
@@ -120,7 +132,19 @@ app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public
 // ── Limitadores de taxa ────────────────────────────────────────────────────────
 const { rateLimit } = require('./src/middleware/rateLimit');
 const authLimiter   = rateLimit({ windowMs: 15 * 60 * 1000, max: 20,  message: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' });
-const publicLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 60,  message: 'Muitas respostas em sequência. Aguarde um instante e tente novamente.' });
+// Limite por IP + evento (slug): um mesmo IP que responde a eventos diferentes
+// tem contadores separados, e o teto vale por evento. O slug é extraído do
+// caminho /api/public/events/:slug/... — sem slug, cai só no IP.
+const publicLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 60,
+  message: 'Muitas respostas em sequência. Aguarde um instante e tente novamente.',
+  keyGenerator: (req) => {
+    const m = req.path.match(/\/events\/([^/]+)/);
+    const slug = m ? m[1] : '';
+    return `${req.ip || 'sem-ip'}|${slug}`;
+  },
+});
 
 // ── API ────────────────────────────────────────────────────────────────────────
 app.use('/api/maintenance',                              require('./src/routes/maintenance.routes'));

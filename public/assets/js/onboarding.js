@@ -93,10 +93,10 @@
     },
     '/admin/trash.html': {
       type: 'module', icon: '🗑', title: 'Lixeira',
-      body: 'Eventos e participantes excluídos ficam aqui por 30 dias antes da remoção definitiva.',
+      body: 'Eventos e participantes excluídos ficam aqui por 90 dias antes da remoção definitiva.',
       tips: [
         'Restaure itens excluídos por engano com um clique',
-        'Após 30 dias, os itens são removidos permanentemente',
+        'Após 90 dias, os itens são removidos permanentemente',
         'A lixeira não afeta o desempenho do sistema',
       ],
     },

@@ -4,7 +4,7 @@
 //   • assets  → stale-while-revalidate (CSS/JS/imagens carregam do cache e
 //               atualizam em segundo plano).
 //   • páginas → network-first; fallback para página offline quando sem rede.
-const VERSION = 'moura-rsvp-v2';
+const VERSION = 'moura-rsvp-v3';
 const SHELL_CACHE = `${VERSION}-shell`;
 const ASSET_CACHE = `${VERSION}-assets`;
 const OFFLINE_URL = '/offline.html';
@@ -14,8 +14,6 @@ const PRECACHE = [
   '/assets/css/styles.css',
   '/assets/js/api.js',
   '/assets/js/shell.js',
-  '/assets/img/wordmark-dark.png',
-  '/assets/img/wordmark-light.png',
   '/assets/img/logo-moura.png',
 ];
 

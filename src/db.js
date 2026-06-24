@@ -57,6 +57,10 @@ function applyMigrations(db) {
   addColumn('admins', 'totp_enabled', 'INTEGER DEFAULT 0');
   addColumn('admins', 'totp_recovery_codes', 'TEXT');
   addColumn('admins', 'totp_enrolled_at', 'TEXT');
+  // Anti-reuso do código TOTP: guarda o último passo de tempo (timestep) aceito.
+  // Um código com passo menor ou igual a este é recusado — garante uso único por
+  // passo (espelha os códigos de recuperação, que já são de uso único).
+  addColumn('admins', 'totp_last_step', 'INTEGER');
   addColumn('events', 'whatsapp', 'TEXT');
   addColumn('events', 'force_open', 'INTEGER DEFAULT 0');
   addColumn('events', 'whatsapp_enabled', 'INTEGER DEFAULT 1');

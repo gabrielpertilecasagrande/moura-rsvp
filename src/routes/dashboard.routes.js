@@ -41,7 +41,9 @@ router.get('/', (req, res) => {
   const totalResponses = confirmed + declined;
   const totalExpected = perEvent.reduce((acc, r) => acc + r.exp, 0);
   const respExpected = perEvent.reduce((acc, r) => acc + r.resp, 0);
-  const responseRate = totalExpected > 0 ? Math.round((respExpected / totalExpected) * 100) : null;
+  // Limita a 100%: se um evento recebe mais respostas que a estimativa de
+  // convidados esperados, a taxa não deve passar de 100 (evita exibir "130%").
+  const responseRate = totalExpected > 0 ? Math.min(100, Math.round((respExpected / totalExpected) * 100)) : null;
 
   // Últimas 5 confirmações (transversais a todos os eventos autorizados)
   const recent = db.prepare(`
