@@ -9,6 +9,7 @@ const db = require('../db');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { logActivity } = require('../utils/activity');
 const { registerAdminEmail } = require('../router');
+const { decrypt, decryptFields } = require('../utils/crypto');
 const {
   RETENTION_DAYS, hardDeleteEvent, hardDeleteParticipant, hardDeleteAdmin,
 } = require('../utils/trash');
@@ -24,7 +25,7 @@ router.get('/', (_req, res) => {
   const events = db.prepare(`
     SELECT e.id, e.name, e.slug, e.event_date, e.location, e.city,
            e.deleted_at, e.deleted_by, ${PURGE_AT.replace(/deleted_at/g, 'e.deleted_at')} AS purge_at,
-           (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id) AS participant_count
+           (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL) AS participant_count
       FROM events e
      WHERE e.deleted_at IS NOT NULL
      ORDER BY e.deleted_at DESC
@@ -39,7 +40,7 @@ router.get('/', (_req, res) => {
       FROM participants p JOIN events e ON e.id = p.event_id
      WHERE p.deleted_at IS NOT NULL AND e.deleted_at IS NULL
      ORDER BY p.deleted_at DESC
-  `).all().map((r) => ({ ...r, type: 'participant', retention_days: RETENTION_DAYS }));
+  `).all().map((r) => ({ ...decryptFields(r, ['company']), type: 'participant', retention_days: RETENTION_DAYS }));
 
   const users = db.prepare(`
     SELECT id, name, email, role, status,
@@ -61,7 +62,7 @@ router.get('/event/:id/preview', (req, res) => {
       COUNT(*) AS total,
       SUM(CASE WHEN response = 'confirmado' THEN 1 ELSE 0 END) AS confirmed,
       SUM(CASE WHEN response = 'recusado'   THEN 1 ELSE 0 END) AS declined
-    FROM participants WHERE event_id = ?
+    FROM participants WHERE event_id = ? AND deleted_at IS NULL
   `).get(e.id);
   res.json({
     event: {
@@ -80,7 +81,7 @@ router.get('/participant/:id/preview', (req, res) => {
   if (!p) return res.status(404).json({ error: 'Convidado não encontrado na lixeira.' });
   res.json({
     participant: {
-      id: p.id, name: p.name, event_name: p.event_name, company: p.company, role: p.role,
+      id: p.id, name: p.name, event_name: p.event_name, company: decrypt(p.company), role: decrypt(p.role),
       email: p.email, phone: p.phone, response: p.response,
     },
   });

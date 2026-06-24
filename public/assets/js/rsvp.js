@@ -243,7 +243,7 @@ function renderLanding() {
         <img class="footer-logo" src="/assets/img/logo-moura.png" alt="Moura" />
         <div class="footer-title">Plataforma de Confirmação de Presença</div>
         <div class="footer-links">
-          <a href="/legal.html#privacy" target="_blank" rel="noopener">Política de Privacidade</a> ·
+          <a href="/legal.html#docsCard" target="_blank" rel="noopener">Política de Privacidade</a> ·
           <a href="/legal.html#terms" target="_blank" rel="noopener">Termos de Uso</a>
         </div>
       </footer>
@@ -257,6 +257,16 @@ function renderLanding() {
 
   if (e.closed) {
     document.querySelector('.lp-sticky-cta')?.remove();
+    // Botão "Confirmar Presença" do hero: num evento encerrado, evita comunicação
+    // contraditória — troca o texto e desabilita o link (rola só até o aviso).
+    const heroCta = document.querySelector('.lp-hero-cta');
+    if (heroCta) {
+      heroCta.textContent = 'Confirmações encerradas';
+      heroCta.classList.add('disabled');
+      heroCta.setAttribute('aria-disabled', 'true');
+      heroCta.style.pointerEvents = 'none';
+      heroCta.style.opacity = '0.6';
+    }
     document.getElementById('form-slot').innerHTML = `
       <div class="closed-box">
         <h2>Confirmações encerradas</h2>
@@ -462,7 +472,7 @@ function renderForm() {
       </label>
       <label class="consent-item">
         <input type="checkbox" id="cs-privacy" />
-        <span>Li e concordo com a <a href="/legal.html#privacy" target="_blank" rel="noopener">Política de Privacidade</a>.</span>
+        <span>Li e concordo com a <a href="/legal.html#docsCard" target="_blank" rel="noopener">Política de Privacidade</a>.</span>
       </label>
       <label class="consent-item">
         <input type="checkbox" id="cs-data" />
@@ -534,13 +544,21 @@ async function submit() {
   const btn = document.getElementById('submit');
   btn.disabled = true; btn.textContent = 'Enviando…';
   try {
-    const r = await fetch(`/api/public/events/${slug}/rsvp`, {
+    const x = await fetch(`/api/public/events/${slug}/rsvp`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-    }).then((x) => x.json().then((d) => { if (!x.ok) throw new Error(d.error); return d; }));
-    showResult(r);
+    });
+    // Tenta interpretar como JSON; se o servidor responder algo que não é JSON
+    // (página de erro 502/504 de proxy/CDN, timeout), evita o erro técnico em
+    // inglês ("Unexpected token <…") e mostra uma mensagem amigável.
+    let d = null;
+    try { d = await x.json(); } catch { d = null; }
+    if (!x.ok || !d) {
+      throw new Error((d && d.error) || 'Não foi possível enviar sua resposta agora. Verifique sua conexão e tente novamente.');
+    }
+    showResult(d);
   } catch (e2) {
     btn.disabled = false; btn.textContent = 'Enviar resposta';
-    showErr(e2.message);
+    showErr(e2.message || 'Não foi possível enviar sua resposta agora. Verifique sua conexão e tente novamente.');
   }
 }
 function showErr(m) { const err = document.getElementById('err'); err.textContent = m; err.classList.remove('hidden'); }

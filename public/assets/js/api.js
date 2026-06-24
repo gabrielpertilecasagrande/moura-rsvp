@@ -52,6 +52,10 @@ const Api = {
     const headers = {};
     const t = Api.token();
     if (t) headers['Authorization'] = `Bearer ${t}`;
+    // Sempre envia o refresh token (quando houver). O backend o usa para marcar
+    // "este aparelho" na lista de sessões; nas demais rotas é simplesmente ignorado.
+    const rt = Api.refreshToken();
+    if (rt) headers['X-Refresh-Token'] = rt;
     let payload = body;
     if (body && !isForm) { headers['Content-Type'] = 'application/json'; payload = JSON.stringify(body); }
     const res = await fetch(url, { method, headers, body: payload });
@@ -67,7 +71,13 @@ const Api = {
     }
     const ct = res.headers.get('content-type') || '';
     const data = ct.includes('json') ? await res.json() : res;
-    if (!res.ok) throw new Error((data && data.error) || 'Erro na requisição.');
+    if (!res.ok) {
+      const e = new Error((data && data.error) || 'Erro na requisição.');
+      // Anexa o corpo completo da resposta de erro (ex.: 409 traz matched_name,
+      // participant_id) para que o chamador possa exibir detalhes ao usuário.
+      e.data = data;
+      throw e;
+    }
     return data;
   },
   get: (u) => Api.req('GET', u),

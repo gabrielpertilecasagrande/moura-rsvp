@@ -12,12 +12,19 @@ function getKey() {
   return k;
 }
 
-// Cifra um valor de texto. Se a chave não estiver configurada, devolve o valor
-// em claro (operação nula — permite deploy gradual antes de definir a chave).
+// Cifra um valor de texto. Em desenvolvimento, se a chave não estiver
+// configurada, devolve o valor em claro (operação nula — facilita testes locais).
+// Em produção, NUNCA grava texto puro em silêncio: lança erro se a chave faltar
+// (rede de segurança; o boot em server.js já exige a chave em produção).
 function encrypt(v) {
   if (v == null) return v;
   const key = getKey();
-  if (!key) return v;
+  if (!key) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(`${KEY_ENV} ausente — recusando gravar dados sensíveis em texto puro.`);
+    }
+    return v;
+  }
   const iv  = crypto.randomBytes(12);
   const c   = crypto.createCipheriv(ALGO, key, iv);
   const enc = Buffer.concat([c.update(String(v), 'utf8'), c.final()]);

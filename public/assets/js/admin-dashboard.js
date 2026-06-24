@@ -208,6 +208,8 @@ document.addEventListener('click', (e) => {
   if (!gr.contains(e.target) && e.target !== gs) gr.classList.add('hidden');
 });
 async function runSearch(q) {
+  gr.innerHTML = '<div class="sr-empty">Buscando…</div>';
+  gr.classList.remove('hidden');
   try {
     const r = await Api.get(`/api/search?q=${encodeURIComponent(q)}`);
     const parts = [];
@@ -224,7 +226,10 @@ async function runSearch(q) {
     }
     gr.innerHTML = parts.join('') || '<div class="sr-empty">Nenhum resultado encontrado.</div>';
     gr.classList.remove('hidden');
-  } catch (e) { /* silencioso */ }
+  } catch (e) {
+    gr.innerHTML = '<div class="sr-empty">Não foi possível buscar agora. Verifique sua conexão e tente novamente.</div>';
+    gr.classList.remove('hidden');
+  }
 }
 
 document.getElementById('eventTabs').addEventListener('click', (e) => {

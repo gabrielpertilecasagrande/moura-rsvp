@@ -26,6 +26,10 @@ const router = express.Router();
 // Slug do tenant padrão usado para service calls sem contexto de autenticação.
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_SLUG || 'moura';
 
+// Lista branca de status de evento (espelha users.routes.js). Valores fora dela
+// são ignorados no UPDATE para não gravar status que nenhuma tela reconhece.
+const VALID_EVENT_STATUS = ['ativo', 'inativo'];
+
 // ── GET /api/events/:id/metrics ───────────────────────────────────────────────
 // Aceita dois modos:
 //   1) Service token (JWT com claim target:'rsvp') — chamada máquina-a-máquina.
@@ -36,16 +40,29 @@ function metricsAuth(req, res, next) {
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (token) {
     try {
-      const payload = jwt.verify(token, SECRET);
+      // Fixa o algoritmo (HS256) — não aceita "alg" escolhido pelo token.
+      const payload = jwt.verify(token, SECRET, { algorithms: ['HS256'] });
       if (payload && payload.target === 'rsvp') {
         req.serviceCall = true;
-        const tenantSlug = String(req.headers['x-tenant-slug'] || DEFAULT_TENANT).toLowerCase().trim();
+        // ISOLAMENTO ENTRE CLIENTES: o tenant e o evento autorizados vêm do PRÓPRIO
+        // token (assinado), não de um header/URL que o chamador controla. Sem esses
+        // claims, recusa — assim um token vazado não vira chave-mestra de leitura
+        // entre organizações trocando X-Tenant-Slug e o id do evento.
+        const tokenTenant = payload.tenant_slug ? String(payload.tenant_slug).toLowerCase().trim() : null;
+        const tokenEvent  = payload.event_id != null ? String(payload.event_id) : null;
+        if (!tokenTenant || !tokenEvent) {
+          return res.status(403).json({ error: 'Token de serviço sem escopo de organização/evento.' });
+        }
+        // O evento pedido na URL precisa ser exatamente o autorizado pelo token.
+        if (String(req.params.id) !== tokenEvent) {
+          return res.status(403).json({ error: 'Token de serviço não autoriza este evento.' });
+        }
         // Só aceita um tenant que já existe (evita criar bancos arbitrários e
-        // travessia de caminho via header).
-        if (!organizationExists(tenantSlug)) {
+        // travessia de caminho).
+        if (!organizationExists(tokenTenant)) {
           return res.status(404).json({ error: 'Organização não encontrada.' });
         }
-        return runWithDb(tenantSlug, () => next());
+        return runWithDb(tokenTenant, () => next());
       }
     } catch { /* signature inválida → tenta sessão normal */ }
   }
@@ -248,7 +265,8 @@ router.put('/:id', requirePerm('can_edit'), upload, (req, res) => {
     slug, b.name ?? e.name, b.description ?? e.description,
     b.event_date ?? e.event_date, b.event_time ?? e.event_time,
     b.location ?? e.location, b.city ?? e.city, b.address ?? e.address,
-    cover, logo, b.rsvp_deadline ?? e.rsvp_deadline, b.status ?? e.status,
+    cover, logo, b.rsvp_deadline ?? e.rsvp_deadline,
+    VALID_EVENT_STATUS.includes(b.status) ? b.status : e.status,
     b.confirm_message ?? e.confirm_message, b.decline_message ?? e.decline_message,
     b.expected_guests != null ? (parseInt(b.expected_guests, 10) || 0) : e.expected_guests,
     b.whatsapp != null ? (b.whatsapp || null) : e.whatsapp,

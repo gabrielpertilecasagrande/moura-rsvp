@@ -204,6 +204,10 @@ router.post('/events/:slug/rsvp', (req, res) => {
     const extra = collectExtra(cfg, req.body.extra);
     for (const f of cfg.fields) {
       if (!f.enabled || !f.required) continue;
+      // Campo dependente: o "nome do acompanhante" só é obrigatório quando o
+      // convidado respondeu que o acompanhante vem. Espelha a exceção do frontend
+      // (rsvp.js) — sem isto, quem não leva acompanhante seria barrado com 400.
+      if (f.key === 'c_acomp_nome' && extra['c_acomp_vem'] !== 'Sim') continue;
       const filled = f.builtin ? isFilled(builtinVal[f.key]) : isFilled(extra[f.key]);
       if (!filled) return res.status(400).json({ error: `O campo "${f.label}" é obrigatório.` });
     }
@@ -277,8 +281,10 @@ router.post('/events/:slug/rsvp', (req, res) => {
       if (!/UNIQUE/i.test(String(err && err.message))) throw err;
       // Já existe alguém com este nome neste evento (e não casou por contato).
       const sameName = db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_normalized = ?').get(e.id, normalized);
-      // Registro com este nome estava na lixeira → reinscrição o traz de volta.
-      if (sameName && sameName.deleted_at) return doUpdate(sameName);
+      // Registro na lixeira só volta se for a MESMA pessoa (mesmo e-mail/telefone).
+      // Sem casamento de identificador forte, NÃO ressuscita nem sobrescreve: o
+      // findByContact acima já teria casado a própria pessoa. Caso contrário é
+      // alguém diferente com o mesmo nome → conflito (cai no 409 abaixo).
       // Mesma pessoa anônima reenviando (nenhum dos dois lados tem contato) → atualiza.
       if (sameName && !sameName.email && !sameName.phone && !email && !phone) return doUpdate(sameName);
       // Pessoas diferentes com o mesmo nome → NÃO sobrescreve ninguém.

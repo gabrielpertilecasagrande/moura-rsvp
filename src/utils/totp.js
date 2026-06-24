@@ -35,6 +35,21 @@ function verifyToken(secret, token) {
   catch { return false; }
 }
 
+// Como verifyToken, mas devolve o PASSO de tempo (timestep) absoluto que o código
+// satisfez — ou null se inválido. Permite ao chamador recusar reuso de um código
+// já usado (guardando o último passo aceito por admin). O passo do código pode
+// ser o atual, o anterior ou o seguinte (window: 1), por isso somamos o delta.
+function verifyTokenStep(secret, token) {
+  const t = String(token || '').replace(/\s/g, '');
+  if (!secret || !/^[0-9]{6}$/.test(t)) return null;
+  try {
+    const delta = authenticator.checkDelta(t, secret); // -1, 0, 1 ou null
+    if (delta == null) return null;
+    const period = authenticator.options.step || 30;
+    return Math.floor(Date.now() / 1000 / period) + delta;
+  } catch { return null; }
+}
+
 // Gera N códigos de recuperação. Retorna { plain: [...exibir 1x...], stored: JSON
 // de hashes para guardar no banco }. Formato XXXXX-XXXXX (10 hex, maiúsculo).
 function generateRecoveryCodes(n = 10) {
@@ -68,6 +83,6 @@ function remainingRecoveryCodes(storedJson) {
 }
 
 module.exports = {
-  generateSecret, keyuri, verifyToken,
+  generateSecret, keyuri, verifyToken, verifyTokenStep,
   generateRecoveryCodes, consumeRecoveryCode, remainingRecoveryCodes,
 };

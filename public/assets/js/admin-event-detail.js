@@ -433,7 +433,7 @@ function editParticipant(pid) {
     <p class="error-msg hidden" id="ed_err" style="text-align:left"></p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary btn-sm" onclick="saveParticipant(${pid})">Salvar alterações</button>
+      <button class="btn btn-primary btn-sm" id="ed_save" onclick="saveParticipant(${pid})">Salvar alterações</button>
     </div>`);
   document.querySelectorAll('.edit-presence .ep').forEach((lab) => {
     lab.addEventListener('click', () => {
@@ -447,6 +447,9 @@ async function saveParticipant(pid) {
   const val = (id) => document.getElementById(id).value.trim();
   const err = document.getElementById('ed_err');
   if (!val('ed_name')) { err.textContent = 'O nome é obrigatório.'; err.classList.remove('hidden'); return; }
+  // Evita duplo-submit (clique duplo / Enter repetido) desabilitando o botão.
+  const saveBtn = document.getElementById('ed_save');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Salvando…'; }
   const prev = LAST_LIST.find((x) => x.id === pid);
   const oldResp = prev ? prev.response : null;
   const newResp = document.querySelector('input[name="ed_resp"]:checked').value;
@@ -470,6 +473,7 @@ async function saveParticipant(pid) {
       toast('Participante atualizado.');
     }
   } catch (e) {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Salvar alterações'; }
     err.textContent = e.message; err.classList.remove('hidden');
   }
 }
@@ -587,7 +591,8 @@ async function bulkAction(action) {
   }
   try {
     const r = await Api.post(`/api/events/${ID}/participants/mass`, { action, ids });
-    toast(`${r.affected} participante(s) atualizados.`);
+    const msgs = { confirmar: 'marcados como Confirmado', recusar: 'marcados como Recusado', excluir: 'movidos para a lixeira' };
+    toast(`${r.affected} participante(s) ${msgs[action] || 'atualizados'}.`);
     SELECTED.clear();
     await loadParticipants();
   } catch (e) { toast(e.message); }
@@ -737,7 +742,7 @@ function addOne() {
     <p class="error-msg hidden" id="ao_err" style="text-align:left"></p>
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:18px">
       <button class="btn btn-ghost btn-sm" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-primary btn-sm" onclick="saveOne()">Adicionar</button>
+      <button class="btn btn-primary btn-sm" id="ao_save" onclick="saveOne()">Adicionar</button>
     </div>`);
   document.querySelectorAll('.edit-presence .ep').forEach((lab) => {
     lab.addEventListener('click', () => {
@@ -751,6 +756,9 @@ async function saveOne(force) {
   const v = (id) => document.getElementById(id).value.trim();
   const err = document.getElementById('ao_err');
   if (!v('ao_name')) { err.textContent = 'Informe o nome.'; err.classList.remove('hidden'); return; }
+  // Evita duplo-submit (clique duplo / Enter repetido) desabilitando o botão.
+  const saveBtn = document.getElementById('ao_save');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Salvando…'; }
   const payload = {
     name: v('ao_name'), company: v('ao_company'), role: v('ao_role'),
     email: v('ao_email'), phone: v('ao_phone'),
@@ -764,9 +772,15 @@ async function saveOne(force) {
     toast(r.updated ? 'Cadastro atualizado.' : 'Participante adicionado.');
     loadParticipants();
   } catch (e) {
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Adicionar'; }
     // Possível duplicado: o backend devolve 409 com a mensagem; oferecemos atualizar.
     if (/já existe/i.test(e.message)) {
-      if (confirm(e.message)) { saveOne(true); return; }
+      // Deixa claro QUAL cadastro será sobrescrito (nome casado vindo do backend).
+      const matched = e.data && e.data.matched_name;
+      const ask = matched
+        ? `${e.message}\n\nO cadastro de "${matched}" será atualizado com os dados informados. Deseja continuar?`
+        : e.message;
+      if (confirm(ask)) { saveOne(true); return; }
       return;
     }
     err.textContent = e.message; err.classList.remove('hidden');

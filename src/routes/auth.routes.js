@@ -110,7 +110,7 @@ router.get('/sso', (req, res) => {
   if (!token) return fail();
 
   let payload;
-  try { payload = jwt.verify(String(token), SECRET); } catch { return fail(); }
+  try { payload = jwt.verify(String(token), SECRET, { algorithms: ['HS256'] }); } catch { return fail(); }
   if (payload.target !== 'rsvp') return fail();
 
   const email = String(payload.email || '').toLowerCase().trim();
@@ -532,9 +532,12 @@ router.post('/2fa/enable', requireAuth, (req, res) => {
   if (!a || !a.totp_secret) return res.status(400).json({ error: 'Inicie a configuração antes de confirmar o código.' });
   if (a.totp_enabled) return res.status(409).json({ error: 'A verificação em duas etapas já está ativa.' });
   const secret = decrypt(a.totp_secret);
-  if (!totp.verifyToken(secret, code)) return res.status(400).json({ error: 'Código incorreto. Confira no app e tente novamente.' });
+  // Carimba o passo de tempo do código de ativação para que ele não possa ser
+  // reapresentado num login logo em seguida (anti-reuso).
+  const step = totp.verifyTokenStep(secret, code);
+  if (step == null) return res.status(400).json({ error: 'Código incorreto. Confira no app e tente novamente.' });
   const { plain, stored } = totp.generateRecoveryCodes(10);
-  db.prepare("UPDATE admins SET totp_enabled = 1, totp_recovery_codes = ?, totp_enrolled_at = datetime('now') WHERE id = ?").run(stored, a.id);
+  db.prepare("UPDATE admins SET totp_enabled = 1, totp_recovery_codes = ?, totp_enrolled_at = datetime('now'), totp_last_step = ? WHERE id = ?").run(stored, step, a.id);
   logActivity(a.name || a.email, 'ativou a verificação em duas etapas', null);
   res.json({ ok: true, recovery_codes: plain });
 });
@@ -548,10 +551,13 @@ router.post('/2fa/disable', requireAuth, (req, res) => {
     return res.status(401).json({ error: 'Senha incorreta.' });
   }
   const secret = decrypt(a.totp_secret);
-  const okTotp = totp.verifyToken(secret, code);
+  // Anti-reuso: só aceita o código se o passo for maior que o último usado.
+  const step = totp.verifyTokenStep(secret, code);
+  const okTotp = step != null && (a.totp_last_step == null || step > a.totp_last_step);
   const okRec = !okTotp && totp.consumeRecoveryCode(a.totp_recovery_codes, code).ok;
   if (!okTotp && !okRec) return res.status(400).json({ error: 'Código incorreto.' });
-  db.prepare("UPDATE admins SET totp_enabled = 0, totp_secret = NULL, totp_recovery_codes = NULL, totp_enrolled_at = NULL WHERE id = ?").run(a.id);
+  if (okTotp) db.prepare('UPDATE admins SET totp_last_step = ? WHERE id = ?').run(step, a.id);
+  db.prepare("UPDATE admins SET totp_enabled = 0, totp_secret = NULL, totp_recovery_codes = NULL, totp_enrolled_at = NULL, totp_last_step = NULL WHERE id = ?").run(a.id);
   logActivity(a.name || a.email, 'desativou a verificação em duas etapas', null);
   res.json({ ok: true });
 });
@@ -563,7 +569,7 @@ router.post('/2fa/verify', (req, res) => {
   if (mfaBlocked(ip)) return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' });
   const { mfa_token, code } = req.body || {};
   let payload;
-  try { payload = jwt.verify(String(mfa_token || ''), SECRET); }
+  try { payload = jwt.verify(String(mfa_token || ''), SECRET, { algorithms: ['HS256'] }); }
   catch { return res.status(401).json({ error: 'Verificação expirada. Entre novamente.' }); }
   if (!payload.mfa_pending || !payload.tenant_slug) return res.status(401).json({ error: 'Token inválido. Entre novamente.' });
 
@@ -574,13 +580,17 @@ router.post('/2fa/verify', (req, res) => {
     return res.status(401).json({ error: 'Não autorizado. Entre novamente.' });
   }
   const secret = decrypt(admin.totp_secret);
-  const okTotp = totp.verifyToken(secret, code);
+  // Anti-reuso: aceita o código só se o passo de tempo for MAIOR que o último já
+  // usado por este admin. Bloqueia reapresentar o mesmo código dentro da janela.
+  const step = totp.verifyTokenStep(secret, code);
+  const okTotp = step != null && (admin.totp_last_step == null || step > admin.totp_last_step);
   let okRec = false;
   if (!okTotp) {
     const r = totp.consumeRecoveryCode(admin.totp_recovery_codes, code);
     if (r.ok) { okRec = true; tenantDb.prepare('UPDATE admins SET totp_recovery_codes = ? WHERE id = ?').run(r.stored, admin.id); }
   }
   if (!okTotp && !okRec) { mfaFail(ip); return res.status(401).json({ error: 'Código incorreto.' }); }
+  if (okTotp) tenantDb.prepare('UPDATE admins SET totp_last_step = ? WHERE id = ?').run(step, admin.id);
 
   mfaReset(ip);
   tenantDb.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);

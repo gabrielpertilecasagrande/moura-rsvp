@@ -11,6 +11,7 @@ const db = require('../db');
 const { requireAuth } = require('../middleware/auth');
 const { requireRole } = require('../utils/permissions');
 const { logActivity } = require('../utils/activity');
+const { decryptFields } = require('../utils/crypto');
 
 const router = express.Router();
 router.use(requireAuth, requireRole('admin'));
@@ -34,7 +35,7 @@ router.get('/search', (req, res) => {
       LIMIT 100`
   ).all(term, term, term);
 
-  res.json({ participants: rows });
+  res.json({ participants: rows.map((r) => decryptFields(r, ['company'])) });
 });
 
 // ── Exclusão permanente ───────────────────────────────────────────────────────

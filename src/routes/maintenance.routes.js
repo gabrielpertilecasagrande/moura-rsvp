@@ -7,9 +7,11 @@
 const express = require('express');
 const jwt     = require('jsonwebtoken');
 const { routerDb } = require('../router');
+// Reutiliza o SECRET já validado no boot (src/middleware/auth.js exige um valor
+// forte em produção) em vez de redefinir um fallback 'dev-secret' duplicado.
+const { SECRET } = require('../middleware/auth');
 
 const router = express.Router();
-const SECRET = process.env.JWT_SECRET || 'dev-secret';
 
 function getRow() {
   return routerDb.prepare('SELECT * FROM maintenance_notice WHERE id = 1').get() || {};
@@ -32,7 +34,7 @@ router.get('/', (_req, res) => {
 router.put('/', (req, res) => {
   const auth = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
   try {
-    const p = jwt.verify(auth, SECRET);
+    const p = jwt.verify(auth, SECRET, { algorithms: ['HS256'] });
     if (p.service !== 'eventos') throw new Error('invalid service');
   } catch { return res.status(401).json({ error: 'Não autorizado.' }); }
 

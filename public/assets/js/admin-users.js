@@ -103,8 +103,8 @@ const roleSelect = (id, val) => {
   return `<div class="field" style="text-align:left"><label>Perfil de acesso</label><select id="${id}">
     <option value="cliente" ${v === 'cliente' ? 'selected' : ''}>Cliente — visualiza apenas os eventos dele (somente-leitura)</option>
     <option value="operador" ${v === 'operador' ? 'selected' : ''}>Operador — consulta eventos e gerencia participantes</option>
+    <option value="gestor" ${v === 'gestor' ? 'selected' : ''}>Gestor de Eventos — cria e gerencia eventos autorizados</option>
     <option value="admin" ${v === 'admin' ? 'selected' : ''}>Administrador — acesso total ao sistema</option>
-    ${v === 'gestor' ? '<option value="gestor" selected>Gestor de Eventos — cria e gerencia eventos autorizados</option>' : ''}
   </select></div>`;
 };
 
