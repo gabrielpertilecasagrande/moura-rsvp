@@ -17,6 +17,9 @@ router.get('/', (req, res) => {
   try {
     // VACUUM INTO exige que o arquivo de destino não exista.
     db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
+    // Restringe a leitura ao dono do processo: o backup contém TODOS os dados
+    // (inclusive pessoais), e fica em /tmp por alguns instantes até o envio.
+    try { fs.chmodSync(tmp, 0o600); } catch { /* best-effort */ }
   } catch (e) {
     return res.status(500).json({ error: 'Não foi possível gerar o backup.' });
   }
