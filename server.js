@@ -161,6 +161,10 @@ app.use('/api/platform',                                    require('./src/route
 app.use('/api/lgpd',                                        require('./src/routes/lgpd.routes'));
 app.use('/api/trash',                                       require('./src/routes/trash.routes'));
 app.use('/api/push',                                        require('./src/routes/push.routes'));
+// Ponte de sincronização consumida pelo moura-checkin (token de serviço target:'rsvp').
+// O próprio handler define o contexto de tenant via runWithDb — por isso fica fora
+// do fluxo de requireAuth (que dependeria de uma sessão de usuário).
+app.use('/api/admin/checkin',                               require('./src/routes/checkin-bridge.routes'));
 
 // ── Subdomínio de RSVP (ex.: rsvp.mouracom.com.br) ───────────────────────────
 // Quando RSVP_DOMAIN está definido, o SPA de RSVP é servido na raiz do
