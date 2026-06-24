@@ -30,6 +30,10 @@
     save(s);
   }
 
+  const SESS = 'rsvp_onb_s';
+  function welcClosed(key) { try { return sessionStorage.getItem(SESS+key)==='1'; } catch { return false; } }
+  function welcClose(key)  { try { sessionStorage.setItem(SESS+key,'1'); } catch {} }
+
   /* ─── Conteúdo por página ───────────────────────────────────────────────── */
   const PAGES = {
     '/admin/dashboard.html': {
@@ -134,7 +138,7 @@
   }
 
   /* ─── Componentes ───────────────────────────────────────────────────────── */
-  function renderWelcome(cfg, key, visits) {
+  function renderWelcome(cfg, key) {
     const el = document.createElement('div');
     el.className = 'mo-onb-welcome';
     el.innerHTML = `
@@ -143,13 +147,8 @@
       <div class="mo-onb-desc">${cfg.body}</div>
       <div class="mo-onb-links">
         ${cfg.tips.map(t => `<a class="mo-onb-link" href="${t.link}"><span>${t.icon}</span>${t.label}</a>`).join('')}
-      </div>
-      <div class="mo-onb-footer">
-        <button class="mo-onb-dismiss">Não mostrar mais</button>
-        <span class="mo-onb-counter">Visita ${visits} de ${MAX_VISITS}</span>
       </div>`;
-    el.querySelector('.mo-onb-x').onclick      = () => el.remove();
-    el.querySelector('.mo-onb-dismiss').onclick = () => { dismiss(key); el.remove(); };
+    el.querySelector('.mo-onb-x').onclick = () => { welcClose(key); el.remove(); };
     return el;
   }
 
@@ -172,24 +171,26 @@
   }
 
   /* ─── Bootstrap ─────────────────────────────────────────────────────────── */
+  function insert(el) {
+    const pageHead = document.querySelector('main .page-head');
+    const main     = document.querySelector('main');
+    if (pageHead)  pageHead.insertAdjacentElement('afterend', el);
+    else if (main) main.insertBefore(el, main.firstChild);
+  }
+
   function init() {
     const key = location.pathname.replace(/\/+$/, '') || '/';
     const cfg = PAGES[key];
     if (!cfg) return;
 
-    const info = track(key);
-    if (!shouldShow(info)) return;
-
     injectStyles();
 
-    const el = cfg.type === 'welcome'
-      ? renderWelcome(cfg, key, info.v)
-      : renderModuleBox(cfg, key);
-
-    const pageHead = document.querySelector('main .page-head');
-    const main     = document.querySelector('main');
-    if (pageHead)  pageHead.insertAdjacentElement('afterend', el);
-    else if (main) main.insertBefore(el, main.firstChild);
+    if (cfg.type === 'welcome') {
+      if (!welcClosed(key)) insert(renderWelcome(cfg, key));
+    } else {
+      const info = track(key);
+      if (shouldShow(info)) insert(renderModuleBox(cfg, key));
+    }
   }
 
   if (document.readyState === 'loading') {
