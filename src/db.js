@@ -49,11 +49,24 @@ function applyMigrations(db) {
   // instante (epoch em segundos) são recusados na hora pelo requireAuth.
   addColumn('admins', 'sessions_invalidated_at', 'INTEGER');
   addColumn('admins', 'source', 'TEXT');
+  // Verificação em duas etapas (2FA por TOTP). Segredo guardado CIFRADO
+  // (crypto.js); recovery_codes é um JSON de hashes de uso único. enabled=0 → 2FA
+  // desligado (padrão), então contas existentes continuam entrando só com a senha.
+  // Aplicado a TODO banco de tenant aberto (presentes e futuros) via applyMigrations.
+  addColumn('admins', 'totp_secret', 'TEXT');
+  addColumn('admins', 'totp_enabled', 'INTEGER DEFAULT 0');
+  addColumn('admins', 'totp_recovery_codes', 'TEXT');
+  addColumn('admins', 'totp_enrolled_at', 'TEXT');
   addColumn('events', 'whatsapp', 'TEXT');
   addColumn('events', 'force_open', 'INTEGER DEFAULT 0');
   addColumn('events', 'whatsapp_enabled', 'INTEGER DEFAULT 1');
   addColumn('events', 'city', 'TEXT');
   addColumn('events', 'address', 'TEXT');
+  // Página de aterrissagem (landing) do evento — usadas por events.routes.js no
+  // INSERT/UPDATE. Faltavam no schema/migração: em banco novo a criação de evento
+  // falhava ("no column named landing_enabled"). Idempotente (só adiciona se faltar).
+  addColumn('events', 'landing_enabled', 'INTEGER DEFAULT 0');
+  addColumn('events', 'landing_config', "TEXT DEFAULT '{}'");
   // ID do evento no Moura One (fonte da verdade). Permite que o provisionamento
   // seja IDEMPOTENTE: reenviar os dados ATUALIZA o evento em vez de duplicar.
   addColumn('events', 'source_event_id', 'TEXT');
