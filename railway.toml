@@ -1,4 +1,9 @@
 [deploy]
+# Rodamos o Node DIRETO (sem "npm start"). Quando o Railway troca de versão ou
+# reinicia, ele envia SIGTERM; o npm sai com erro ("npm error signal SIGTERM"),
+# que o Railway interpreta como crash e dispara e-mail de "Deployment crashed"
+# (falso alarme). Indo direto no node, o sinal chega limpo e o app encerra ok.
+startCommand = "node server.js"
 healthcheckPath = "/api/health"
 # Boot do RSVP é multi-tenant: abre vários bancos, roda seed e (se necessário)
 # migração. Em cold start isso pode passar de 30s. Damos uma janela folgada

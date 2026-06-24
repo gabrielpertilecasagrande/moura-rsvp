@@ -198,7 +198,7 @@ app.use((err, _req, res, _next) => {
 process.on('uncaughtException',  (e) => console.error('[uncaughtException]', e.message));
 process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\n  Moura RSVP rodando em ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
   console.log(`  Área administrativa: /admin/login.html\n`);
 
@@ -212,3 +212,15 @@ app.listen(PORT, () => {
 
   try { push.init(); } catch (e) { console.error('[push] falha ao inicializar:', e.message); }
 });
+
+// ── Encerramento gracioso ──────────────────────────────────────────────────────
+// Em troca de versão/reinício, o Railway envia SIGTERM. Fechamos o servidor e
+// saímos com código 0 (sucesso) — assim o desligamento normal NÃO é confundido
+// com "crash" (evita o falso e-mail de "Deployment crashed").
+function gracefulShutdown(signal) {
+  console.log(`[shutdown] ${signal} recebido — encerrando com elegância...`);
+  server.close(() => { console.log('[shutdown] conexões encerradas. Até logo.'); process.exit(0); });
+  setTimeout(() => process.exit(0), 10_000).unref();
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));
