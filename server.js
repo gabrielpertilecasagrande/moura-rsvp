@@ -202,5 +202,9 @@ app.listen(PORT, () => {
   try { require('./src/utils/trash').scheduleTrashCleanup(); }
   catch (e) { console.error('[trash] não foi possível agendar a limpeza:', e.message); }
 
+  // Backup automático: snapshot de todos os bancos + uploads → Cloudflare R2/S3.
+  try { require('./src/utils/backup').scheduleBackups(); }
+  catch (e) { console.error('[backup] não foi possível agendar backups:', e.message); }
+
   try { push.init(); } catch (e) { console.error('[push] falha ao inicializar:', e.message); }
 });
