@@ -117,16 +117,18 @@
       .mo-onb-dismiss{font-size:11.5px;color:rgba(255,255,255,.5);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px}
       .mo-onb-dismiss:hover{color:rgba(255,255,255,.8)}
       .mo-onb-counter{font-size:11px;color:rgba(255,255,255,.35);margin-left:auto}
-      .mo-onb-box{background:var(--off-white,#F4F6FA);border:1px solid var(--gray-soft,#eef2f7);border-left:4px solid var(--cyan,#00C2B8);border-radius:14px;padding:14px 16px;margin-bottom:20px;position:relative}
-      .mo-onb-box-x{position:absolute;top:9px;right:12px;background:none;border:none;cursor:pointer;color:var(--muted,#64748B);font-size:18px;line-height:1;padding:0}
-      .mo-onb-box-x:hover{color:var(--charcoal,#16203A)}
+      .mo-onb-box{background:#eef2ff;border:1px solid #c7d2fe;border-left:4px solid #152C6B;border-radius:14px;padding:16px 18px;margin-bottom:20px}
+      .mo-onb-badge{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;color:#152C6B;background:rgba(21,44,107,.12);border-radius:30px;padding:3px 10px;margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em}
       .mo-onb-box-head{display:flex;align-items:center;gap:7px;margin-bottom:6px}
       .mo-onb-box-ico{font-size:17px}
-      .mo-onb-box-ttl{font-size:14px;font-weight:700;color:var(--charcoal,#16203A)}
-      .mo-onb-box-body{font-size:13px;color:var(--muted,#64748B);line-height:1.5;margin:0 0 10px}
+      .mo-onb-box-ttl{font-size:14px;font-weight:700;color:#0f1e4a}
+      .mo-onb-box-body{font-size:13px;color:#2d3a5e;line-height:1.55;margin:0 0 10px}
       .mo-onb-box-tips{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:5px}
-      .mo-onb-box-tips li{font-size:12.5px;color:var(--charcoal,#16203A);display:flex;gap:6px;align-items:flex-start;line-height:1.4}
-      .mo-onb-box-tips li::before{content:'→';color:var(--cyan,#00C2B8);font-weight:700;flex-shrink:0;margin-top:1px}
+      .mo-onb-box-tips li{font-size:12.5px;color:#1e2d54;display:flex;gap:6px;align-items:flex-start;line-height:1.4}
+      .mo-onb-box-tips li::before{content:'→';color:#152C6B;font-weight:700;flex-shrink:0;margin-top:1px}
+      .mo-onb-box-foot{margin-top:14px;padding-top:12px;border-top:1px solid rgba(21,44,107,.1)}
+      .mo-onb-box-ok{background:#152C6B;color:#fff;border:none;border-radius:8px;padding:7px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:background .2s}
+      .mo-onb-box-ok:hover{background:#1a3890}
     `;
     document.head.appendChild(s);
   }
@@ -155,14 +157,17 @@
     const el = document.createElement('div');
     el.className = 'mo-onb-box';
     el.innerHTML = `
-      <button class="mo-onb-box-x" title="Fechar">×</button>
+      <div class="mo-onb-badge">💡 Orientação — some automaticamente</div>
       <div class="mo-onb-box-head">
         <span class="mo-onb-box-ico">${cfg.icon}</span>
         <span class="mo-onb-box-ttl">${cfg.title}</span>
       </div>
       <p class="mo-onb-box-body">${cfg.body}</p>
-      <ul class="mo-onb-box-tips">${cfg.tips.map(t => `<li>${t}</li>`).join('')}</ul>`;
-    el.querySelector('.mo-onb-box-x').onclick = () => { dismiss(key); el.remove(); };
+      <ul class="mo-onb-box-tips">${cfg.tips.map(t => `<li>${t}</li>`).join('')}</ul>
+      <div class="mo-onb-box-foot">
+        <button class="mo-onb-box-ok">Entendido ✓</button>
+      </div>`;
+    el.querySelector('.mo-onb-box-ok').onclick = () => { dismiss(key); el.remove(); };
     return el;
   }
 
