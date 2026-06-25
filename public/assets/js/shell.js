@@ -48,7 +48,8 @@ function renderShell(active) {
     <div class="spacer"></div>
     <div class="side-foot">
       <div class="side-user">
-        <span class="side-avatar">${esc(initials || '?')}</span>
+        <span class="side-avatar" id="sideAvatarIni">${esc(initials || '?')}</span>
+        <img id="sideAvatarImg" alt="" style="display:none;width:36px;height:36px;border-radius:50%;object-fit:cover;flex:none">
         <span class="side-user-info">
           <span class="side-user-name">${esc(u.name || 'Usuário')}</span>
           <span class="side-user-role">${ROLE_LABELS[u.role] || 'Operador'}</span>
@@ -81,8 +82,25 @@ function mountShell(active) {
   // Links de acesso rápido a outras plataformas (Moura One).
   loadSideQuickLinks();
 
+  // Foto de perfil (proxy → Moura One, fonte de verdade dos avatares).
+  loadSideAvatar();
+
   checkMaintenance();
   setInterval(checkMaintenance, 5 * 60 * 1000);
+}
+
+async function loadSideAvatar() {
+  const img = document.getElementById('sideAvatarImg');
+  const ini = document.getElementById('sideAvatarIni');
+  if (!img) return;
+  try {
+    const r = await fetch('/api/proxy/avatar', { headers: { Authorization: `Bearer ${Api.token()}` } });
+    if (!r.ok) return;
+    const blob = await r.blob();
+    img.src = URL.createObjectURL(blob);
+    img.style.display = '';
+    if (ini) ini.style.display = 'none';
+  } catch (_) {}
 }
 
 async function loadSideQuickLinks() {

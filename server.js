@@ -199,6 +199,25 @@ app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 // Health check — usado pelo Railway para confirmar que o servidor subiu corretamente.
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
+// Proxy de avatar: busca a foto do usuário no Moura One (fonte de verdade) e
+// devolve ao frontend sem expor MOURA_ONE_URL no cliente nem causar erros CORS.
+app.get('/api/proxy/avatar', async (req, res) => {
+  const base = (process.env.MOURA_ONE_URL || '').replace(/\/$/, '');
+  if (!base) return res.status(404).end();
+  const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+  if (!token) return res.status(401).end();
+  try {
+    const upstream = await fetch(`${base}/api/auth/avatar/cross`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!upstream.ok) return res.status(upstream.status).end();
+    res.setHeader('Content-Type', upstream.headers.get('Content-Type') || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=60');
+    const buf = await upstream.arrayBuffer();
+    res.end(Buffer.from(buf));
+  } catch { res.status(502).end(); }
+});
+
 // Link público do evento: /rsvp/:slug  (o slug é lido pelo JS da página via API pública)
 app.get('/rsvp/:slug', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html')));
 
