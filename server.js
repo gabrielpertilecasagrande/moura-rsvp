@@ -123,10 +123,21 @@ app.use((_req, res, next) => {
 app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: true, limit: '1mb' }));
 
+// Impede que páginas HTML e recursos fiquem presos no cache do navegador.
+// Com ETag (padrão do Express), arquivos não modificados retornam 304 — sem
+// re-download, mas sempre validando que a versão em cache ainda é atual.
+app.use((req, res, next) => {
+  const ext = path.extname(req.path);
+  if (!ext || ext === '.html') res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+  next();
+});
+
 // Uploads: diretório global (todos os tenants compartilham, nomes são aleatórios).
 const UPLOADS_PATH = path.join(DATA_DIR, 'uploads');
 app.use('/uploads', express.static(UPLOADS_PATH));
-app.use('/assets', express.static(path.join(__dirname, 'public', 'assets')));
+app.use('/assets', express.static(path.join(__dirname, 'public', 'assets'), {
+  setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache, must-revalidate'),
+}));
 app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'assets', 'img', 'favicon.ico')));
 
 // ── Limitadores de taxa ────────────────────────────────────────────────────────
