@@ -8,6 +8,7 @@ const { runWithDb } = require('../db');
 const { normalizeName }  = require('../utils/normalize');
 const { genQrToken } = require('../utils/qrToken');
 const { parseFormConfig, customFields, sanitizeAnswer, isFilled } = require('../utils/formConfig');
+const { encrypt } = require('../utils/crypto');
 
 const router = express.Router();
 
@@ -23,11 +24,10 @@ router.get('/legal-config', async (_req, res) => {
 });
 
 // Config pública do app admin: URLs dos sistemas vizinhos para os atalhos de
-// navegação (voltar ao Moura One, abrir o Check-in). Só URLs — nenhum segredo.
+// navegação (voltar ao Moura One). Só URLs — nenhum segredo.
 router.get('/app-config', (_req, res) => {
   res.json({
     moura_one_url: (process.env.MOURA_ONE_URL || process.env.LEGAL_BASE_URL || '').replace(/\/+$/, ''),
-    checkin_url:   (process.env.CHECKIN_APP_URL || process.env.CHECKIN_URL || '').replace(/\/+$/, ''),
   });
 });
 
@@ -54,9 +54,8 @@ async function currentConsentVersion() {
 }
 
 // GET /api/public/qr/:token.png — imagem do QR de entrada do convidado.
-// O conteúdo do QR é o próprio token (lido pelo app de check-in em
-// /api/checkin/lookup?qr=<token>). Não exige login nem contexto de tenant:
-// é apenas a renderização visual de um código aleatório (hex), seguro de expor.
+// O conteúdo do QR é o próprio token, lido pelo app Check-in (serviço separado).
+// Não exige login: é apenas a renderização visual de um código aleatório (hex), seguro de expor.
 router.get('/qr/:token', async (req, res) => {
   const token = String(req.params.token || '').replace(/\.png$/i, '').replace(/[^a-fA-F0-9]/g, '').slice(0, 64);
   if (token.length < 8) return res.status(400).json({ error: 'Código inválido.' });
@@ -122,6 +121,15 @@ function withTenantForSlug(slug, res, fn) {
   runWithDb(ref.tenant_slug, fn);
 }
 
+function parseLandingConfig(raw) {
+  try {
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!p || typeof p !== 'object') return { sections: [] };
+    if (!Array.isArray(p.sections)) p.sections = [];
+    return p;
+  } catch { return { sections: [] }; }
+}
+
 // GET /api/public/events/:slug  — dados públicos do evento
 router.get('/events/:slug', (req, res) => {
   withTenantForSlug(req.params.slug, res, () => {
@@ -129,21 +137,23 @@ router.get('/events/:slug', (req, res) => {
     if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
     const closed = isClosed(e);
     res.json({
-      slug:          e.slug,
-      name:          e.name,
-      description:   e.description,
-      event_date:    e.event_date,
-      event_time:    e.event_time,
-      location:      e.location,
-      city:          e.city,
-      address:       e.address,
-      cover_image:   e.cover_image,
-      client_logo:   e.client_logo,
-      rsvp_deadline: e.rsvp_deadline,
-      whatsapp:      e.whatsapp_enabled ? (e.whatsapp || null) : null,
-      form_config:   parseFormConfig(e.form_config),
+      slug:            e.slug,
+      name:            e.name,
+      description:     e.description,
+      event_date:      e.event_date,
+      event_time:      e.event_time,
+      location:        e.location,
+      city:            e.city,
+      address:         e.address,
+      cover_image:     e.cover_image,
+      client_logo:     e.client_logo,
+      rsvp_deadline:   e.rsvp_deadline,
+      whatsapp:        e.whatsapp_enabled ? (e.whatsapp || null) : null,
+      form_config:     parseFormConfig(e.form_config),
+      landing_enabled: e.landing_enabled ? 1 : 0,
+      landing_config:  parseLandingConfig(e.landing_config),
       closed,
-      closed_reason: e.status !== 'ativo' ? 'inativo' : (closed ? 'prazo' : null),
+      closed_reason:   e.status !== 'ativo' ? 'inativo' : (closed ? 'prazo' : null),
     });
   });
 });
@@ -194,6 +204,10 @@ router.post('/events/:slug/rsvp', (req, res) => {
     const extra = collectExtra(cfg, req.body.extra);
     for (const f of cfg.fields) {
       if (!f.enabled || !f.required) continue;
+      // Campo dependente: o "nome do acompanhante" só é obrigatório quando o
+      // convidado respondeu que o acompanhante vem. Espelha a exceção do frontend
+      // (rsvp.js) — sem isto, quem não leva acompanhante seria barrado com 400.
+      if (f.key === 'c_acomp_nome' && extra['c_acomp_vem'] !== 'Sim') continue;
       const filled = f.builtin ? isFilled(builtinVal[f.key]) : isFilled(extra[f.key]);
       if (!filled) return res.status(400).json({ error: `O campo "${f.label}" é obrigatório.` });
     }
@@ -216,7 +230,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
           consent_date=datetime('now'), consent_ip=?, terms_version=?, privacy_version=?,
           deleted_at=NULL, deleted_by=NULL, updated_at=datetime('now')
         WHERE id=?
-      `).run(String(name).trim(), company || null, role || null, email || null,
+      `).run(String(name).trim(), encrypt(company || null), encrypt(role || null), email || null,
              phone || null, response, normalized, extraJson, qrToken,
              consentIp, termsVersion, privacyVersion, target.id);
 
@@ -247,7 +261,7 @@ router.post('/events/:slug/rsvp', (req, res) => {
         INSERT INTO participants (event_id, name, name_normalized, company, role, email, phone, response, extra, qr_token,
           accepted_terms, accepted_privacy_policy, accepted_data_processing, consent_date, consent_ip, terms_version, privacy_version)
         VALUES (?,?,?,?,?,?,?,?,?,?, 1, 1, 1, datetime('now'), ?, ?, ?)
-      `).run(e.id, String(name).trim(), normalized, company || null, role || null,
+      `).run(e.id, String(name).trim(), normalized, encrypt(company || null), encrypt(role || null),
              email || null, phone || null, response, extraJson, qrToken,
              consentIp, termsVersion, privacyVersion);
 
@@ -267,8 +281,10 @@ router.post('/events/:slug/rsvp', (req, res) => {
       if (!/UNIQUE/i.test(String(err && err.message))) throw err;
       // Já existe alguém com este nome neste evento (e não casou por contato).
       const sameName = db.prepare('SELECT * FROM participants WHERE event_id = ? AND name_normalized = ?').get(e.id, normalized);
-      // Registro com este nome estava na lixeira → reinscrição o traz de volta.
-      if (sameName && sameName.deleted_at) return doUpdate(sameName);
+      // Registro na lixeira só volta se for a MESMA pessoa (mesmo e-mail/telefone).
+      // Sem casamento de identificador forte, NÃO ressuscita nem sobrescreve: o
+      // findByContact acima já teria casado a própria pessoa. Caso contrário é
+      // alguém diferente com o mesmo nome → conflito (cai no 409 abaixo).
       // Mesma pessoa anônima reenviando (nenhum dos dois lados tem contato) → atualiza.
       if (sameName && !sameName.email && !sameName.phone && !email && !phone) return doUpdate(sameName);
       // Pessoas diferentes com o mesmo nome → NÃO sobrescreve ninguém.

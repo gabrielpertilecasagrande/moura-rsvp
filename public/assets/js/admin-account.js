@@ -17,6 +17,11 @@ document.getElementById('pf_save').addEventListener('click', async () => {
   const name = document.getElementById('pf_name').value.trim();
   const email = document.getElementById('pf_email').value.trim();
   if (!name) { err.textContent = 'Informe seu nome.'; err.classList.remove('hidden'); return; }
+  // Valida o e-mail no cliente (mesmo padrão do backend) para evitar ida-e-volta
+  // ao servidor. A verificação de duplicidade continua só no backend.
+  if (!email || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    err.textContent = 'Informe um e-mail válido.'; err.classList.remove('hidden'); return;
+  }
   const btn = document.getElementById('pf_save'); btn.disabled = true;
   try {
     const r = await Api.put('/api/auth/profile', { name, email });
@@ -70,11 +75,7 @@ async function loadSessions() {
   const box = document.getElementById('sess_list');
   const revokeBtn = document.getElementById('sess_revoke');
   try {
-    const r = await fetch('/api/auth/sessions', {
-      headers: { Authorization: `Bearer ${Api.token()}`, 'X-Refresh-Token': Api.refreshToken() || '' },
-    });
-    if (!r.ok) throw new Error();
-    const { sessions } = await r.json();
+    const { sessions } = await Api.get('/api/auth/sessions');
     if (!sessions || !sessions.length) {
       box.innerHTML = '<p class="muted" style="font-size:13px">Nenhuma sessão ativa.</p>';
       revokeBtn.style.display = 'none';
@@ -94,10 +95,7 @@ async function loadSessions() {
       if (!confirm('Remover este aparelho?')) return;
       b.disabled = true;
       try {
-        const rr = await fetch(`/api/auth/sessions/${b.getAttribute('data-id')}/revoke`, {
-          method: 'POST', headers: { Authorization: `Bearer ${Api.token()}` },
-        });
-        if (!rr.ok) throw new Error();
+        await Api.post(`/api/auth/sessions/${b.getAttribute('data-id')}/revoke`);
         toast('Aparelho removido.');
         loadSessions();
       } catch { toast('Não foi possível remover agora.'); b.disabled = false; }
@@ -113,14 +111,8 @@ document.getElementById('sess_revoke').addEventListener('click', async () => {
   if (!confirm('Desconectar todos os outros aparelhos agora? Este aparelho continua conectado.')) return;
   const btn = document.getElementById('sess_revoke'); btn.disabled = true;
   try {
-    const r = await fetch('/api/auth/sessions/revoke-others', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${Api.token()}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ refresh_token: Api.refreshToken() }),
-    });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(d.error || 'Falha ao desconectar.');
-    if (d.token) Api.setToken(d.token); // mantém este aparelho válido após a invalidação
+    const d = await Api.post('/api/auth/sessions/revoke-others', { refresh_token: Api.refreshToken() });
+    if (d && d.token) Api.setToken(d.token); // mantém este aparelho válido após a invalidação
     toast('Outros aparelhos desconectados.');
     loadSessions();
   } catch (e) { toast(e.message); }

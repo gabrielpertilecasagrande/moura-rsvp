@@ -67,6 +67,8 @@ r.get('/tenants/:slug/backup', (req, res) => {
   const tmp = path.join(os.tmpdir(), `rsvp-${slug}-${stamp}-${Math.random().toString(36).slice(2, 7)}.db`);
   try {
     db.exec(`VACUUM INTO '${tmp.replace(/'/g, "''")}'`);
+    // Restringe a leitura ao dono do processo (backup contém dados pessoais).
+    try { fs.chmodSync(tmp, 0o600); } catch { /* best-effort */ }
   } catch (e) {
     console.error('[platform] erro ao gerar backup:', e.message);
     return res.status(500).json({ error: 'Não foi possível gerar o backup.' });

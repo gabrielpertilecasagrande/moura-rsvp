@@ -88,6 +88,7 @@
             <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('alergia')">💊 Alergia</button>
             <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('acessibilidade')">♿ Acessibilidade</button>
             <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('observacao')">📝 Observação livre</button>
+            <button type="button" class="btn btn-ghost btn-sm" onclick="addPreset('acompanhante')">Acompanhante</button>
           </div>
         </div>
       </div>
@@ -99,14 +100,32 @@
         <div class="field"><label>Mensagem ao recusar</label><textarea id="decline_message">Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.</textarea></div>
       </div>
 
+      <div class="card" style="margin-bottom:18px" id="landingCard">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">
+          <div>
+            <h2 style="font-size:16px;margin:0 0 4px">Landing Page Premium</h2>
+            <p class="muted" style="font-size:13px;margin:0">Transforma a página pública em um mini-site com seções personalizáveis. Quando desativado, mantém o formato atual.</p>
+          </div>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;flex-shrink:0;margin-top:2px">
+            <input type="checkbox" id="landing_enabled" style="width:18px;height:18px;accent-color:var(--navy)" />
+            <span style="font-size:13px;font-weight:600;white-space:nowrap">Ativar</span>
+          </label>
+        </div>
+        <div id="landingOptions" class="hidden" style="margin-top:20px;border-top:1px solid var(--gray);padding-top:20px">
+          <div id="landingEditor"></div>
+        </div>
+      </div>
+
       <div style="display:flex;gap:10px;justify-content:flex-end">
         <button class="btn btn-danger btn-sm hidden" id="deleteBtn">Excluir evento</button>
         <button class="btn btn-primary" id="saveBtn">Salvar evento</button>
       </div>
     </main>
   </div>
+  <div id="modalSlot"></div>
   <script src="/assets/js/api.js"></script>
   <script src="/assets/js/shell.js"></script>
   <script src="/assets/js/admin-event-form.js"></script>
+  <script src="/assets/js/onboarding.js"></script>
 </body>
 </html>

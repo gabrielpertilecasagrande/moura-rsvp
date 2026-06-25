@@ -3,9 +3,12 @@ const express = require('express');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const crypto  = require('crypto');
+const QRCode  = require('qrcode');
 const db      = require('../db');
-const { sign, requireAuth, SECRET } = require('../middleware/auth');
+const { sign, signMfa, requireAuth, SECRET } = require('../middleware/auth');
 const { openTenantDb, runWithDb }   = require('../db');
+const totp                          = require('../utils/totp');
+const { encrypt, decrypt }          = require('../utils/crypto');
 const { logActivity }               = require('../utils/activity');
 const { normalizeRole }             = require('../utils/permissions');
 const { uniqueSlug }                = require('../utils/slug');
@@ -75,6 +78,13 @@ router.post('/login', (req, res) => {
     return res.status(403).json({ error: 'Esta conta está desativada. Procure um administrador.' });
   }
 
+  // Verificação em duas etapas ativa: senha correta não basta. Emite token
+  // intermediário (5 min) carregando o tenant e pede o código; a sessão sai no
+  // /2fa/verify.
+  if (admin.totp_enabled) {
+    return res.json({ mfa_required: true, mfa_token: signMfa(admin.id, ref.tenant_slug) });
+  }
+
   // Registra o último login e a atividade dentro do contexto do tenant.
   runWithDb(ref.tenant_slug, () => {
     db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
@@ -100,8 +110,8 @@ router.get('/sso', (req, res) => {
   if (!token) return fail();
 
   let payload;
-  try { payload = jwt.verify(String(token), SECRET); } catch { return fail(); }
-  if (payload.target !== 'rsvp' && payload.target !== 'checkin') return fail();
+  try { payload = jwt.verify(String(token), SECRET, { algorithms: ['HS256'] }); } catch { return fail(); }
+  if (payload.target !== 'rsvp') return fail();
 
   const email = String(payload.email || '').toLowerCase().trim();
   if (!email) return fail();
@@ -109,19 +119,6 @@ router.get('/sso', (req, res) => {
   const tenantDb = openTenantDb(DEFAULT_TENANT);
   const admin = tenantDb.prepare('SELECT * FROM admins WHERE email = ?').get(email);
   if (!admin || admin.deleted_at || admin.status !== 'ativo') return fail();
-
-  // SSO target: checkin — acesso pontual ao módulo de check-in (sem sessão persistente).
-  if (payload.target === 'checkin') {
-    runWithDb(DEFAULT_TENANT, () => {
-      db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
-      logActivity(admin.name || admin.email, 'entrou via SSO (check-in)', null);
-
-      const checkinToken = sign(admin, DEFAULT_TENANT);
-      const eventParam = event ? `&event=${encodeURIComponent(String(event))}` : '';
-      return res.redirect(`/checkin/?token=${encodeURIComponent(checkinToken)}${eventParam}`);
-    });
-    return;
-  }
 
   runWithDb(DEFAULT_TENANT, () => {
     db.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
@@ -343,8 +340,8 @@ router.post('/sync-user', (req, res) => {
   const existing = tenantDb.prepare('SELECT id FROM admins WHERE email = ?').get(mail);
   if (existing) {
     // Monta o UPDATE incluindo status e/ou senha apenas quando informados.
-    const sets = ['name = ?', 'role = ?'];
-    const vals = [n, r];
+    const sets = ['name = ?', 'role = ?', 'source = ?'];
+    const vals = [n, r, 'moura_one'];
     if (newStatus) { sets.push('status = ?'); vals.push(newStatus); }
     if (pwHash && !deleted) { sets.push('password_hash = ?'); vals.push(pwHash); }
     vals.push(mail);
@@ -359,8 +356,8 @@ router.post('/sync-user', (req, res) => {
   // acesso real virá por SSO ou por "Esqueci a senha".
   const hash = pwHash || bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10);
   tenantDb.prepare(
-    'INSERT INTO admins (name, email, password_hash, role, status) VALUES (?, ?, ?, ?, ?)'
-  ).run(n, mail, hash, r, newStatus || 'ativo');
+    'INSERT INTO admins (name, email, password_hash, role, status, source) VALUES (?, ?, ?, ?, ?, ?)'
+  ).run(n, mail, hash, r, newStatus || 'ativo', 'moura_one');
   registerAdminEmail(mail, DEFAULT_TENANT);
   runWithDb(DEFAULT_TENANT, () => logActivity('integração (sync)', 'criou usuário', mail));
   res.status(201).json({ ok: true, action: 'created' });
@@ -466,6 +463,144 @@ router.post('/provision-event', (req, res) => {
 
     logActivity('integração (provision)', 'criou evento', `${created.name} [${created.ref_code} | src:${src || '—'}]`);
     res.status(201).json({ id: created.id, slug: created.slug, ref_code: created.ref_code, public_url: publicUrl(created) });
+  });
+});
+
+// ── Verificação em duas etapas (2FA por TOTP) ────────────────────────────────
+const TOTP_ISSUER = 'Moura RSVP';
+
+// Exige a chave de criptografia: sem ela, o segredo TOTP seria gravado em texto
+// puro (crypto.js faz passthrough). Bloqueia a ativação até a chave existir.
+function encryptionReady(res) {
+  if (!process.env.DATA_ENCRYPTION_KEY) {
+    res.status(503).json({ error: 'A verificação em duas etapas exige a chave de criptografia (DATA_ENCRYPTION_KEY) configurada no servidor. Procure o suporte.' });
+    return false;
+  }
+  return true;
+}
+
+// Limitador anti força-bruta do 2º fator, por IP, em memória (admins do RSVP não
+// têm colunas de lockout). 5 tentativas / 15 min → bloqueio por 15 min.
+const MFA_MAX = 5;
+const MFA_WINDOW_MS = 15 * 60 * 1000;
+const mfaAttempts = new Map();
+function mfaBlocked(ip) {
+  const e = mfaAttempts.get(ip);
+  if (!e) return false;
+  if (Date.now() > e.until) { mfaAttempts.delete(ip); return false; }
+  return e.count >= MFA_MAX;
+}
+function mfaFail(ip) {
+  const now = Date.now();
+  const e = mfaAttempts.get(ip);
+  if (!e || now > e.until) mfaAttempts.set(ip, { count: 1, until: now + MFA_WINDOW_MS });
+  else e.count++;
+}
+function mfaReset(ip) { mfaAttempts.delete(ip); }
+
+// As rotas abaixo (exceto /verify) usam requireAuth, que já estabelece o contexto
+// do tenant via ALS — então o proxy `db` aponta para o banco do tenant correto.
+
+// GET /api/auth/2fa/status
+router.get('/2fa/status', requireAuth, (req, res) => {
+  const a = db.prepare('SELECT totp_enabled, totp_recovery_codes FROM admins WHERE id = ?').get(req.admin.id);
+  res.json({
+    enabled: !!(a && a.totp_enabled),
+    recovery_remaining: a ? totp.remainingRecoveryCodes(a.totp_recovery_codes) : 0,
+    encryption_ready: !!process.env.DATA_ENCRYPTION_KEY,
+  });
+});
+
+// POST /api/auth/2fa/setup — gera o segredo (cifrado, ainda desligado) + QR Code.
+router.post('/2fa/setup', requireAuth, async (req, res) => {
+  if (!encryptionReady(res)) return;
+  const a = db.prepare('SELECT * FROM admins WHERE id = ?').get(req.admin.id);
+  if (!a) return res.status(404).json({ error: 'Conta não encontrada.' });
+  if (a.totp_enabled) return res.status(409).json({ error: 'A verificação em duas etapas já está ativa.' });
+  const secret = totp.generateSecret();
+  db.prepare("UPDATE admins SET totp_secret = ?, totp_enabled = 0 WHERE id = ?").run(encrypt(secret), a.id);
+  const otpauth = totp.keyuri(a.email, TOTP_ISSUER, secret);
+  const qr = await QRCode.toDataURL(otpauth);
+  res.json({ otpauth_url: otpauth, qr, secret });
+});
+
+// POST /api/auth/2fa/enable — confirma o código e ativa; devolve recovery codes 1x.
+router.post('/2fa/enable', requireAuth, (req, res) => {
+  if (!encryptionReady(res)) return;
+  const { code } = req.body || {};
+  const a = db.prepare('SELECT * FROM admins WHERE id = ?').get(req.admin.id);
+  if (!a || !a.totp_secret) return res.status(400).json({ error: 'Inicie a configuração antes de confirmar o código.' });
+  if (a.totp_enabled) return res.status(409).json({ error: 'A verificação em duas etapas já está ativa.' });
+  const secret = decrypt(a.totp_secret);
+  // Carimba o passo de tempo do código de ativação para que ele não possa ser
+  // reapresentado num login logo em seguida (anti-reuso).
+  const step = totp.verifyTokenStep(secret, code);
+  if (step == null) return res.status(400).json({ error: 'Código incorreto. Confira no app e tente novamente.' });
+  const { plain, stored } = totp.generateRecoveryCodes(10);
+  db.prepare("UPDATE admins SET totp_enabled = 1, totp_recovery_codes = ?, totp_enrolled_at = datetime('now'), totp_last_step = ? WHERE id = ?").run(stored, step, a.id);
+  logActivity(a.name || a.email, 'ativou a verificação em duas etapas', null);
+  res.json({ ok: true, recovery_codes: plain });
+});
+
+// POST /api/auth/2fa/disable — desliga (exige senha atual + código válido).
+router.post('/2fa/disable', requireAuth, (req, res) => {
+  const { password, code } = req.body || {};
+  const a = db.prepare('SELECT * FROM admins WHERE id = ?').get(req.admin.id);
+  if (!a || !a.totp_enabled) return res.status(400).json({ error: 'A verificação em duas etapas não está ativa.' });
+  if (!password || !bcrypt.compareSync(String(password), a.password_hash)) {
+    return res.status(401).json({ error: 'Senha incorreta.' });
+  }
+  const secret = decrypt(a.totp_secret);
+  // Anti-reuso: só aceita o código se o passo for maior que o último usado.
+  const step = totp.verifyTokenStep(secret, code);
+  const okTotp = step != null && (a.totp_last_step == null || step > a.totp_last_step);
+  const okRec = !okTotp && totp.consumeRecoveryCode(a.totp_recovery_codes, code).ok;
+  if (!okTotp && !okRec) return res.status(400).json({ error: 'Código incorreto.' });
+  if (okTotp) db.prepare('UPDATE admins SET totp_last_step = ? WHERE id = ?').run(step, a.id);
+  db.prepare("UPDATE admins SET totp_enabled = 0, totp_secret = NULL, totp_recovery_codes = NULL, totp_enrolled_at = NULL, totp_last_step = NULL WHERE id = ?").run(a.id);
+  logActivity(a.name || a.email, 'desativou a verificação em duas etapas', null);
+  res.json({ ok: true });
+});
+
+// POST /api/auth/2fa/verify — 2º passo do login. SEM requireAuth: o tenant vem
+// do próprio mfa_token (claim tenant_slug), então abrimos o banco diretamente.
+router.post('/2fa/verify', (req, res) => {
+  const ip = clientIp(req) || 'desconhecido';
+  if (mfaBlocked(ip)) return res.status(429).json({ error: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' });
+  const { mfa_token, code } = req.body || {};
+  let payload;
+  try { payload = jwt.verify(String(mfa_token || ''), SECRET, { algorithms: ['HS256'] }); }
+  catch { return res.status(401).json({ error: 'Verificação expirada. Entre novamente.' }); }
+  if (!payload.mfa_pending || !payload.tenant_slug) return res.status(401).json({ error: 'Token inválido. Entre novamente.' });
+
+  const slug = payload.tenant_slug;
+  const tenantDb = openTenantDb(slug);
+  const admin = tenantDb.prepare('SELECT * FROM admins WHERE id = ?').get(payload.id);
+  if (!admin || admin.deleted_at || admin.status !== 'ativo' || !admin.totp_enabled) {
+    return res.status(401).json({ error: 'Não autorizado. Entre novamente.' });
+  }
+  const secret = decrypt(admin.totp_secret);
+  // Anti-reuso: aceita o código só se o passo de tempo for MAIOR que o último já
+  // usado por este admin. Bloqueia reapresentar o mesmo código dentro da janela.
+  const step = totp.verifyTokenStep(secret, code);
+  const okTotp = step != null && (admin.totp_last_step == null || step > admin.totp_last_step);
+  let okRec = false;
+  if (!okTotp) {
+    const r = totp.consumeRecoveryCode(admin.totp_recovery_codes, code);
+    if (r.ok) { okRec = true; tenantDb.prepare('UPDATE admins SET totp_recovery_codes = ? WHERE id = ?').run(r.stored, admin.id); }
+  }
+  if (!okTotp && !okRec) { mfaFail(ip); return res.status(401).json({ error: 'Código incorreto.' }); }
+  if (okTotp) tenantDb.prepare('UPDATE admins SET totp_last_step = ? WHERE id = ?').run(step, admin.id);
+
+  mfaReset(ip);
+  tenantDb.prepare("UPDATE admins SET last_login = datetime('now') WHERE id = ?").run(admin.id);
+  runWithDb(slug, () => logActivity(admin.name || admin.email, 'fez login (com verificação em duas etapas)', null));
+  pruneExpiredSessions();
+  res.json({
+    token: sign(admin, slug),
+    refresh_token: createRefreshToken(slug, admin.id, req.headers['user-agent'], ip),
+    admin: { id: admin.id, name: admin.name, email: admin.email, role: admin.role },
+    recovery_used: okRec,
   });
 });
 

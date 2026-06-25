@@ -48,11 +48,29 @@ function applyMigrations(db) {
   // "Sair de todos os outros aparelhos": JWTs de acesso emitidos ANTES deste
   // instante (epoch em segundos) são recusados na hora pelo requireAuth.
   addColumn('admins', 'sessions_invalidated_at', 'INTEGER');
+  addColumn('admins', 'source', 'TEXT');
+  // Verificação em duas etapas (2FA por TOTP). Segredo guardado CIFRADO
+  // (crypto.js); recovery_codes é um JSON de hashes de uso único. enabled=0 → 2FA
+  // desligado (padrão), então contas existentes continuam entrando só com a senha.
+  // Aplicado a TODO banco de tenant aberto (presentes e futuros) via applyMigrations.
+  addColumn('admins', 'totp_secret', 'TEXT');
+  addColumn('admins', 'totp_enabled', 'INTEGER DEFAULT 0');
+  addColumn('admins', 'totp_recovery_codes', 'TEXT');
+  addColumn('admins', 'totp_enrolled_at', 'TEXT');
+  // Anti-reuso do código TOTP: guarda o último passo de tempo (timestep) aceito.
+  // Um código com passo menor ou igual a este é recusado — garante uso único por
+  // passo (espelha os códigos de recuperação, que já são de uso único).
+  addColumn('admins', 'totp_last_step', 'INTEGER');
   addColumn('events', 'whatsapp', 'TEXT');
   addColumn('events', 'force_open', 'INTEGER DEFAULT 0');
   addColumn('events', 'whatsapp_enabled', 'INTEGER DEFAULT 1');
   addColumn('events', 'city', 'TEXT');
   addColumn('events', 'address', 'TEXT');
+  // Página de aterrissagem (landing) do evento — usadas por events.routes.js no
+  // INSERT/UPDATE. Faltavam no schema/migração: em banco novo a criação de evento
+  // falhava ("no column named landing_enabled"). Idempotente (só adiciona se faltar).
+  addColumn('events', 'landing_enabled', 'INTEGER DEFAULT 0');
+  addColumn('events', 'landing_config', "TEXT DEFAULT '{}'");
   // ID do evento no Moura One (fonte da verdade). Permite que o provisionamento
   // seja IDEMPOTENTE: reenviar os dados ATUALIZA o evento em vez de duplicar.
   addColumn('events', 'source_event_id', 'TEXT');
@@ -70,6 +88,10 @@ function applyMigrations(db) {
     }
   }
   addColumn('audit_log', 'actor', 'TEXT');
+  // Rastreabilidade: quem fez, de onde e com qual dispositivo.
+  addColumn('audit_log', 'ip',         'TEXT');
+  addColumn('audit_log', 'user_agent', 'TEXT');
+  addColumn('audit_log', 'origin',     'TEXT');
   addColumn('participants', 'extra', 'TEXT');
   addColumn('participants', 'notes', 'TEXT');
   // LGPD — registro de consentimento do participante (no ato da inscrição).
@@ -80,6 +102,37 @@ function applyMigrations(db) {
   addColumn('participants', 'consent_ip', 'TEXT');
   addColumn('participants', 'terms_version', 'TEXT');
   addColumn('participants', 'privacy_version', 'TEXT');
+
+  // Migração automática (uma vez por banco de tenant): cifra company/role de
+  // participantes que ainda estejam em texto puro. Roda no primeiro acesso de
+  // cada tenant (openTenantDb é cacheado) — cobre tenants atuais e futuros.
+  // Segurança: só roda com a chave definida (senão encrypt() seria operação nula
+  // e gravaria texto puro). Seleciona apenas linhas NÃO cifradas (NOT LIKE
+  // 'enc:%') — em banco já migrado retorna 0 linhas (custo desprezível). Tudo em
+  // try/catch para NUNCA travar o boot e em transação (tudo-ou-nada por banco).
+  if (process.env.DATA_ENCRYPTION_KEY) {
+    try {
+      const { encrypt } = require('./utils/crypto');
+      const pendentes = db.prepare(
+        "SELECT id, company, role FROM participants " +
+        "WHERE (company IS NOT NULL AND company NOT LIKE 'enc:%') " +
+        "   OR (role    IS NOT NULL AND role    NOT LIKE 'enc:%')"
+      ).all();
+      if (pendentes.length) {
+        const upd = db.prepare('UPDATE participants SET company = ?, role = ? WHERE id = ?');
+        db.transaction(() => {
+          for (const p of pendentes) {
+            const company = (p.company && !String(p.company).startsWith('enc:')) ? encrypt(p.company) : p.company;
+            const role    = (p.role    && !String(p.role).startsWith('enc:'))    ? encrypt(p.role)    : p.role;
+            upd.run(company, role, p.id);
+          }
+        })();
+        console.log(`[db] migração: ${pendentes.length} participante(s) com company/role cifrado(s)`);
+      }
+    } catch (e) {
+      console.error('[db] migração de cifra de participantes falhou (boot segue normal):', e.message);
+    }
+  }
 
   // Lixeira (soft-delete): itens excluídos ficam guardados por um período antes
   // da remoção definitiva. deleted_at = quando foi para a lixeira; deleted_by =
@@ -94,25 +147,10 @@ function applyMigrations(db) {
   db.exec('CREATE INDEX IF NOT EXISTS idx_participants_deleted ON participants(deleted_at)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_admins_deleted       ON admins(deleted_at)');
   db.exec('CREATE INDEX IF NOT EXISTS idx_participants_qr      ON participants(qr_token)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_participants_checkin ON participants(event_id, checked_in_at)');
 
-  // Check-in: mesa e categoria por convidado (recursos do módulo de credenciamento).
-  addColumn('participants', 'table_number', 'TEXT');
-  addColumn('participants', 'category_id',  'INTEGER');
-  // Toggles por evento: habilitam o recurso de mesas e de categorias no check-in.
-  addColumn('events', 'has_tables',     'INTEGER DEFAULT 0');
-  addColumn('events', 'use_categories', 'INTEGER DEFAULT 0');
+  // Categorias de convidados no RSVP (VIP, Imprensa, etc.) — por evento.
   db.exec(`
-    CREATE TABLE IF NOT EXISTS checkin_tables (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      event_id   INTEGER NOT NULL,
-      name       TEXT    NOT NULL,
-      capacity   INTEGER NOT NULL DEFAULT 8,
-      sort_order INTEGER DEFAULT 0,
-      created_at TEXT    NOT NULL DEFAULT (datetime('now')),
-      FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
-    );
-    CREATE TABLE IF NOT EXISTS checkin_categories (
+    CREATE TABLE IF NOT EXISTS rsvp_categories (
       id         INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id   INTEGER NOT NULL,
       name       TEXT    NOT NULL,
@@ -122,8 +160,8 @@ function applyMigrations(db) {
       FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
     );
   `);
-  db.exec('CREATE INDEX IF NOT EXISTS idx_checkin_tables_event     ON checkin_tables(event_id)');
-  db.exec('CREATE INDEX IF NOT EXISTS idx_checkin_categories_event ON checkin_categories(event_id)');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_rsvp_cats_event ON rsvp_categories(event_id)');
+  addColumn('participants', 'guest_category_id', 'INTEGER');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS data_erasures (

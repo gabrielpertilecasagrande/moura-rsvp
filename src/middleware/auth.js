@@ -26,8 +26,15 @@ function sign(admin, tenantSlug) {
       tenant_slug: tenantSlug,
     },
     SECRET,
-    { expiresIn: '12h' }
+    { expiresIn: '12h', algorithm: 'HS256' }
   );
+}
+
+// Token intermediário da verificação em duas etapas: prova que a senha já foi
+// aceita, mas NÃO é uma sessão. Carrega o tenant_slug (o /2fa/verify não passa
+// pelo requireAuth, então precisa saber em qual banco buscar o admin). Vale 5 min.
+function signMfa(adminId, tenantSlug) {
+  return jwt.sign({ id: adminId, tenant_slug: tenantSlug, mfa_pending: true }, SECRET, { expiresIn: '5m', algorithm: 'HS256' });
 }
 
 // Protege rotas administrativas. Espera header Authorization: Bearer <token>.
@@ -42,13 +49,15 @@ function requireAuth(req, res, next) {
 
   let payload;
   try {
-    payload = jwt.verify(token, SECRET);
+    payload = jwt.verify(token, SECRET, { algorithms: ['HS256'] });
   } catch {
     return res.status(401).json({ error: 'Sessão expirada. Entre novamente.' });
   }
 
   // Tokens de handshake SSO (com claim "target") só servem para /api/auth/sso.
   if (payload.target) return res.status(401).json({ error: 'Sessão inválida. Entre novamente.' });
+  // Token de 2FA pendente não é sessão: só serve para /2fa/verify.
+  if (payload.mfa_pending) return res.status(401).json({ error: 'Verificação em duas etapas pendente. Entre novamente.' });
 
   const tenantSlug = payload.tenant_slug;
   if (!tenantSlug) {
@@ -87,4 +96,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { sign, requireAuth, requireAdmin, SECRET };
+module.exports = { sign, signMfa, requireAuth, requireAdmin, SECRET };

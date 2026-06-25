@@ -10,6 +10,7 @@ const SLUG_PREFIX = `${location.origin}/rsvp/`;
   if (sp) sp.textContent = SLUG_PREFIX;
 }
 let removeCover = false, removeLogo = false;
+let previewCoverUrl = null, previewLogoUrl = null;
 
 // Configuração dos campos do formulário público — lista ordenada e editável.
 const BUILTIN_FIELDS = [
@@ -135,6 +136,17 @@ const PRESETS = {
 };
 
 function addPreset(key) {
+  if (key === 'acompanhante') {
+    const fields = formConfig.fields || (formConfig.fields = []);
+    const alreadyVem = fields.some((f) => f.key === 'c_acomp_vem');
+    const alreadyNome = fields.some((f) => f.key === 'c_acomp_nome');
+    if (alreadyVem || alreadyNome) { alert('Os campos de acompanhante já foram adicionados.'); return; }
+    fields.push({ key: 'c_acomp_vem', label: 'Levará acompanhante?', type: 'boolean', enabled: true, required: false, builtin: false });
+    fields.push({ key: 'c_acomp_nome', label: 'Nome do acompanhante', type: 'text', enabled: true, required: false, builtin: false });
+    markDirty(); renderBuilder();
+    document.getElementById('fieldBuilder').scrollIntoView({ behavior: 'smooth', block: 'end' });
+    return;
+  }
   const preset = PRESETS[key];
   if (!preset) return;
   const fields = formConfig.fields || (formConfig.fields = []);
@@ -183,6 +195,13 @@ async function loadForEdit() {
   renderBuilder();
   renderAttachment('coverCurrent', e.cover_image, 'cover');
   renderAttachment('logoCurrent', e.client_logo, 'logo');
+  previewCoverUrl = e.cover_image || null;
+  previewLogoUrl  = e.client_logo || null;
+  const landingOn = !!e.landing_enabled;
+  document.getElementById('landing_enabled').checked = landingOn;
+  document.getElementById('landingOptions').classList.toggle('hidden', !landingOn);
+  landingConfig = normalizeLandingConfig(e.landing_config || {});
+  renderLandingEditor();
 
   const del = document.getElementById('deleteBtn');
   del.classList.remove('hidden');
@@ -244,6 +263,8 @@ async function save() {
    'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'].forEach((id) => fd.append(id, v(id)));
   fd.append('whatsapp_enabled', document.getElementById('whatsapp_enabled').checked ? '1' : '0');
   fd.append('form_config', JSON.stringify(formConfig));
+  fd.append('landing_enabled', document.getElementById('landing_enabled').checked ? '1' : '0');
+  fd.append('landing_config', JSON.stringify(landingConfig));
   if (eventLoadedAt) fd.append('updated_at', eventLoadedAt);
   if (removeCover) fd.append('remove_cover', '1');
   if (removeLogo) fd.append('remove_logo', '1');
@@ -271,7 +292,8 @@ let dirty = false;
 let draftT;
 
 function collectDraft() {
-  const d = { _t: Date.now(), wa_on: document.getElementById('whatsapp_enabled').checked, form_config: formConfig };
+  const d = { _t: Date.now(), wa_on: document.getElementById('whatsapp_enabled').checked, form_config: formConfig,
+    landing_on: document.getElementById('landing_enabled').checked, landing_config: landingConfig };
   TEXT_IDS.forEach((id) => { d[id] = document.getElementById(id).value; });
   return d;
 }
@@ -283,6 +305,11 @@ function applyDraft(d) {
   TEXT_IDS.forEach((id) => { if (d[id] != null) document.getElementById(id).value = d[id]; });
   if (d.wa_on != null) document.getElementById('whatsapp_enabled').checked = d.wa_on;
   if (d.form_config) { formConfig = normalizeConfig(d.form_config); renderBuilder(); }
+  if (d.landing_on != null) {
+    document.getElementById('landing_enabled').checked = d.landing_on;
+    document.getElementById('landingOptions').classList.toggle('hidden', !d.landing_on);
+  }
+  if (d.landing_config) { landingConfig = normalizeLandingConfig(d.landing_config); renderLandingEditor(); }
 }
 function maybeRestoreDraft() {
   let raw; try { raw = localStorage.getItem(DRAFT_KEY); } catch { return; }
@@ -313,7 +340,380 @@ document.addEventListener('change', (e) => {
   if (e.target.closest('.main')) markDirty();
 });
 
+// ---- Landing Page Premium ----
+
+const LP_SECTION_DEFAULTS = [
+  { type: 'video',     emoji: '🎥', label: 'Vídeo',                enabled: false, title: 'Sobre o evento',         url: '' },
+  { type: 'agenda',    emoji: '📅', label: 'Agenda / Programação', enabled: false, title: 'Programação',            items: [] },
+  { type: 'location',  emoji: '📍', label: 'Localização',          enabled: false, title: 'Localização',            embed_url: '' },
+  { type: 'sponsors',  emoji: '🤝', label: 'Patrocinadores',        enabled: false, title: 'Patrocinadores',         items: [] },
+  { type: 'faq',       emoji: '❓', label: 'Perguntas Frequentes',  enabled: false, title: 'Perguntas Frequentes',   items: [] },
+];
+
+let landingConfig = { sections: LP_SECTION_DEFAULTS.map((s) => ({ ...s, items: s.items ? [] : undefined })) };
+
+function normalizeLandingConfig(raw) {
+  try {
+    const p = (raw && typeof raw === 'object') ? raw : JSON.parse(raw || '{}');
+    const defByType = {};
+    LP_SECTION_DEFAULTS.forEach((d) => { defByType[d.type] = d; });
+    const merge = (def, saved) => {
+      const base = { type: def.type, enabled: !!saved.enabled, title: saved.title || def.title };
+      if (def.type === 'video')    return { ...base, url: saved.url || '' };
+      if (def.type === 'location') return { ...base, embed_url: saved.embed_url || '' };
+      return { ...base, items: Array.isArray(saved.items) ? saved.items : [] };
+    };
+    const savedSecs = (Array.isArray(p.sections) ? p.sections : []).filter((s) => defByType[s.type]);
+    const savedTypes = new Set(savedSecs.map((s) => s.type));
+    const extra = LP_SECTION_DEFAULTS.filter((d) => !savedTypes.has(d.type))
+      .map((d) => merge(d, {}));
+    return { sections: [...savedSecs.map((s) => merge(defByType[s.type], s)), ...extra] };
+  } catch { return { sections: LP_SECTION_DEFAULTS.map((d) => ({ ...d, items: d.items ? [] : undefined })) }; }
+}
+
+let lpDragFrom = null;
+
+function renderLandingEditor() {
+  const el = document.getElementById('landingEditor');
+  if (!el) return;
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <button type="button" id="lpPreviewBtn" class="btn btn-ghost btn-sm">Pré-visualizar</button>
+      <button type="button" id="lpResetOrder" class="btn-link-muted" title="Volta à ordem original: Vídeo, Agenda, Localização, Patrocinadores, FAQ">redefinir ordem</button>
+    </div>
+    ${landingConfig.sections.map((sec) => renderLpSection(sec)).join('')}`;
+
+  document.getElementById('lpPreviewBtn').addEventListener('click', openLpPreview);
+  document.getElementById('lpResetOrder').addEventListener('click', () => {
+    const order = LP_SECTION_DEFAULTS.map((d) => d.type);
+    landingConfig.sections.sort((a, b) => order.indexOf(a.type) - order.indexOf(b.type));
+    markDirty(); renderLandingEditor();
+  });
+
+  el.querySelectorAll('.lp-ed-head').forEach((head) => {
+    head.addEventListener('click', (e) => {
+      if (e.target.closest('input[type=checkbox]') || e.target.closest('.lp-ed-drag')) return;
+      head.closest('.lp-ed-section').classList.toggle('open');
+    });
+  });
+  el.querySelectorAll('[data-lp-enabled]').forEach((cb) => {
+    cb.addEventListener('change', () => {
+      const sec = landingConfig.sections.find((s) => s.type === cb.dataset.lpEnabled);
+      if (sec) { sec.enabled = cb.checked; markDirty(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-title]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const sec = landingConfig.sections.find((s) => s.type === inp.dataset.lpTitle);
+      if (sec) { sec.title = inp.value; markDirty(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-url]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const sec = landingConfig.sections.find((s) => s.type === inp.dataset.lpUrl);
+      if (sec) { sec.url = inp.value; markDirty(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-embed]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const sec = landingConfig.sections.find((s) => s.type === inp.dataset.lpEmbed);
+      if (sec) { sec.embed_url = inp.value; markDirty(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-add]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.lpAdd;
+      const sec = landingConfig.sections.find((s) => s.type === type);
+      if (!sec) return;
+      if (type === 'agenda')   sec.items.push({ time: '', title: '', description: '' });
+      if (type === 'sponsors') sec.items.push({ name: '', logo_url: '', website: '' });
+      if (type === 'faq')      sec.items.push({ question: '', answer: '' });
+      markDirty(); renderLandingEditor();
+    });
+  });
+  el.querySelectorAll('[data-lp-del]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const [type, idx] = btn.dataset.lpDel.split(':');
+      const sec = landingConfig.sections.find((s) => s.type === type);
+      if (sec) { sec.items.splice(Number(idx), 1); markDirty(); renderLandingEditor(); }
+    });
+  });
+  el.querySelectorAll('[data-lp-field]').forEach((inp) => {
+    inp.addEventListener('input', () => {
+      const [type, idx, field] = inp.dataset.lpField.split(':');
+      const sec = landingConfig.sections.find((s) => s.type === type);
+      if (sec && sec.items[Number(idx)]) { sec.items[Number(idx)][field] = inp.value; markDirty(); }
+    });
+  });
+
+  // ---- Drag-and-drop para reordenar seções ----
+  el.querySelectorAll('.lp-ed-section[data-lp-type]').forEach((row) => {
+    const type = row.dataset.lpType;
+    row.addEventListener('dragstart', (e) => {
+      lpDragFrom = type; row.classList.add('lp-ed-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    row.addEventListener('dragend', () => {
+      lpDragFrom = null;
+      el.querySelectorAll('.lp-ed-section').forEach((r) => r.classList.remove('lp-ed-dragging', 'lp-ed-over'));
+    });
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+      if (lpDragFrom && lpDragFrom !== type) row.classList.add('lp-ed-over');
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('lp-ed-over'));
+    row.addEventListener('drop', (e) => {
+      e.preventDefault(); row.classList.remove('lp-ed-over');
+      if (!lpDragFrom || lpDragFrom === type) return;
+      const fromIdx = landingConfig.sections.findIndex((s) => s.type === lpDragFrom);
+      const toIdx   = landingConfig.sections.findIndex((s) => s.type === type);
+      if (fromIdx < 0 || toIdx < 0) return;
+      const [moved] = landingConfig.sections.splice(fromIdx, 1);
+      landingConfig.sections.splice(toIdx, 0, moved);
+      lpDragFrom = null; markDirty(); renderLandingEditor();
+    });
+    row.querySelector('.lp-ed-drag')?.addEventListener('mousedown', (e) => e.stopPropagation());
+  });
+}
+
+function renderLpSection(sec) {
+  const def = LP_SECTION_DEFAULTS.find((d) => d.type === sec.type) || {};
+  const inner = renderLpSectionBody(sec);
+  return `
+  <div class="lp-ed-section${sec.enabled ? ' open' : ''}" data-lp-type="${sec.type}" draggable="true">
+    <div class="lp-ed-head">
+      <div class="lp-ed-head-label">
+        <span class="lp-ed-drag" title="Arraste para reordenar" aria-hidden="true">${DRAG}</span>
+        <span>${def.emoji || ''} ${def.label || sec.type}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:14px">
+        <label class="lp-ed-head-toggle" onclick="event.stopPropagation()">
+          <input type="checkbox" data-lp-enabled="${sec.type}" ${sec.enabled ? 'checked' : ''} style="accent-color:var(--navy)" />
+          <span>Ativar</span>
+        </label>
+        <svg class="lp-ed-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+    </div>
+    <div class="lp-ed-body">${inner}</div>
+  </div>`;
+}
+
+function renderLpSectionBody(sec) {
+  const titleField = `<div class="field"><label>Título da seção</label><input type="text" data-lp-title="${sec.type}" value="${esc(sec.title || '')}" /></div>`;
+  if (sec.type === 'video') {
+    return `${titleField}
+    <div class="field">
+      <label>URL do vídeo (YouTube ou Vimeo)</label>
+      <input type="text" data-lp-url="video" value="${esc(sec.url || '')}" placeholder="https://www.youtube.com/watch?v=..." />
+      <p class="muted" style="font-size:12px;margin:4px 0 0">Cole o link normal do YouTube ou Vimeo. O embed é gerado automaticamente.</p>
+    </div>`;
+  }
+  if (sec.type === 'location') {
+    return `${titleField}
+    <div class="field">
+      <label>URL de incorporação do Google Maps</label>
+      <input type="text" data-lp-embed="location" value="${esc(sec.embed_url || '')}" placeholder="https://www.google.com/maps/embed?pb=..." />
+      <p class="muted" style="font-size:12px;margin:4px 0 0">No Google Maps: Compartilhar → Incorporar um mapa → copie apenas a URL do atributo <code>src</code> do iframe.</p>
+    </div>`;
+  }
+  if (sec.type === 'agenda') {
+    const rows = (sec.items || []).map((it, i) => `
+      <div class="lp-ed-item" style="grid-template-columns:80px 1fr;align-items:start">
+        <button type="button" class="lp-ed-del" data-lp-del="agenda:${i}" title="Remover">✕</button>
+        <div class="field" style="margin:0"><label style="font-size:12px">Horário</label><input type="text" data-lp-field="agenda:${i}:time" value="${esc(it.time || '')}" placeholder="19:00" /></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="field" style="margin:0"><label style="font-size:12px">Título do item</label><input type="text" data-lp-field="agenda:${i}:title" value="${esc(it.title || '')}" placeholder="Abertura do evento" /></div>
+          <div class="field" style="margin:0"><label style="font-size:12px">Descrição (opcional)</label><input type="text" data-lp-field="agenda:${i}:description" value="${esc(it.description || '')}" placeholder="Breve descrição" /></div>
+        </div>
+      </div>`).join('');
+    return `${titleField}<div class="lp-ed-items">${rows}</div>
+      <button type="button" class="btn btn-ghost btn-sm" data-lp-add="agenda">+ Adicionar item</button>`;
+  }
+  if (sec.type === 'sponsors') {
+    const rows = (sec.items || []).map((it, i) => `
+      <div class="lp-ed-item" style="grid-template-columns:1fr 1fr 1fr">
+        <button type="button" class="lp-ed-del" data-lp-del="sponsors:${i}" title="Remover">✕</button>
+        <div class="field" style="margin:0"><label style="font-size:12px">Nome</label><input type="text" data-lp-field="sponsors:${i}:name" value="${esc(it.name || '')}" placeholder="Empresa X" /></div>
+        <div class="field" style="margin:0"><label style="font-size:12px">URL do logo (imagem)</label><input type="text" data-lp-field="sponsors:${i}:logo_url" value="${esc(it.logo_url || '')}" placeholder="https://..." /></div>
+        <div class="field" style="margin:0"><label style="font-size:12px">Site (opcional)</label><input type="text" data-lp-field="sponsors:${i}:website" value="${esc(it.website || '')}" placeholder="https://empresax.com.br" /></div>
+      </div>`).join('');
+    return `${titleField}<div class="lp-ed-items">${rows}</div>
+      <button type="button" class="btn btn-ghost btn-sm" data-lp-add="sponsors">+ Adicionar patrocinador</button>`;
+  }
+  if (sec.type === 'faq') {
+    const rows = (sec.items || []).map((it, i) => `
+      <div class="lp-ed-item" style="grid-template-columns:1fr">
+        <button type="button" class="lp-ed-del" data-lp-del="faq:${i}" title="Remover">✕</button>
+        <div class="field" style="margin:0"><label style="font-size:12px">Pergunta</label><input type="text" data-lp-field="faq:${i}:question" value="${esc(it.question || '')}" placeholder="Como funciona o check-in?" /></div>
+        <div class="field" style="margin:0"><label style="font-size:12px">Resposta</label><textarea data-lp-field="faq:${i}:answer" rows="2" placeholder="Resposta detalhada...">${esc(it.answer || '')}</textarea></div>
+      </div>`).join('');
+    return `${titleField}<div class="lp-ed-items">${rows}</div>
+      <button type="button" class="btn btn-ghost btn-sm" data-lp-add="faq">+ Adicionar pergunta</button>`;
+  }
+  return titleField;
+}
+
+// ---- Pré-visualização da Landing Page ----
+
+function toEmbedUrlForPreview(url) {
+  if (!url) return null;
+  const u = url.trim();
+  const yt = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([A-Za-z0-9_-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  const vimeo = u.match(/vimeo\.com\/(\d+)/);
+  if (vimeo) return `https://player.vimeo.com/video/${vimeo[1]}`;
+  if (/youtube\.com\/embed\/|player\.vimeo\.com\//.test(u)) return u;
+  return null;
+}
+
+function buildPreviewSectionsHtml() {
+  const chevron = '<svg class="lp-faq-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m6 9 6 6 6-6"/></svg>';
+  return landingConfig.sections.map((sec) => {
+    if (!sec.enabled) return '';
+    const title = sec.title ? `<h2 class="lp-section-title">${esc(sec.title)}</h2>` : '';
+    if (sec.type === 'video') {
+      const embed = toEmbedUrlForPreview(sec.url);
+      if (!embed) return '';
+      return `<section class="lp-section">${title}<div class="lp-video-wrap"><iframe src="${esc(embed)}" allowfullscreen loading="lazy"></iframe></div></section>`;
+    }
+    if (sec.type === 'agenda') {
+      const items = (sec.items || []).filter((it) => it.title);
+      if (!items.length) return '';
+      const rows = items.map((it) => `
+        <div class="lp-timeline-item">
+          <span class="lp-timeline-time">${esc(it.time || '')}</span>
+          <div class="lp-timeline-dot"></div>
+          <div class="lp-timeline-body"><strong>${esc(it.title)}</strong>${it.description ? `<p>${esc(it.description)}</p>` : ''}</div>
+        </div>`).join('');
+      return `<section class="lp-section">${title}<div class="lp-timeline">${rows}</div></section>`;
+    }
+    if (sec.type === 'location') {
+      if (!sec.embed_url) return '';
+      return `<section class="lp-section">${title}<div class="lp-map-wrap"><iframe src="${esc(sec.embed_url)}" allowfullscreen loading="lazy"></iframe></div></section>`;
+    }
+    if (sec.type === 'sponsors') {
+      const items = (sec.items || []).filter((it) => it.name || it.logo_url);
+      if (!items.length) return '';
+      const cards = items.map((it) => {
+        const inner = it.logo_url ? `<img src="${esc(it.logo_url)}" alt="${esc(it.name)}" />` : `<span class="lp-sponsor-name">${esc(it.name)}</span>`;
+        return it.website
+          ? `<a class="lp-sponsor-card" href="${esc(it.website)}" target="_blank" rel="noopener">${inner}</a>`
+          : `<div class="lp-sponsor-card">${inner}</div>`;
+      }).join('');
+      return `<section class="lp-section">${title}<div class="lp-sponsors-grid">${cards}</div></section>`;
+    }
+    if (sec.type === 'faq') {
+      const items = (sec.items || []).filter((it) => it.question);
+      if (!items.length) return '';
+      const rows = items.map((it, i) => `
+        <div class="lp-faq-item" data-faq="${i}">
+          <div class="lp-faq-q">${esc(it.question)}${chevron}</div>
+          <div class="lp-faq-a">${esc(it.answer || '')}</div>
+        </div>`).join('');
+      return `<section class="lp-section">${title}<div class="lp-faq">${rows}</div></section>`;
+    }
+    return '';
+  }).join('');
+}
+
+function buildPreviewHTML() {
+  const origin = window.location.origin;
+  const name = document.getElementById('name')?.value || 'Nome do Evento';
+  const description = document.getElementById('description')?.value || '';
+  const eventDate = document.getElementById('event_date')?.value || '';
+  const eventTime = document.getElementById('event_time')?.value || '';
+  const locationName = document.getElementById('location')?.value || '';
+  const city = document.getElementById('city')?.value || '';
+
+  const ICON_CAL   = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>';
+  const ICON_CLOCK = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>';
+  const ICON_PIN   = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-5.7-7-11a7 7 0 0 1 14 0c0 5.3-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>';
+
+  const dateTxt     = eventDate ? fmtDateBR(eventDate) : '';
+  const locationTxt = [locationName, city].filter(Boolean).join(' · ');
+
+  const coverFile = document.getElementById('cover_image')?.files[0];
+  const coverSrc  = coverFile ? URL.createObjectURL(coverFile) : previewCoverUrl;
+  const coverAttr = coverSrc ? `style="background-image:url('${coverSrc}')"` : '';
+
+  const logoFile = document.getElementById('client_logo')?.files[0];
+  const logoSrc  = logoFile ? URL.createObjectURL(logoFile) : previewLogoUrl;
+  const logoHtml = logoSrc ? `<img class="lp-hero-logo" src="${logoSrc}" alt="" />` : '';
+
+  const metaItems = [
+    dateTxt     ? `<div class="lp-hero-meta-item">${ICON_CAL}<span>${esc(dateTxt)}</span></div>` : '',
+    eventTime   ? `<div class="lp-hero-meta-item">${ICON_CLOCK}<span>${esc(eventTime)}</span></div>` : '',
+    locationTxt ? `<div class="lp-hero-meta-item">${ICON_PIN}<span>${esc(locationTxt)}</span></div>` : '',
+  ].join('');
+
+  const descHtml    = description ? `<p class="lp-rsvp-desc">${esc(description)}</p>` : '';
+  const sectionsHtml = buildPreviewSectionsHtml();
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="${origin}/assets/css/styles.css" />
+</head>
+<body class="lp-body">
+  <div class="lp-page">
+    <section class="lp-hero" ${coverAttr}>
+      <div class="lp-hero-inner">
+        ${logoHtml}
+        <div class="lp-hero-eyebrow">Confirmação de presença</div>
+        <h1 class="lp-hero-title">${esc(name)}</h1>
+        <div class="lp-hero-meta">${metaItems}</div>
+        <span class="lp-hero-cta" style="cursor:default;opacity:.85">Confirmar Presença</span>
+      </div>
+    </section>
+    <div class="lp-sections">
+      <section class="lp-section" id="lp-rsvp">
+        <div class="lp-rsvp-card">
+          ${descHtml}
+          <div style="background:#f0f3f9;border-radius:10px;padding:20px;text-align:center;color:#8a9bb5;font-size:14px;border:1.5px dashed #cdd5e0">Formulário de confirmação de presença</div>
+        </div>
+      </section>
+      ${sectionsHtml}
+    </div>
+    <footer class="lp-footer rsvp-footer">
+      <img class="footer-logo" src="${origin}/assets/img/logo-moura.png" alt="Moura" />
+      <div class="footer-title">Plataforma de Confirmação de Presença</div>
+    </footer>
+  </div>
+  <script>document.querySelectorAll('.lp-faq-q').forEach(function(q){q.addEventListener('click',function(){q.closest('.lp-faq-item').classList.toggle('open');});});<\/script>
+</body>
+</html>`;
+}
+
+function openLpPreview() {
+  const modal = document.createElement('div');
+  modal.id = 'lpPreviewModal';
+  modal.className = 'lp-preview-modal';
+  modal.innerHTML = `
+    <div class="lp-preview-bar">
+      <span>Pré-visualização — ainda não publicado</span>
+      <button class="lp-preview-close" onclick="closeLpPreview()">Fechar ✕</button>
+    </div>
+    <iframe class="lp-preview-frame" id="lpPreviewFrame"></iframe>`;
+  document.body.appendChild(modal);
+  document.getElementById('lpPreviewFrame').srcdoc = buildPreviewHTML();
+  document.body.style.overflow = 'hidden';
+}
+
+function closeLpPreview() {
+  document.getElementById('lpPreviewModal')?.remove();
+  document.body.style.overflow = '';
+}
+
+// Inicializa o toggle de landing e re-renderiza o editor quando muda.
+document.getElementById('landing_enabled').addEventListener('change', function () {
+  document.getElementById('landingOptions').classList.toggle('hidden', !this.checked);
+  markDirty();
+});
+
 document.getElementById('saveBtn').addEventListener('click', save);
 renderBuilder();
+renderLandingEditor();
 if (EDIT_ID) loadForEdit().catch((e) => toast(e.message));
 else maybeRestoreDraft();

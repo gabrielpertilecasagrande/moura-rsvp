@@ -26,6 +26,10 @@ const router = express.Router();
 // Slug do tenant padrão usado para service calls sem contexto de autenticação.
 const DEFAULT_TENANT = process.env.DEFAULT_TENANT_SLUG || 'moura';
 
+// Lista branca de status de evento (espelha users.routes.js). Valores fora dela
+// são ignorados no UPDATE para não gravar status que nenhuma tela reconhece.
+const VALID_EVENT_STATUS = ['ativo', 'inativo'];
+
 // ── GET /api/events/:id/metrics ───────────────────────────────────────────────
 // Aceita dois modos:
 //   1) Service token (JWT com claim target:'rsvp') — chamada máquina-a-máquina.
@@ -36,16 +40,29 @@ function metricsAuth(req, res, next) {
   const token  = header.startsWith('Bearer ') ? header.slice(7) : null;
   if (token) {
     try {
-      const payload = jwt.verify(token, SECRET);
+      // Fixa o algoritmo (HS256) — não aceita "alg" escolhido pelo token.
+      const payload = jwt.verify(token, SECRET, { algorithms: ['HS256'] });
       if (payload && payload.target === 'rsvp') {
         req.serviceCall = true;
-        const tenantSlug = String(req.headers['x-tenant-slug'] || DEFAULT_TENANT).toLowerCase().trim();
+        // ISOLAMENTO ENTRE CLIENTES: o tenant e o evento autorizados vêm do PRÓPRIO
+        // token (assinado), não de um header/URL que o chamador controla. Sem esses
+        // claims, recusa — assim um token vazado não vira chave-mestra de leitura
+        // entre organizações trocando X-Tenant-Slug e o id do evento.
+        const tokenTenant = payload.tenant_slug ? String(payload.tenant_slug).toLowerCase().trim() : null;
+        const tokenEvent  = payload.event_id != null ? String(payload.event_id) : null;
+        if (!tokenTenant || !tokenEvent) {
+          return res.status(403).json({ error: 'Token de serviço sem escopo de organização/evento.' });
+        }
+        // O evento pedido na URL precisa ser exatamente o autorizado pelo token.
+        if (String(req.params.id) !== tokenEvent) {
+          return res.status(403).json({ error: 'Token de serviço não autoriza este evento.' });
+        }
         // Só aceita um tenant que já existe (evita criar bancos arbitrários e
-        // travessia de caminho via header).
-        if (!organizationExists(tenantSlug)) {
+        // travessia de caminho).
+        if (!organizationExists(tokenTenant)) {
           return res.status(404).json({ error: 'Organização não encontrada.' });
         }
-        return runWithDb(tenantSlug, () => next());
+        return runWithDb(tokenTenant, () => next());
       }
     } catch { /* signature inválida → tenta sessão normal */ }
   }
@@ -97,8 +114,11 @@ const uploadFields = multer({
 }).fields([{ name: 'cover_image', maxCount: 1 }, { name: 'client_logo', maxCount: 1 }]);
 
 function upload(req, res, next) {
+  // Multer processa o corpo multipart em callbacks assíncronos que quebram o
+  // contexto da AsyncLocalStorage. Re-estabelecemos o contexto do banco via
+  // req.tenantSlug (gravado pelo requireAuth) antes de chamar next().
   uploadFields(req, res, (err) => {
-    if (!err) return next();
+    if (!err) return runWithDb(req.tenantSlug, () => next());
     if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'A imagem ultrapassa o limite de 10 MB.' });
     if (err.message === 'FORMATO') return res.status(400).json({ error: 'Formato não aceito. Use JPG, PNG, WEBP ou GIF.' });
     return res.status(400).json({ error: 'Não foi possível enviar a imagem.' });
@@ -129,12 +149,19 @@ router.get('/', (req, res) => {
   }
   const rows = db.prepare(`
     SELECT e.*,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL) AS total_responses,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='confirmado') AS confirmed,
-      (SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='recusado') AS declined
+      COALESCE((SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL), 0) AS total_responses,
+      COALESCE((SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='confirmado'), 0) AS confirmed,
+      COALESCE((SELECT COUNT(*) FROM participants p WHERE p.event_id = e.id AND p.deleted_at IS NULL AND p.response='recusado'), 0) AS declined
     FROM events e ${where} ORDER BY e.created_at DESC
   `).all(...params);
-  res.json(rows.map((r) => ({ ...r, public_url: publicUrl(req, r.slug), _perms: permsFor(req.admin, r.id) })));
+  res.json(rows.map((r) => ({
+    ...r,
+    total_responses: Number(r.total_responses || 0),
+    confirmed:       Number(r.confirmed || 0),
+    declined:        Number(r.declined || 0),
+    public_url: publicUrl(req, r.slug),
+    _perms: permsFor(req.admin, r.id),
+  })));
 });
 
 // GET /api/events/:id
@@ -157,11 +184,14 @@ router.post('/', requireRole('admin', 'gestor'), upload, (req, res) => {
   const logo       = req.files?.client_logo?.[0]?.filename ? `/uploads/${req.files.client_logo[0].filename}` : null;
   const formConfig = JSON.stringify(parseFormConfig(b.form_config));
 
+  const landingEnabled = (b.landing_enabled === '1' || b.landing_enabled === 'true' || b.landing_enabled === true) ? 1 : 0;
+  const landingConfig  = (() => { try { return b.landing_config ? JSON.stringify(JSON.parse(b.landing_config)) : '{}'; } catch { return '{}'; } })();
+
   const info = db.prepare(`
     INSERT INTO events (slug, name, description, event_date, event_time, location, city, address,
       cover_image, client_logo, rsvp_deadline, status, confirm_message, decline_message,
-      expected_guests, whatsapp, whatsapp_enabled, force_open, form_config)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      expected_guests, whatsapp, whatsapp_enabled, force_open, form_config, landing_enabled, landing_config)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
   `).run(
     slug, b.name, b.description || null, b.event_date || null, b.event_time || null,
     b.location || null, b.city || null, b.address || null, cover, logo, b.rsvp_deadline || null,
@@ -170,7 +200,7 @@ router.post('/', requireRole('admin', 'gestor'), upload, (req, res) => {
     b.decline_message || 'Olá, {nome}. Registramos sua impossibilidade de participação no evento. Agradecemos seu retorno.',
     parseInt(b.expected_guests, 10) || 0, b.whatsapp || null,
     (b.whatsapp_enabled === '0' || b.whatsapp_enabled === 'false' || b.whatsapp_enabled === false) ? 0 : 1,
-    0, formConfig
+    0, formConfig, landingEnabled, landingConfig
   );
 
   const created = db.prepare('SELECT * FROM events WHERE id = ?').get(info.lastInsertRowid);
@@ -216,24 +246,33 @@ router.put('/:id', requirePerm('can_edit'), upload, (req, res) => {
     logo = null;
   }
 
+  const putLandingEnabled = b.landing_enabled != null
+    ? ((b.landing_enabled === '1' || b.landing_enabled === 'true' || b.landing_enabled === true) ? 1 : 0)
+    : (e.landing_enabled || 0);
+  const putLandingConfig = b.landing_config != null
+    ? (() => { try { return JSON.stringify(JSON.parse(b.landing_config)); } catch { return e.landing_config || '{}'; } })()
+    : (e.landing_config || '{}');
+
   db.prepare(`
     UPDATE events SET
       slug=?, name=?, description=?, event_date=?, event_time=?,
       location=?, city=?, address=?, cover_image=?, client_logo=?,
       rsvp_deadline=?, status=?, confirm_message=?,
       decline_message=?, expected_guests=?, whatsapp=?, whatsapp_enabled=?,
-      form_config=?, updated_at=datetime('now')
+      form_config=?, landing_enabled=?, landing_config=?, updated_at=datetime('now')
     WHERE id=?
   `).run(
     slug, b.name ?? e.name, b.description ?? e.description,
     b.event_date ?? e.event_date, b.event_time ?? e.event_time,
     b.location ?? e.location, b.city ?? e.city, b.address ?? e.address,
-    cover, logo, b.rsvp_deadline ?? e.rsvp_deadline, b.status ?? e.status,
+    cover, logo, b.rsvp_deadline ?? e.rsvp_deadline,
+    VALID_EVENT_STATUS.includes(b.status) ? b.status : e.status,
     b.confirm_message ?? e.confirm_message, b.decline_message ?? e.decline_message,
     b.expected_guests != null ? (parseInt(b.expected_guests, 10) || 0) : e.expected_guests,
     b.whatsapp != null ? (b.whatsapp || null) : e.whatsapp,
     b.whatsapp_enabled != null ? ((b.whatsapp_enabled === '0' || b.whatsapp_enabled === 'false' || b.whatsapp_enabled === false) ? 0 : 1) : e.whatsapp_enabled,
     b.form_config ? JSON.stringify(parseFormConfig(b.form_config)) : e.form_config,
+    putLandingEnabled, putLandingConfig,
     e.id
   );
 
@@ -301,6 +340,33 @@ router.post('/:id/duplicate', requirePerm('can_duplicate'), (req, res) => {
   created.public_url = publicUrl(req, created.slug);
   logActivity(req.admin.name || req.admin.email, 'duplicou evento', `${e.name} → ${created.name}`);
   res.status(201).json(created);
+});
+
+// GET /api/events/:id/categories — lista categorias de convidados do evento
+router.get('/:id/categories', requirePerm('can_view'), (req, res) => {
+  const e = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+  if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
+  res.json(db.prepare('SELECT * FROM rsvp_categories WHERE event_id = ? ORDER BY sort_order, name COLLATE NOCASE').all(e.id));
+});
+
+// POST /api/events/:id/categories — cria categoria de convidados
+router.post('/:id/categories', requirePerm('can_edit'), (req, res) => {
+  const e = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
+  if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
+  const name = String(req.body.name || '').trim();
+  if (!name) return res.status(400).json({ error: 'O nome da categoria é obrigatório.' });
+  const color = /^#[0-9a-fA-F]{3,6}$/.test(req.body.color || '') ? req.body.color : '#2C427E';
+  const info = db.prepare('INSERT INTO rsvp_categories (event_id, name, color) VALUES (?,?,?)').run(e.id, name, color);
+  res.status(201).json(db.prepare('SELECT * FROM rsvp_categories WHERE id = ?').get(info.lastInsertRowid));
+});
+
+// DELETE /api/events/:id/categories/:catId — remove categoria (desvincula convidados)
+router.delete('/:id/categories/:catId', requirePerm('can_edit'), (req, res) => {
+  const cat = db.prepare('SELECT * FROM rsvp_categories WHERE id = ? AND event_id = ?').get(req.params.catId, req.params.id);
+  if (!cat) return res.status(404).json({ error: 'Categoria não encontrada.' });
+  db.prepare('UPDATE participants SET guest_category_id = NULL WHERE guest_category_id = ?').run(cat.id);
+  db.prepare('DELETE FROM rsvp_categories WHERE id = ?').run(cat.id);
+  res.json({ ok: true });
 });
 
 // DELETE /api/events/:id — move o evento para a LIXEIRA (soft-delete).

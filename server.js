@@ -3,6 +3,18 @@ const path = require('path');
 const fs   = require('fs');
 const push = require('./src/utils/push');
 
+// ── Exige a chave de criptografia em PRODUÇÃO ─────────────────────────────────
+// Espelha a exigência do JWT_SECRET (src/middleware/auth.js): sem DATA_ENCRYPTION_KEY
+// válida (64 caracteres hex = 256 bits), dados sensíveis (empresa/cargo dos
+// convidados, segredo do 2FA) seriam gravados em texto puro silenciosamente.
+// Falha imediata e explícita no boot. Em desenvolvimento, segue sem a chave.
+if (process.env.NODE_ENV === 'production') {
+  const k = process.env.DATA_ENCRYPTION_KEY;
+  if (!k || !/^[0-9a-fA-F]{64}$/.test(k)) {
+    throw new Error('DATA_ENCRYPTION_KEY ausente ou inválida. Defina 64 caracteres hexadecimais (256 bits) em produção.');
+  }
+}
+
 // ── Parâmetros do tenant padrão (organização inicial / Moura) ─────────────────
 const DEFAULT_TENANT_SLUG = process.env.DEFAULT_TENANT_SLUG || 'moura';
 const DEFAULT_TENANT_NAME = process.env.DEFAULT_TENANT_NAME || 'Organização';
@@ -44,7 +56,10 @@ try {
   const tenantDb  = openTenantDb(DEFAULT_TENANT_SLUG);
   const seedEmail = (process.env.ADMIN_EMAIL    || 'admin@moura.com.br').toLowerCase();
   const seedName  =  process.env.ADMIN_NAME     || 'Administrador';
-  const seedPass  =  process.env.ADMIN_PASSWORD || 'moura2026';
+  // Nunca usamos a antiga senha padrão "moura2026". Se ADMIN_PASSWORD não estiver
+  // definido, geramos uma senha forte e aleatória e a mostramos UMA vez no log.
+  const envPass   =  process.env.ADMIN_PASSWORD;
+  const seedPass  =  envPass || require('crypto').randomBytes(15).toString('base64').replace(/[+/=]/g, '').slice(0, 20);
 
   const exists = tenantDb.prepare('SELECT id FROM admins WHERE email = ?').get(seedEmail);
   if (exists) {
@@ -55,7 +70,15 @@ try {
     tenantDb.prepare(
       "INSERT INTO admins (name, email, password_hash, role, status) VALUES (?,?,?,'admin','ativo')"
     ).run(seedName, seedEmail, hash);
-    console.log(`[seed] admin criado: ${seedEmail}`);
+    if (envPass) {
+      console.log(`[seed] admin criado: ${seedEmail}`);
+    } else {
+      console.log(
+        `[seed] admin criado: ${seedEmail}\n` +
+        `[seed] ⚠️  ADMIN_PASSWORD não definido — senha aleatória gerada: ${seedPass}\n` +
+        `[seed] ⚠️  Anote AGORA e troque após o primeiro login (ou defina ADMIN_PASSWORD no Railway).`
+      );
+    }
   }
 
   // Garante que o e-mail do admin seed está no índice global.
@@ -109,9 +132,22 @@ app.get('/favicon.ico', (_req, res) => res.sendFile(path.join(__dirname, 'public
 // ── Limitadores de taxa ────────────────────────────────────────────────────────
 const { rateLimit } = require('./src/middleware/rateLimit');
 const authLimiter   = rateLimit({ windowMs: 15 * 60 * 1000, max: 20,  message: 'Muitas tentativas. Aguarde alguns minutos e tente novamente.' });
-const publicLimiter = rateLimit({ windowMs: 10 * 60 * 1000, max: 60,  message: 'Muitas respostas em sequência. Aguarde um instante e tente novamente.' });
+// Limite por IP + evento (slug): um mesmo IP que responde a eventos diferentes
+// tem contadores separados, e o teto vale por evento. O slug é extraído do
+// caminho /api/public/events/:slug/... — sem slug, cai só no IP.
+const publicLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 60,
+  message: 'Muitas respostas em sequência. Aguarde um instante e tente novamente.',
+  keyGenerator: (req) => {
+    const m = req.path.match(/\/events\/([^/]+)/);
+    const slug = m ? m[1] : '';
+    return `${req.ip || 'sem-ip'}|${slug}`;
+  },
+});
 
 // ── API ────────────────────────────────────────────────────────────────────────
+app.use('/api/maintenance',                              require('./src/routes/maintenance.routes'));
 app.use('/api/auth',                         authLimiter,   require('./src/routes/auth.routes'));
 app.use('/api/users',                                       require('./src/routes/users.routes'));
 app.use('/api/dashboard',                                   require('./src/routes/dashboard.routes'));
@@ -124,9 +160,11 @@ app.use('/api/public',                       publicLimiter, require('./src/route
 app.use('/api/platform',                                    require('./src/routes/platform.routes'));
 app.use('/api/lgpd',                                        require('./src/routes/lgpd.routes'));
 app.use('/api/trash',                                       require('./src/routes/trash.routes'));
-app.use('/api/checkin',                                     require('./src/routes/checkin.routes'));
-app.use('/api/admin/checkin',                               require('./src/routes/checkin-admin.routes'));
 app.use('/api/push',                                        require('./src/routes/push.routes'));
+// Ponte de sincronização consumida pelo moura-checkin (token de serviço target:'rsvp').
+// O próprio handler define o contexto de tenant via runWithDb — por isso fica fora
+// do fluxo de requireAuth (que dependeria de uma sessão de usuário).
+app.use('/api/admin/checkin',                               require('./src/routes/checkin-bridge.routes'));
 
 // ── Subdomínio de RSVP (ex.: rsvp.mouracom.com.br) ───────────────────────────
 // Quando RSVP_DOMAIN está definido, o SPA de RSVP é servido na raiz do
@@ -158,6 +196,9 @@ app.get('/', (_req, res) => res.redirect('/admin/login.html'));
 app.get('/admin', (_req, res) => res.redirect('/admin/login.html'));
 app.use('/admin', express.static(path.join(__dirname, 'public', 'admin')));
 
+// Health check — usado pelo Railway para confirmar que o servidor subiu corretamente.
+app.get('/api/health', (_req, res) => res.json({ ok: true }));
+
 // Link público do evento: /rsvp/:slug  (o slug é lido pelo JS da página via API pública)
 app.get('/rsvp/:slug', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'rsvp', 'index.html')));
 
@@ -185,7 +226,7 @@ app.use((err, _req, res, _next) => {
 process.on('uncaughtException',  (e) => console.error('[uncaughtException]', e.message));
 process.on('unhandledRejection', (e) => console.error('[unhandledRejection]', e));
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`\n  Moura RSVP rodando em ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
   console.log(`  Área administrativa: /admin/login.html\n`);
 
@@ -193,5 +234,21 @@ app.listen(PORT, () => {
   try { require('./src/utils/trash').scheduleTrashCleanup(); }
   catch (e) { console.error('[trash] não foi possível agendar a limpeza:', e.message); }
 
+  // Backup automático: snapshot de todos os bancos + uploads → Cloudflare R2/S3.
+  try { require('./src/utils/backup').scheduleBackups(); }
+  catch (e) { console.error('[backup] não foi possível agendar backups:', e.message); }
+
   try { push.init(); } catch (e) { console.error('[push] falha ao inicializar:', e.message); }
 });
+
+// ── Encerramento gracioso ──────────────────────────────────────────────────────
+// Em troca de versão/reinício, o Railway envia SIGTERM. Fechamos o servidor e
+// saímos com código 0 (sucesso) — assim o desligamento normal NÃO é confundido
+// com "crash" (evita o falso e-mail de "Deployment crashed").
+function gracefulShutdown(signal) {
+  console.log(`[shutdown] ${signal} recebido — encerrando com elegância...`);
+  server.close(() => { console.log('[shutdown] conexões encerradas. Até logo.'); process.exit(0); });
+  setTimeout(() => process.exit(0), 10_000).unref();
+}
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT',  () => gracefulShutdown('SIGINT'));

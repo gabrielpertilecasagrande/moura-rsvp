@@ -13,10 +13,11 @@ router.use(requireAuth, requireAdmin);
 const publicView = (u) => ({
   id: u.id, name: u.name, email: u.email,
   role: normalizeRole(u.role), status: u.status,
+  source: u.source || null,
   created_at: u.created_at, last_login: u.last_login,
 });
 
-const VALID_ROLES  = ['admin', 'gestor', 'operador'];
+const VALID_ROLES  = ['admin', 'gestor', 'operador', 'cliente'];
 const VALID_STATUS = ['pendente', 'ativo', 'recusado', 'inativo', 'bloqueado'];
 
 function countActiveAdmins() {
