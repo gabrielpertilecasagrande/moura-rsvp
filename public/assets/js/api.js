@@ -1,3 +1,7 @@
+// Rastreia onde o mousedown começou — impede que soltar seleção de texto
+// fora do popup feche o modal involuntariamente.
+document.addEventListener('mousedown', e => { document._mdTarget = e.target; }, true);
+
 // Helpers de chamada à API + sessão do admin (frontend).
 const Api = {
   token: () => localStorage.getItem('moura_token'),
@@ -260,7 +264,7 @@ function uiConfirm({ title = 'Confirmar', message = '', confirmText = 'Confirmar
     const done = (val) => { bg.remove(); document.removeEventListener('keydown', onKey, true); resolve(val); };
     const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
     bg.addEventListener('click', (e) => {
-      if (e.target === bg) return done(false);
+      if (e.target === bg && document._mdTarget === bg) return done(false);
       const act = e.target.closest('[data-act]')?.getAttribute('data-act');
       if (act === 'ok') done(true);
       else if (act === 'cancel') done(false);

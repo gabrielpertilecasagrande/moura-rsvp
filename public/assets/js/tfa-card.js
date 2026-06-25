@@ -15,7 +15,7 @@
     slot.innerHTML = `<div class="modal-bg"><div class="modal" style="max-width:${maxWidth || 460}px;text-align:left">${innerHtml}</div></div>`;
     const bg = slot.querySelector('.modal-bg');
     const close = () => { slot.innerHTML = ''; };
-    bg.addEventListener('click', (e) => { if (e.target === bg) close(); });
+    bg.addEventListener('click', (e) => { if (e.target === bg && document._mdTarget === bg) close(); });
     const first = slot.querySelector('input');
     if (first) setTimeout(() => first.focus(), 30);
     return { root: slot.querySelector('.modal'), close };

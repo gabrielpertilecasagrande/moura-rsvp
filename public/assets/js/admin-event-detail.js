@@ -612,7 +612,7 @@ async function downloadSelected(format, ids) {
   a.click(); URL.revokeObjectURL(a.href);
 }
 
-function modal(html) { document.getElementById('modalSlot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`; }
+function modal(html) { document.getElementById('modalSlot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this&&document._mdTarget===this)closeModal()"><div class="modal">${html}</div></div>`; }
 function closeModal() { document.getElementById('modalSlot').innerHTML = ''; }
 
 // ---- Toast com ação "Desfazer" ----
