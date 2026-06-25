@@ -93,7 +93,7 @@ async function refresh() { USERS = await Api.get('/api/users'); renderPending(US
 async function approve(id) { try { await Api.post(`/api/users/${id}/approve`); toast('Acesso aprovado.'); refresh(); } catch (e) { toast(e.message); } }
 async function reject(id) { if (!confirm('Recusar esta solicitação de acesso?')) return; try { await Api.post(`/api/users/${id}/reject`); toast('Solicitação recusada.'); refresh(); } catch (e) { toast(e.message); } }
 
-function modal(html) { document.getElementById('modalSlot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`; }
+function modal(html) { document.getElementById('modalSlot').innerHTML = `<div class="modal-bg" onclick="if(event.target===this&&document._mdTarget===this)closeModal()"><div class="modal">${html}</div></div>`; }
 function closeModal() { document.getElementById('modalSlot').innerHTML = ''; }
 
 const inputRow = (id, label, value, type = 'text') =>
@@ -212,7 +212,7 @@ function removeUser(id) {
 // ---- Controle de acesso por evento (matriz de permissões) ----
 function wideModal(html) {
   document.getElementById('modalSlot').innerHTML =
-    `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal access-modal">${html}</div></div>`;
+    `<div class="modal-bg" onclick="if(event.target===this&&document._mdTarget===this)closeModal()"><div class="modal access-modal">${html}</div></div>`;
 }
 
 let ACCESS = null; // { userId, defaults, events: [...] }

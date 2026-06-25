@@ -109,7 +109,7 @@ async function load() {
 // ── Janela modal (mesmo padrão das outras telas) ──────────────────────────────
 function modal(html) {
   document.getElementById('modalSlot').innerHTML =
-    `<div class="modal-bg" onclick="if(event.target===this)closeModal()"><div class="modal">${html}</div></div>`;
+    `<div class="modal-bg" onclick="if(event.target===this&&document._mdTarget===this)closeModal()"><div class="modal">${html}</div></div>`;
 }
 function closeModal() { document.getElementById('modalSlot').innerHTML = ''; }
 
