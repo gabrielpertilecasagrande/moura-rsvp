@@ -21,8 +21,12 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(SHELL_CACHE)
       .then((c) => Promise.allSettled(PRECACHE.map((u) => c.add(u))))
-      .then(() => self.skipWaiting())
+    // Não chama skipWaiting aqui — a nova versão espera o usuário clicar "Atualizar".
   );
+});
+
+self.addEventListener('message', (event) => {
+  if ((event.data || {}).type === 'skip-waiting') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {

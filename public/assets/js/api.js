@@ -355,9 +355,57 @@ const Push = {
   },
 };
 
-// Registro do Service Worker (PWA).
+// Registra o service worker e exibe banner quando há nova versão disponível.
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(() => {});
+  window.addEventListener('load', async () => {
+    let reg;
+    try { reg = await navigator.serviceWorker.register('/sw.js', { scope: '/' }); }
+    catch (_) { return; }
+
+    let updateClicked = false, reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!updateClicked || reloading) return;
+      reloading = true;
+      window.location.reload();
+    });
+
+    function showUpdateBanner(worker) {
+      if (!worker || document.getElementById('pwaUpdateBanner') || !document.body) return;
+      const bar = document.createElement('div');
+      bar.id = 'pwaUpdateBanner';
+      bar.setAttribute('role', 'status');
+      bar.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:10000;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 24px);background:#152C6B;color:#fff;border-radius:14px;padding:12px 14px;box-shadow:0 10px 30px -8px rgba(14,27,61,.6);font-size:14px';
+      const txt = document.createElement('span');
+      txt.textContent = '✨ Nova versão disponível';
+      txt.style.fontWeight = '600';
+      const btn = document.createElement('button');
+      btn.type = 'button'; btn.textContent = 'Atualizar';
+      btn.style.cssText = 'flex:none;background:#00C2B8;color:#04201E;border:none;border-radius:999px;padding:8px 16px;font-size:14px;font-weight:700;cursor:pointer';
+      btn.addEventListener('click', () => {
+        updateClicked = true; btn.disabled = true; btn.textContent = 'Atualizando…';
+        try { worker.postMessage({ type: 'skip-waiting' }); } catch (_) {}
+      });
+      const close = document.createElement('button');
+      close.type = 'button'; close.textContent = '✕';
+      close.style.cssText = 'flex:none;background:transparent;color:#cdd6ee;border:none;font-size:16px;cursor:pointer;padding:4px';
+      close.addEventListener('click', () => bar.remove());
+      bar.append(txt, btn, close);
+      document.body.appendChild(bar);
+    }
+
+    if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const sw = reg.installing;
+      if (!sw) return;
+      sw.addEventListener('statechange', () => {
+        if (sw.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(sw);
+      });
+    });
+
+    const checkUpdate = () => { reg.update().catch(() => {}); };
+    checkUpdate();
+    setInterval(checkUpdate, 60 * 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) checkUpdate(); });
+    window.addEventListener('focus', checkUpdate);
   });
 }
