@@ -73,21 +73,6 @@ function renderDashExtra(recent, daily) {
     html += `<div><div class="section-label">Últimas confirmações</div><div class="card recent-list">${rows}</div></div>`;
   }
 
-  // Gráfico diário
-  if (daily && daily.length) {
-    const max = Math.max(...daily.map((d) => d.n), 1);
-    const bars = daily.map((d) => {
-      const pct = Math.max(6, Math.round((d.n / max) * 100));
-      const mm = d.day.slice(5).replace('-', '/');
-      return `<div class="dc-col" title="${d.n} confirmação(ões) em ${d.day}">
-        <div class="dc-val">${d.n}</div>
-        <div class="dc-bar" style="height:${pct}%"></div>
-        <div class="dc-label">${mm}</div>
-      </div>`;
-    }).join('');
-    html += `<div><div class="section-label">Confirmações por dia (7 dias)</div><div class="card"><div class="daily-chart">${bars}</div></div></div>`;
-  }
-
   html += '</div>';
   slot.innerHTML = html;
 }
