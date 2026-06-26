@@ -64,9 +64,6 @@ CREATE TABLE IF NOT EXISTS participants (
   -- qr_token: token do QR Code exibido ao convidado após confirmar presença;
   -- sincronizado com o moura-checkin para leitura na porta do evento.
   qr_token        TEXT,
-  -- checked_in_at: coluna legada — não é escrita nem lida neste serviço.
-  -- O registro de entrada real vive no banco do moura-checkin.
-  checked_in_at   TEXT,
 
   FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
   UNIQUE (event_id, name_normalized)                -- garante 1 resposta por pessoa/evento
