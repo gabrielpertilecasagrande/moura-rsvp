@@ -44,16 +44,18 @@
 }
 
 * { box-sizing: border-box; }
-/* Evita rolagem horizontal acidental (tooltips/cards que vazam alguns px da
-   viewport no mobile). overflow-x:hidden no <html> tem suporte universal
-   (inclusive Safari iOS antigo) e mantém a topbar position:sticky funcionando,
-   pois o <html> continua sendo o container de rolagem. NÃO aplicar no <body>
-   para não transformar o body em scroll container e quebrar o sticky. */
-html { -webkit-text-size-adjust: 100%; overflow-x: hidden; }
+/* Bloqueia rolagem horizontal em todos os dispositivos.
+   - overflow-x:hidden → fallback para Safari iOS antigo.
+   - overflow-x:clip   → browsers modernos: corta sem criar scroll-container,
+     mantendo position:sticky 100% funcional.
+   - body: max-width:100vw garante que o body nunca seja mais largo que a tela,
+     fechando a brecha do Safari iOS que ignorava o clip/hidden no <html> sozinho. */
+html { -webkit-text-size-adjust: 100%; overflow-x: hidden; overflow-x: clip; }
 /* Comporta como app nativo: sem zoom por toque-duplo (o viewport já bloqueia pinça/+/-). */
 html, body { touch-action: manipulation; }
 body {
   margin: 0;
+  max-width: 100vw;
   font-family: var(--body);
   color: var(--charcoal);
   background: var(--off-white);
