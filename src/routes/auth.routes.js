@@ -363,6 +363,27 @@ router.post('/sync-user', (req, res) => {
   res.status(201).json({ ok: true, action: 'created' });
 });
 
+// GET /api/auth/federation/users — lista os usuários de EQUIPE deste serviço
+// (tenant padrão; exclui clientes/expositores) para o Moura One montar a
+// Central de Usuários. Autenticado pelo segredo compartilhado. Somente leitura:
+// não cria nem altera nada. Exclui contas já removidas (lixeira).
+router.get('/federation/users', (req, res) => {
+  const secret = process.env.JWT_SECRET;
+  const header = req.headers.authorization || '';
+  const token  = header.startsWith('Bearer ') ? header.slice(7) : '';
+  if (!secret || !token || !safeEqual(token, secret)) {
+    return res.status(401).json({ error: 'Não autorizado.' });
+  }
+  const tenantDb = openTenantDb(DEFAULT_TENANT);
+  const rows = tenantDb.prepare(
+    `SELECT name, email, role, status, last_login, created_at
+       FROM admins
+      WHERE deleted_at IS NULL AND role NOT IN ('cliente', 'expositor')
+      ORDER BY name COLLATE NOCASE`
+  ).all();
+  res.json({ system: 'rsvp', users: rows });
+});
+
 // POST /api/auth/provision-event — cria evento a partir de sistema externo.
 // Autenticado pelo segredo compartilhado. Usa DEFAULT_TENANT (integração legada).
 // Aceita tenant_slug no corpo para direcionamento explícito em cenários futuros.
