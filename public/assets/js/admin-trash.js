@@ -7,7 +7,7 @@ let activeFilter = 'all';   // all | event | participant | user
 let searchTerm = '';
 
 const TYPE_LABEL = { event: 'Evento', participant: 'Convidado', user: 'Usuário' };
-const TYPE_ICON  = { event: '📅', participant: '🧑', user: '👤' };
+const TYPE_ICON  = { event: Icon('calendar'), participant: Icon('users'), user: Icon('badge') };
 const TYPE_PATH  = { event: 'event', participant: 'participant', user: 'user' };
 const ROLE_LABEL = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador', editor: 'Gestor de Eventos' };
 
@@ -92,7 +92,7 @@ function render() {
       <td class="cell-actions" data-label="Ações">
         <button class="btn btn-ghost btn-sm" onclick="previewItem('${e.type}', ${e.id})">Visualizar</button>
         <button class="btn btn-ghost btn-sm" onclick="restoreItem('${e.type}', ${e.id})">Restaurar</button>
-        <button class="btn btn-danger btn-sm" title="Excluir permanentemente" onclick="purgeItem('${e.type}', ${e.id})">🗑 Excluir</button>
+        <button class="btn btn-danger btn-sm" title="Excluir permanentemente" onclick="purgeItem('${e.type}', ${e.id})">${Icon('trash')} Excluir</button>
       </td>
     </tr>`).join('');
 }
@@ -137,9 +137,9 @@ function previewEvent(id, { event, counts }) {
     ${lineHtml('Local', esc(event.location || event.city || '—'))}
     ${lineHtml('Situação', event.status === 'ativo' ? 'Ativo' : 'Inativo')}
     <div style="height:10px"></div>
-    ${lineHtml('🧑 Convidados', counts.total)}
-    ${lineHtml('✅ Confirmados', counts.confirmed)}
-    ${lineHtml('🚫 Recusas', counts.declined)}
+    ${lineHtml(`${Icon('users')} Convidados`, counts.total)}
+    ${lineHtml(`${Icon('checklist')} Confirmados`, counts.confirmed)}
+    ${lineHtml(`${Icon('warning')} Recusas`, counts.declined)}
     <p class="muted" style="font-size:12.5px;margin-top:10px">ℹ️ Ao restaurar o evento, todos os convidados e o histórico voltam com ele. O link público volta a funcionar.</p>
     ${previewButtons('event', id)}`);
 }
@@ -199,7 +199,7 @@ function purgeItem(type, id) {
     ? ' Todos os convidados e o histórico do evento serão apagados para sempre.'
     : (type === 'user' ? ' A conta e suas permissões serão apagadas para sempre.' : ' O convidado e seu histórico serão apagados para sempre.');
   modal(`
-    <h2 style="margin-bottom:6px">🗑 Excluir permanentemente</h2>
+    <h2 style="margin-bottom:6px">${Icon('trash')} Excluir permanentemente</h2>
     <p style="font-size:14px;line-height:1.5;margin-bottom:6px">
       Exclusão <strong>PERMANENTE e irreversível</strong> de "<strong>${esc(name)}</strong>".${extra}
     </p>
@@ -207,7 +207,7 @@ function purgeItem(type, id) {
     <input type="text" id="purgeWord" placeholder="Digite EXCLUIR" autocomplete="off" style="width:100%;margin-bottom:16px" />
     <div style="display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
       <button class="btn btn-ghost" onclick="closeModal()">Cancelar</button>
-      <button class="btn btn-danger" id="purgeConfirm" disabled>🗑 Excluir permanentemente</button>
+      <button class="btn btn-danger" id="purgeConfirm" disabled>${Icon('trash')} Excluir permanentemente</button>
     </div>`);
   const input = document.getElementById('purgeWord');
   const btn = document.getElementById('purgeConfirm');

@@ -83,7 +83,7 @@ async function loadSessions() {
     }
     box.innerHTML = sessions.map((s) => `
       <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--gray-soft)">
-        <span style="font-size:18px">${s.current ? '📱' : '💻'}</span>
+        <span style="font-size:18px">${s.current ? Icon('phone') : Icon('report')}</span>
         <span style="flex:1;min-width:0">
           <strong style="font-size:14px">${esc(deviceLabel(s.user_agent))}${s.current ? ' <span style="color:var(--cyan);font-weight:600">(este aparelho)</span>' : ''}</strong>
           <span class="muted" style="display:block;font-size:12px">${s.city ? '📍 ' + esc(s.city) + ' · ' : ''}Última atividade: ${fmtDateTimeBR(s.last_used_at)}</span>

@@ -26,7 +26,7 @@
       const s = await Api.get('/api/auth/2fa/status');
       if (s.enabled) {
         const rest = (s.recovery_remaining != null) ? ` · ${s.recovery_remaining} código(s) de recuperação restante(s)` : '';
-        statusEl.innerHTML = '✅ <strong>Ativada</strong>' + rest;
+        statusEl.innerHTML = `${Icon('checklist')} <strong>Ativada</strong>` + rest;
         toggleEl.textContent = 'Desativar';
         toggleEl.className = 'btn btn-ghost btn-sm';
         toggleEl.style.color = 'var(--danger)';
@@ -77,7 +77,7 @@
   function showRecoveryCodes(codes) {
     const list = (codes || []).map((c) => `<code style="display:block;font-size:15px;letter-spacing:1px;padding:4px 0">${esc(c)}</code>`).join('');
     const { root, close } = openModal(`
-      <h2 style="margin-bottom:8px">✅ Verificação ativada!</h2>
+      <h2 style="margin-bottom:8px">${Icon('checklist')} Verificação ativada!</h2>
       <p style="font-size:13.5px;color:var(--muted);margin:0 0 12px">Guarde estes <strong>códigos de recuperação</strong> em local seguro. Cada um funciona <strong>uma única vez</strong> caso você perca o acesso ao app autenticador. <strong>Eles não serão mostrados de novo.</strong></p>
       <div style="background:var(--gray-soft);border-radius:10px;padding:14px 16px;text-align:center;margin-bottom:14px">${list}</div>
       <div style="display:flex;gap:8px;justify-content:flex-end">

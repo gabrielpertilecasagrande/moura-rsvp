@@ -109,9 +109,9 @@ async function runErase() {
     const pdfUrl = `/api/lgpd/erasures/${result.id}/receipt.pdf`;
     document.getElementById('eraseResults').innerHTML = `
       <div style="background:#d4f7e8;border-radius:10px;padding:14px 16px">
-        <div style="font-weight:700;font-size:15px;color:#1a7a50">✅ ${result.count} participante(s) excluído(s) com sucesso.</div>
+        <div style="font-weight:700;font-size:15px;color:#1a7a50">${Icon('checklist')} ${result.count} participante(s) excluído(s) com sucesso.</div>
         <div style="font-size:13px;margin-top:6px">Comprovante: <strong style="font-family:monospace">${esc(result.receipt_no)}</strong></div>
-        <button class="btn btn-ghost btn-sm" onclick="downloadReceipt(${result.id}, '${esc(result.receipt_no)}')" style="margin-top:10px">⬇ Baixar comprovante PDF</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadReceipt(${result.id}, '${esc(result.receipt_no)}')" style="margin-top:10px">${Icon('download')} Baixar comprovante PDF</button>
       </div>`;
     document.getElementById('eraseActions').style.display = 'none';
     document.getElementById('eraseSearch').value = '';
@@ -120,7 +120,7 @@ async function runErase() {
   } catch (e) {
     alert('Erro ao excluir: ' + (e.message || 'Tente novamente.'));
     document.getElementById('eraseBtn').disabled = false;
-    document.getElementById('eraseBtn').textContent = '🗑 Excluir permanentemente';
+    document.getElementById('eraseBtn').innerHTML = `${Icon('trash')} Excluir permanentemente`;
   }
 }
 
