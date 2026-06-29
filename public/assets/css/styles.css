@@ -1232,3 +1232,57 @@ body.lp-body .lp-footer { margin-top: 0; }
   input[type=date], input[type=time], input[type=number], input[type=search],
   input[type=url], textarea, select { font-size: 16px; }
 }
+/* ============================================================
+   Dark mode — ativado por html[data-dark="1"]
+   ============================================================ */
+html[data-dark="1"] {
+  --navy: #7b9fe0;
+  --navy-deep: #1a2d5a;
+  --off-white: #0f1420;
+  --gray: #2a3a50;
+  --gray-soft: #253548;
+  --charcoal: #dde3ee;
+  --ink: #c8d0e0;
+  --muted: #7a8a9e;
+  --white: #182030;
+  --cyan-soft: #0c2522;
+  --shadow-xs: 0 1px 2px rgba(0,0,0,.4);
+  --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 22px -10px rgba(0,0,0,.5);
+  --shadow-lg: 0 18px 48px -12px rgba(0,0,0,.6);
+}
+
+html[data-dark="1"] body { background: #0f1420; color: var(--charcoal); }
+html[data-dark="1"] .main { background: #0f1420; }
+
+html[data-dark="1"] h1, html[data-dark="1"] h2, html[data-dark="1"] h3,
+html[data-dark="1"] h4, html[data-dark="1"] .page-head h1 { color: var(--charcoal); }
+
+html[data-dark="1"] thead tr { background: #1a2535 !important; }
+html[data-dark="1"] thead th { color: var(--muted); }
+html[data-dark="1"] tbody tr:hover { background: #1e2e45 !important; }
+html[data-dark="1"] table.cards tbody tr:hover { background: #1e2e45 !important; }
+
+html[data-dark="1"] .bulk-decline { background: #1e2a3a; border-color: #2a3a50; }
+html[data-dark="1"] .session-warn .btn { background: #1e2a3a; border-color: #2a3a50; }
+html[data-dark="1"] .mesa-card { background: #182030; border-color: #2a3a50; }
+html[data-dark="1"] .lp-rsvp-card,
+html[data-dark="1"] .lp-timeline-body,
+html[data-dark="1"] .lp-faq-item,
+html[data-dark="1"] .lp-footer { background: #182030; border-color: #2a3a50; color: var(--charcoal); }
+html[data-dark="1"] .lp-timeline-dot { background: #1e2a3a; border-color: #2a3a50; }
+
+.dark-toggle {
+  background: transparent; border: none; cursor: pointer;
+  font-size: 18px; padding: 6px 8px; border-radius: 8px;
+  line-height: 1; flex-shrink: 0; transition: background .15s;
+}
+.dark-toggle:hover { background: rgba(255,255,255,.12); }
+/* Botão de modo escuro na barra lateral (visível no desktop) */
+.side-dark {
+  display: flex; align-items: center; gap: 9px; width: 100%; margin-bottom: 8px;
+  padding: 9px 12px; background: none; border: 1px solid rgba(255,255,255,.18);
+  border-radius: 10px; color: #c2cde6; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background .12s, border-color .12s, color .12s; text-align: left;
+}
+.side-dark:hover { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.4); color: #fff; }
+.side-dark .dm-ico { font-size: 15px; line-height: 1; }
