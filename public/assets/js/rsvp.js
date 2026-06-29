@@ -573,6 +573,11 @@ function showResult(r) {
         <p class="muted" style="margin:0 0 12px;font-size:14px">Apresente este QR Code na entrada do evento.</p>
         <img src="/api/public/qr/${encodeURIComponent(r.qr_token)}.png" alt="QR Code de entrada"
              width="200" height="200" style="border-radius:12px;background:#fff;padding:8px;box-shadow:0 1px 6px rgba(0,0,0,.12)" />
+        <div style="margin-top:14px">
+          <a class="btn btn-primary btn-sm" href="/api/public/qr/${encodeURIComponent(r.qr_token)}.png"
+             download="qrcode-entrada.png">⬇ Baixar QR Code</a>
+        </div>
+        <p class="muted" style="margin:10px 0 0;font-size:12.5px">Dica: salve a imagem ou tire um print para não depender da internet na entrada.</p>
       </div>` : '';
   document.getElementById('form-slot').innerHTML = `
     <div class="divider"></div>

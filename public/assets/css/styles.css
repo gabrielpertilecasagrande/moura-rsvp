@@ -1223,3 +1223,12 @@ body.lp-body .lp-footer { margin-top: 0; }
 
 /* Ponto colorido nos botões de filtro */
 .cat-dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+
+/* Acessibilidade / iOS: em telas de toque, campo com fonte < 16px provoca zoom
+   automatico ao focar (a tela "pula"). 16px no mobile elimina esse salto; no
+   desktop a densidade de 15px e preservada. (Auditoria UX — pre-lancamento) */
+@media (max-width: 767px) {
+  input[type=text], input[type=email], input[type=tel], input[type=password],
+  input[type=date], input[type=time], input[type=number], input[type=search],
+  input[type=url], textarea, select { font-size: 16px; }
+}
