@@ -38,7 +38,7 @@ function renderShell(active) {
   <header class="topbar">
     <button class="hamburger" id="hamburgerBtn" aria-label="Abrir menu"><span></span></button>
     <a href="/admin/dashboard.html" style="display:flex;align-items:center;text-decoration:none" title="Moura RSVP"><img src="/assets/img/logo-moura.png" alt="Moura RSVP" style="height:46px;width:auto;display:block"></a>
-    <button class="dark-toggle" id="darkModeBtn" onclick="toggleDarkMode()" title="Alternar modo escuro">${localStorage.getItem('moura-dark') === '1' ? '☀️' : '🌙'}</button>
+    <button class="dark-toggle" onclick="toggleDarkMode()" title="Alternar modo escuro" aria-label="Modo escuro"><span class="dm-ico">${localStorage.getItem('moura-dark') === '1' ? '☀️' : '🌙'}</span></button>
   </header>
   <aside class="sidebar" id="sidebar">
     <div class="brand">
@@ -57,6 +57,7 @@ function renderShell(active) {
         </span>
       </div>
       <a class="side-account" href="/admin/account.html" id="accountBtn">Minha conta</a>
+      <button class="side-dark" onclick="toggleDarkMode()"><span class="dm-ico">${localStorage.getItem('moura-dark') === '1' ? '☀️' : '🌙'}</span><span class="dm-lbl">${localStorage.getItem('moura-dark') === '1' ? 'Modo claro' : 'Modo escuro'}</span></button>
       <button class="logout" id="logoutBtn">Sair</button>
       <div class="side-version">Moura RSVP · Confirmação de presença</div>
     </div>
@@ -181,8 +182,9 @@ function toggleDarkMode() {
   const next = on ? '0' : '1';
   document.documentElement.setAttribute('data-dark', next);
   localStorage.setItem('moura-dark', next);
-  const btn = document.getElementById('darkModeBtn');
-  if (btn) btn.textContent = next === '1' ? '☀️' : '🌙';
+  const dark = next === '1';
+  document.querySelectorAll('.dm-ico').forEach((el) => { el.textContent = dark ? '☀️' : '🌙'; });
+  document.querySelectorAll('.dm-lbl').forEach((el) => { el.textContent = dark ? 'Modo claro' : 'Modo escuro'; });
 }
 (function() {
   if (localStorage.getItem('moura-dark') === '1') {
