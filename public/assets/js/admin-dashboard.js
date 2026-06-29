@@ -171,7 +171,7 @@ function eventCard(e) {
 
 async function duplicateEvent(id, ev) {
   if (ev) { ev.preventDefault(); ev.stopPropagation(); }
-  if (!confirm('Duplicar este evento? Será criada uma cópia com as mesmas configurações, sem os participantes.')) return;
+  if (!confirm('Duplicar este evento? Será criada uma cópia com as mesmas configurações, sem os convidados.')) return;
   try {
     const novo = await Api.post(`/api/events/${id}/duplicate`);
     toast('Evento duplicado.');
@@ -204,7 +204,7 @@ async function runSearch(q) {
         <span class="sr-ico">📅</span><span><strong>${esc(e.name)}</strong>${e.location ? `<span class="sr-sub">${esc(e.location)}</span>` : ''}</span></a>`).join(''));
     }
     if (r.participants.length) {
-      parts.push('<div class="sr-group">Participantes</div>');
+      parts.push('<div class="sr-group">Convidados</div>');
       parts.push(r.participants.map((p) => `<a class="sr-item" href="/admin/event-detail.html?id=${p.event_id}">
         <span class="sr-ico">${p.response === 'confirmado' ? '✅' : '❌'}</span>
         <span><strong>${esc(p.name)}</strong><span class="sr-sub">${esc(p.event_name)}${p.email ? ' · ' + esc(p.email) : ''}${p.phone ? ' · ' + esc(p.phone) : ''}</span></span></a>`).join(''));

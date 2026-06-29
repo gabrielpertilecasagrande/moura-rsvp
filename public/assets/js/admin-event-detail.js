@@ -409,7 +409,7 @@ function editParticipant(pid) {
   if (!p) return;
   const yes = p.response === 'confirmado';
   modal(`
-    <h3 style="font-size:17px;margin-bottom:4px">Editar participante</h3>
+    <h3 style="font-size:17px;margin-bottom:4px">Editar convidado</h3>
     <p class="muted" style="font-size:13px;margin:0 0 16px">As alterações ficam registradas no histórico.</p>
     ${fieldRow('ed_name', 'Nome completo', p.name)}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -470,7 +470,7 @@ async function saveParticipant(pid) {
         try { await Api.put(`/api/events/${ID}/participants/${pid}`, { response: oldResp }); loadParticipants(); } catch (e) { toast(e.message); }
       });
     } else {
-      toast('Participante atualizado.');
+      toast('Convidado atualizado.');
     }
   } catch (e) {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Salvar alterações'; }
@@ -553,7 +553,7 @@ function syncSelectionUI() {
 
   bar.innerHTML = `
     <div class="bulk-summary">
-      <span class="bulk-count">Selecionados: <strong>${SELECTED.size}</strong> participante(s)</span>
+      <span class="bulk-count">Selecionados: <strong>${SELECTED.size}</strong> convidado(s)</span>
       <span class="bulk-breakdown">${nConf} confirmado(s) · ${nRec} recusado(s)</span>
       ${selectAllLine}
     </div>
@@ -584,15 +584,15 @@ async function bulkAction(action) {
   const ids = [...SELECTED];
   if (!ids.length) return;
   if (action === 'excluir') {
-    if (!confirm(`Tem certeza que deseja excluir ${ids.length} participante(s)? Esta ação não poderá ser desfeita.`)) return;
+    if (!confirm(`Tem certeza que deseja excluir ${ids.length} convidado(s)? Esta ação não poderá ser desfeita.`)) return;
   } else {
     const labels = { confirmar: 'marcar como Confirmado', recusar: 'marcar como Recusado' };
-    if (!confirm(`Deseja ${labels[action]} ${ids.length} participante(s)?`)) return;
+    if (!confirm(`Deseja ${labels[action]} ${ids.length} convidado(s)?`)) return;
   }
   try {
     const r = await Api.post(`/api/events/${ID}/participants/mass`, { action, ids });
     const msgs = { confirmar: 'marcados como Confirmado', recusar: 'marcados como Recusado', excluir: 'movidos para a lixeira' };
-    toast(`${r.affected} participante(s) ${msgs[action] || 'atualizados'}.`);
+    toast(`${r.affected} convidado(s) ${msgs[action] || 'atualizados'}.`);
     SELECTED.clear();
     await loadParticipants();
   } catch (e) { toast(e.message); }
@@ -629,7 +629,7 @@ function showUndo(message, onUndo) {
   el._t = setTimeout(hide, 5000);
 }
 
-// ---- Excluir participante ----
+// ---- Excluir convidado ----
 async function deleteParticipant(pid) {
   const p = LAST_LIST.find((x) => x.id === pid);
   if (!p) return;
@@ -643,7 +643,7 @@ async function deleteParticipant(pid) {
 
 // ---- Duplicar evento ----
 document.getElementById('dupBtn').addEventListener('click', async () => {
-  if (!confirm('Duplicar este evento? Será criada uma cópia com as mesmas configurações, sem os participantes.')) return;
+  if (!confirm('Duplicar este evento? Será criada uma cópia com as mesmas configurações, sem os convidados.')) return;
   try { const novo = await Api.post(`/api/events/${ID}/duplicate`); toast('Evento duplicado.'); location.href = `/admin/event-form.html?id=${novo.id}`; }
   catch (e) { toast(e.message); }
 });
@@ -719,7 +719,7 @@ document.getElementById('addBulkBtn').addEventListener('click', addBulk);
 // ---- Inclusão manual e em lote ----
 function addOne() {
   modal(`
-    <h3 style="font-size:17px;margin-bottom:4px">Adicionar participante</h3>
+    <h3 style="font-size:17px;margin-bottom:4px">Adicionar convidado</h3>
     <p class="muted" style="font-size:13px;margin:0 0 16px">Inclua manualmente uma pessoa já confirmada.</p>
     ${fieldRow('ao_name', 'Nome completo', '')}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
@@ -769,7 +769,7 @@ async function saveOne(force) {
   try {
     const r = await Api.post(`/api/events/${ID}/participants`, payload);
     closeModal();
-    toast(r.updated ? 'Cadastro atualizado.' : 'Participante adicionado.');
+    toast(r.updated ? 'Cadastro atualizado.' : 'Convidado adicionado.');
     loadParticipants();
   } catch (e) {
     if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Adicionar'; }
@@ -877,14 +877,14 @@ let WA_SESSION = null;
 function bulkWhatsapp() {
   const sel = LAST_LIST.filter((p) => SELECTED.has(p.id) && guestWa(p.phone));
   if (!sel.length) {
-    toast('Nenhum participante selecionado tem telefone cadastrado.');
+    toast('Nenhum convidado selecionado tem telefone cadastrado.');
     return;
   }
   WA_SESSION = { sel, tpl: '', idx: 0 };
-  const sem = SELECTED.size > sel.length ? `<p class="muted" style="font-size:12px;margin:0 0 12px">${SELECTED.size - sel.length} participante(s) sem telefone serão ignorados.</p>` : '';
+  const sem = SELECTED.size > sel.length ? `<p class="muted" style="font-size:12px;margin:0 0 12px">${SELECTED.size - sel.length} convidado(s) sem telefone serão ignorados.</p>` : '';
   modal(`
     <h3 style="font-size:17px;margin-bottom:4px">WhatsApp em massa</h3>
-    <p class="muted" style="font-size:13px;margin:0 0 4px">${sel.length} participante(s) com telefone cadastrado</p>
+    <p class="muted" style="font-size:13px;margin:0 0 4px">${sel.length} convidado(s) com telefone cadastrado</p>
     ${sem}
     <div class="field" style="text-align:left">
       <label>Mensagem — clique nas variáveis para inserir</label>
@@ -952,9 +952,9 @@ function sendNextWa() {
   if (!WA_SESSION) return;
   const { sel, tpl, idx } = WA_SESSION;
   if (idx >= sel.length) {
-    // Finalizado — registra no histórico de cada participante.
+    // Finalizado — registra no histórico de cada convidado.
     Api.post(`/api/events/${ID}/participants/mass`, { action: 'whatsapp', ids: sel.map((p) => p.id) }).catch(() => {});
-    toast(`WhatsApp preparado para ${sel.length} participante(s). Registrado no histórico.`);
+    toast(`WhatsApp preparado para ${sel.length} convidado(s). Registrado no histórico.`);
     WA_SESSION = null;
     clearSelection();
     loadParticipants();
@@ -987,7 +987,7 @@ function sendNextWa() {
     </div>`);
 }
 
-// Leva o cursor para a busca rápida de participantes (sem rolar a página).
+// Leva o cursor para a busca rápida de convidados (sem rolar a página).
 function focusSearch() {
   const el = document.getElementById('search');
   if (el && !('ontouchstart' in window)) el.focus({ preventScroll: true });

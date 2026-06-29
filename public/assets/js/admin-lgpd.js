@@ -30,7 +30,7 @@ async function runSearch() {
 function renderResults(list) {
   const el = document.getElementById('eraseResults');
   if (!list.length) {
-    el.innerHTML = '<p class="muted">Nenhum participante encontrado.</p>';
+    el.innerHTML = '<p class="muted">Nenhum convidado encontrado.</p>';
     document.getElementById('eraseActions').style.display = 'none';
     return;
   }
@@ -83,14 +83,14 @@ async function downloadReceipt(id, receiptNo) {
 // ── Exclusão ─────────────────────────────────────────────────────────────────
 async function runErase() {
   const checked = Array.from(document.querySelectorAll('#eraseResults input[type=checkbox]:checked'));
-  if (!checked.length) { alert('Selecione ao menos um participante.'); return; }
+  if (!checked.length) { alert('Selecione ao menos um convidado.'); return; }
 
   const ids = checked.map((el) => Number(el.value));
   const n = ids.length;
 
   const ok = confirm(
     `⚠️ ATENÇÃO: esta ação é PERMANENTE e não pode ser desfeita.\n\n` +
-    `Serão excluídos ${n} participante(s) de forma definitiva.\n\n` +
+    `Serão excluídos ${n} convidado(s) de forma definitiva.\n\n` +
     `Um comprovante PDF será gerado para auditoria.\n\nDeseja continuar?`
   );
   if (!ok) return;
@@ -109,7 +109,7 @@ async function runErase() {
     const pdfUrl = `/api/lgpd/erasures/${result.id}/receipt.pdf`;
     document.getElementById('eraseResults').innerHTML = `
       <div style="background:#d4f7e8;border-radius:10px;padding:14px 16px">
-        <div style="font-weight:700;font-size:15px;color:#1a7a50">✅ ${result.count} participante(s) excluído(s) com sucesso.</div>
+        <div style="font-weight:700;font-size:15px;color:#1a7a50">✅ ${result.count} convidado(s) excluído(s) com sucesso.</div>
         <div style="font-size:13px;margin-top:6px">Comprovante: <strong style="font-family:monospace">${esc(result.receipt_no)}</strong></div>
         <button class="btn btn-ghost btn-sm" onclick="downloadReceipt(${result.id}, '${esc(result.receipt_no)}')" style="margin-top:10px">⬇ Baixar comprovante PDF</button>
       </div>`;

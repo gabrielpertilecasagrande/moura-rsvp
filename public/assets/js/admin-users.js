@@ -15,7 +15,7 @@ const ROLE_LABEL = { admin: 'Administrador', gestor: 'Gestor de Eventos', operad
 const ROLE_DESC = {
   admin: 'Acesso total ao sistema.',
   gestor: 'Cria e gerencia os eventos autorizados. Não gerencia usuários.',
-  operador: 'Consulta eventos autorizados e gerencia participantes. Não cria eventos.',
+  operador: 'Consulta eventos autorizados e gerencia convidados. Não cria eventos.',
   cliente: 'Visualiza apenas os eventos liberados para ele. Acesso somente-leitura.',
 };
 const STATUS = {
@@ -102,7 +102,7 @@ const roleSelect = (id, val) => {
   const v = val === 'editor' ? 'gestor' : (val || 'operador');
   return `<div class="field" style="text-align:left"><label>Perfil de acesso</label><select id="${id}">
     <option value="cliente" ${v === 'cliente' ? 'selected' : ''}>Cliente — visualiza apenas os eventos dele (somente-leitura)</option>
-    <option value="operador" ${v === 'operador' ? 'selected' : ''}>Operador — consulta eventos e gerencia participantes</option>
+    <option value="operador" ${v === 'operador' ? 'selected' : ''}>Operador — consulta eventos e gerencia convidados</option>
     <option value="gestor" ${v === 'gestor' ? 'selected' : ''}>Gestor de Eventos — cria e gerencia eventos autorizados</option>
     <option value="admin" ${v === 'admin' ? 'selected' : ''}>Administrador — acesso total ao sistema</option>
   </select></div>`;
