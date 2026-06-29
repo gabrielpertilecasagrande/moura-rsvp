@@ -560,6 +560,13 @@ async function submit() {
     // inglês ("Unexpected token <…") e mostra uma mensagem amigável.
     let d = null;
     try { d = await x.json(); } catch { d = null; }
+    // Homônimo (409): em vez de um erro seco, mostra um cartão com orientação e
+    // um caminho de ação (falar com a organização).
+    if (x.status === 409 && d && d.error) {
+      showHomonymConflict(d.error);
+      btn.disabled = false; btn.textContent = 'Enviar resposta';
+      return;
+    }
     if (!x.ok || !d) {
       throw new Error((d && d.error) || 'Não foi possível enviar sua resposta agora. Verifique sua conexão e tente novamente.');
     }
@@ -570,6 +577,25 @@ async function submit() {
   }
 }
 function showErr(m) { const err = document.getElementById('err'); err.textContent = m; err.classList.remove('hidden'); }
+
+// 409 (homônimo sem casamento de contato): exibe um cartão com orientação clara e
+// um caminho de ação (WhatsApp da organização, quando configurado) — em vez de só
+// uma linha de erro. Liberar homônimos com contato distinto exige mudar o índice
+// único por nome no banco (afeta a deduplicação do Check-in) e fica como evolução.
+function showHomonymConflict(msg) {
+  showErr(msg);
+  document.getElementById('homonymHelp')?.remove();
+  const wa = (typeof whatsappButton === 'function') ? whatsappButton('Falar com a organização') : '';
+  const box = document.createElement('div');
+  box.id = 'homonymHelp';
+  box.style.cssText = 'margin-top:12px;padding:14px;border:1px solid var(--gray,#e2e8f0);border-radius:12px;background:#fff';
+  box.innerHTML = `
+    <p style="margin:0 0 8px;font-weight:600;font-size:14px">Já existe uma confirmação com este nome</p>
+    <p class="muted" style="margin:0 0 ${wa ? '12px' : '0'};font-size:13px">Se foi você que já confirmou, não precisa fazer nada. Se você é outra pessoa com o mesmo nome, fale com a organização para registrar sua presença.</p>
+    ${wa}`;
+  document.getElementById('form-slot').appendChild(box);
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
 function showResult(r) {
   const ok = r.response === 'confirmado';
