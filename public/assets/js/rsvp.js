@@ -383,10 +383,18 @@ function optField(f) {
   if (!f.enabled) return '';
   const builtinTypes = { email: 'email', phone: 'tel' };
   const req = f.required ? '<span class="req">*</span>' : '';
-  const label = `<label>${esc(f.label)} ${req}</label>`;
+  // id único por campo, para o <label for> apontar ao input (acessibilidade:
+  // antes o leitor de tela não anunciava o nome do campo). Grupos radio/checkbox
+  // não têm um único input — recebem aria-label no conjunto.
+  const fldId = 'f_' + String(f.key || '').replace(/[^A-Za-z0-9_]/g, '');
+  const groupTypes = ['radio', 'boolean', 'checkbox'];
+  const isGroup = !f.builtin && groupTypes.includes(f.type);
+  const label = isGroup
+    ? `<label>${esc(f.label)} ${req}</label>`
+    : `<label for="${fldId}">${esc(f.label)} ${req}</label>`;
   if (f.builtin) {
     return `<div class="field">${label}
-      <input type="${builtinTypes[f.key] || 'text'}" name="${f.key}" ${f.required ? 'required' : ''} />
+      <input id="${fldId}" type="${builtinTypes[f.key] || 'text'}" name="${f.key}" ${f.required ? 'required' : ''} />
     </div>`;
   }
   const key = esc(f.key);
@@ -394,29 +402,29 @@ function optField(f) {
   let control;
   switch (f.type) {
     case 'textarea':
-      control = `<textarea data-ckey="${key}" ${f.required ? 'required' : ''}></textarea>`; break;
+      control = `<textarea id="${fldId}" data-ckey="${key}" ${f.required ? 'required' : ''}></textarea>`; break;
     case 'number':
-      control = `<input type="number" data-ckey="${key}" ${f.required ? 'required' : ''} />`; break;
+      control = `<input id="${fldId}" type="number" data-ckey="${key}" ${f.required ? 'required' : ''} />`; break;
     case 'date':
-      control = `<input type="date" data-ckey="${key}" ${f.required ? 'required' : ''} />`; break;
+      control = `<input id="${fldId}" type="date" data-ckey="${key}" ${f.required ? 'required' : ''} />`; break;
     case 'select':
-      control = `<select data-ckey="${key}" ${f.required ? 'required' : ''}>
+      control = `<select id="${fldId}" data-ckey="${key}" ${f.required ? 'required' : ''}>
         <option value="">Selecione…</option>
         ${opts.map((o) => `<option value="${esc(o)}">${esc(o)}</option>`).join('')}
       </select>`; break;
     case 'radio':
-      control = `<div class="opt-group">${opts.map((o, k) => `
-        <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="${esc(o)}" ${f.required && k === 0 ? '' : ''} /> ${esc(o)}</label>`).join('')}</div>`; break;
+      control = `<div class="opt-group" role="radiogroup" aria-label="${esc(f.label)}">${opts.map((o) => `
+        <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="${esc(o)}" /> ${esc(o)}</label>`).join('')}</div>`; break;
     case 'boolean':
-      control = `<div class="opt-group">
+      control = `<div class="opt-group" role="radiogroup" aria-label="${esc(f.label)}">
         <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="Sim" /> Sim</label>
         <label class="opt"><input type="radio" name="ck_${key}" data-ckeyradio="${key}" value="Não" /> Não</label>
       </div>`; break;
     case 'checkbox':
-      control = `<div class="opt-group">${opts.map((o) => `
+      control = `<div class="opt-group" role="group" aria-label="${esc(f.label)}">${opts.map((o) => `
         <label class="opt"><input type="checkbox" data-ckeymulti="${key}" value="${esc(o)}" /> ${esc(o)}</label>`).join('')}</div>`; break;
     default:
-      control = `<input type="text" data-ckey="${key}" ${f.required ? 'required' : ''} />`;
+      control = `<input id="${fldId}" type="text" data-ckey="${key}" ${f.required ? 'required' : ''} />`;
   }
 
   // Campo de nome do acompanhante: começa oculto, revelado pelo campo c_acomp_vem.
@@ -446,8 +454,8 @@ function renderForm() {
   document.getElementById('form-slot').innerHTML = `
     <div class="divider"></div>
     <div class="field">
-      <label>Nome completo <span class="req">*</span></label>
-      <input type="text" name="name" required autocomplete="name" placeholder="Nome e sobrenome" />
+      <label for="f_name">Nome completo <span class="req">*</span></label>
+      <input id="f_name" type="text" name="name" required autocomplete="name" placeholder="Nome e sobrenome" />
     </div>
     <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
     ${fieldsHtml}

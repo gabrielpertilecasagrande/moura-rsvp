@@ -52,7 +52,7 @@
       tips: [
         'Use as abas para navegar entre convidados, relatórios e configurações',
         'Adicione convidados manualmente ou importe via planilha',
-        'Exporte a lista completa de participantes a qualquer momento',
+        'Exporte a lista completa de convidados a qualquer momento',
       ],
     },
     '/admin/event-form.html': {
@@ -93,7 +93,7 @@
     },
     '/admin/trash.html': {
       type: 'module', icon: Icon('trash'), title: 'Lixeira',
-      body: 'Eventos e participantes excluídos ficam aqui por 90 dias antes da remoção definitiva.',
+      body: 'Eventos e convidados excluídos ficam aqui por 90 dias antes da remoção definitiva.',
       tips: [
         'Restaure itens excluídos por engano com um clique',
         'Após 90 dias, os itens são removidos permanentemente',
