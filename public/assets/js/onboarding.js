@@ -41,13 +41,13 @@
       title: 'Bem-vindo ao Moura RSVP 👋',
       body: 'Esta é a plataforma de gestão de convites e confirmações do evento. Crie eventos, gerencie convidados e acompanhe as confirmações em tempo real.',
       tips: [
-        { icon: '🗓', label: 'Criar um evento',         link: '/admin/event-form.html'   },
-        { icon: '👥', label: 'Ver lista de convidados', link: '/admin/dashboard.html'    },
-        { icon: '👤', label: 'Gerenciar usuários',      link: '/admin/users.html'        },
+        { icon: Icon('calendar'), label: 'Criar um evento',         link: '/admin/event-form.html'   },
+        { icon: Icon('users'), label: 'Ver lista de convidados', link: '/admin/dashboard.html'    },
+        { icon: Icon('badge'), label: 'Gerenciar usuários',      link: '/admin/users.html'        },
       ],
     },
     '/admin/event-detail.html': {
-      type: 'module', icon: '🗓', title: 'Gestão do Evento',
+      type: 'module', icon: Icon('calendar'), title: 'Gestão do Evento',
       body: 'Aqui fica tudo sobre este evento — convidados, confirmações, categorias e exportação de dados.',
       tips: [
         'Use as abas para navegar entre convidados, relatórios e configurações',
@@ -56,7 +56,7 @@
       ],
     },
     '/admin/event-form.html': {
-      type: 'module', icon: '✏️', title: 'Criar / Editar Evento',
+      type: 'module', icon: Icon('edit'), title: 'Criar / Editar Evento',
       body: 'Configure todos os detalhes do evento: nome, data, local, capacidade e página pública de inscrição.',
       tips: [
         'Preencha todos os campos obrigatórios antes de publicar',
@@ -65,7 +65,7 @@
       ],
     },
     '/admin/users.html': {
-      type: 'module', icon: '👤', title: 'Usuários',
+      type: 'module', icon: Icon('badge'), title: 'Usuários',
       body: 'Gerencie quem tem acesso ao sistema de RSVP. Adicione membros da equipe com papéis diferentes.',
       tips: [
         'Admin tem acesso total a todos os eventos',
@@ -74,7 +74,7 @@
       ],
     },
     '/admin/activity.html': {
-      type: 'module', icon: '🕐', title: 'Atividades',
+      type: 'module', icon: Icon('history'), title: 'Atividades',
       body: 'Histórico completo de ações no sistema — quem fez o quê e quando.',
       tips: [
         'Filtre por usuário, evento ou tipo de ação',
@@ -83,7 +83,7 @@
       ],
     },
     '/admin/lgpd.html': {
-      type: 'module', icon: '🔒', title: 'Privacidade & LGPD',
+      type: 'module', icon: Icon('lock'), title: 'Privacidade & LGPD',
       body: 'Gerenciamento de consentimentos e requisições de apagamento de dados (LGPD).',
       tips: [
         'Atenda requisições de apagamento com rastreabilidade total',
@@ -92,7 +92,7 @@
       ],
     },
     '/admin/trash.html': {
-      type: 'module', icon: '🗑', title: 'Lixeira',
+      type: 'module', icon: Icon('trash'), title: 'Lixeira',
       body: 'Eventos e convidados excluídos ficam aqui por 90 dias antes da remoção definitiva.',
       tips: [
         'Restaure itens excluídos por engano com um clique',
