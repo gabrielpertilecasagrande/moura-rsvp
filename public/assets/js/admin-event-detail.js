@@ -290,7 +290,7 @@ function renderRows(list) {
     const ex = parseExtra(p.extra);
     const customVals = eventCustomFields().map((f) => fmtExtraVal(f, ex[f.key])).filter(Boolean);
     const sub = [p.company, p.phone, p.email, ...customVals].filter(Boolean).map(esc).join(' · ');
-    const noteLine = (p.notes && can('can_participants')) ? `<div class="p-note">📝 ${esc(p.notes)}</div>` : '';
+    const noteLine = (p.notes && can('can_participants')) ? `<div class="p-note">${Icon('edit')} ${esc(p.notes)}</div>` : '';
     const catChip = p.guest_category_name
       ? `<span class="cat-chip" style="background:${esc(p.guest_category_color || '#2C427E')}20;color:${esc(p.guest_category_color || '#2C427E')};border-color:${esc(p.guest_category_color || '#2C427E')}40">${esc(p.guest_category_name)}</span>`
       : '';

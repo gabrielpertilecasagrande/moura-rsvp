@@ -9,6 +9,7 @@
   <link rel="manifest" href="/manifest.webmanifest" />
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Entrando…</title>
+  <script src="/assets/js/icons.js"></script>
   <style>
     body { font-family: system-ui, sans-serif; background: #f4f6fa; margin: 0; display: flex; align-items: center; justify-content: center; min-height: 100vh; }
     .card { background: #fff; border-radius: 14px; box-shadow: 0 2px 16px rgba(11,21,48,.10); padding: 36px 32px; max-width: 420px; width: 100%; margin: 24px; text-align: center; }
@@ -39,7 +40,7 @@
     }
 
     function showError(title, lines, actions) {
-      var html = '<div class="card"><div class="ico">🔒</div><h2>' + title + '</h2>';
+      var html = '<div class="card"><div class="ico">' + Icon('lock') + '</div><h2>' + title + '</h2>';
       html += '<p>' + lines.join('<br>') + '</p>';
       actions.forEach(function(a) {
         html += '<div><a href="' + a.href + '" class="btn ' + (a.primary ? 'btn-primary' : 'btn-ghost') + '">' + a.label + '</a></div>';

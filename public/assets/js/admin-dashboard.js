@@ -113,7 +113,7 @@ function renderEvents() {
   const box = document.getElementById('events');
   if (!ALL_EVENTS.length) {
     box.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-      <div class="ico">📅</div>
+      <div class="ico">${Icon('calendar')}</div>
       <h3>${canCreateEvents() ? 'Nenhum evento cadastrado ainda.' : 'Você ainda não tem eventos liberados.'}</h3>
       <p>${canCreateEvents() ? 'Clique em "Novo evento" para começar.' : 'Solicite a um administrador o acesso aos eventos.'}</p>
       ${canCreateEvents() ? '<a href="/admin/event-form.html" class="btn btn-primary" style="margin-top:14px">+ Novo evento</a>' : ''}
@@ -121,7 +121,7 @@ function renderEvents() {
     return;
   }
   if (!list.length) {
-    box.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="ico">🗂️</div>
+    box.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="ico">${Icon('folder')}</div>
       <h3>${eventsTab === 'past' ? 'Nenhum evento passado por aqui.' : 'Nenhum evento em andamento.'}</h3></div>`;
     return;
   }
@@ -163,7 +163,7 @@ function eventCard(e) {
       </div>
     </a>
     <div class="event-card-actions">
-      <a class="btn btn-primary btn-sm" href="/admin/event-detail.html?id=${e.id}">👁 Ver evento</a>
+      <a class="btn btn-primary btn-sm" href="/admin/event-detail.html?id=${e.id}">${Icon('report')} Ver evento</a>
       ${(e._perms && e._perms.can_duplicate) ? `<button class="btn btn-ghost btn-sm" onclick="duplicateEvent(${e.id}, event)">Duplicar</button>` : ''}
     </div>
   </div>`;
@@ -201,7 +201,7 @@ async function runSearch(q) {
     if (r.events.length) {
       parts.push('<div class="sr-group">Eventos</div>');
       parts.push(r.events.map((e) => `<a class="sr-item" href="/admin/event-detail.html?id=${e.id}">
-        <span class="sr-ico">📅</span><span><strong>${esc(e.name)}</strong>${e.location ? `<span class="sr-sub">${esc(e.location)}</span>` : ''}</span></a>`).join(''));
+        <span class="sr-ico">${Icon('calendar')}</span><span><strong>${esc(e.name)}</strong>${e.location ? `<span class="sr-sub">${esc(e.location)}</span>` : ''}</span></a>`).join(''));
     }
     if (r.participants.length) {
       parts.push('<div class="sr-group">Participantes</div>');

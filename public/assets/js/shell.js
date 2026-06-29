@@ -157,7 +157,7 @@ function showMaintenanceBanner(notice) {
     ? `<strong>${notice.active ? 'Manutenção em andamento' : 'Manutenção programada'}</strong> — ${notice.message}`
     : (notice.active ? `<strong>Manutenção em andamento</strong> até <strong>${fmtDt(notice.end_at)}</strong>. Pode haver instabilidades.` : defaultMsg);
   el.style.cssText = 'background:' + (notice.active ? '#fff1f2;color:#9b1c1c;border:1px solid #fca5a5' : '#fffbeb;color:#78350f;border:1px solid #fcd34d') + ';border-radius:10px;padding:12px 16px;font-size:13.5px;line-height:1.5;margin-bottom:18px;display:flex;align-items:flex-start;gap:10px';
-  el.innerHTML = `<span style="font-size:18px">${notice.active ? '⚠️' : '🔔'}</span><span style="flex:1">${bodyHtml}</span><button style="flex:none;background:transparent;border:none;cursor:pointer;font-size:15px;opacity:.6;margin-left:auto;padding:0 2px" onclick="document.getElementById('maintenanceBanner').remove()">✕</button>`;
+  el.innerHTML = `<span style="font-size:18px">${notice.active ? Icon('warning') : Icon('note')}</span><span style="flex:1">${bodyHtml}</span><button style="flex:none;background:transparent;border:none;cursor:pointer;font-size:15px;opacity:.6;margin-left:auto;padding:0 2px" onclick="document.getElementById('maintenanceBanner').remove()">✕</button>`;
 }
 
 async function checkMaintenance() {
