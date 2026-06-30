@@ -19,8 +19,7 @@
 
   function shouldShow(info) {
     if (info.done) return false;
-    const ageDays = (Date.now() - info.first) / 86400000;
-    return info.v <= MAX_VISITS || ageDays < MAX_DAYS;
+    return info.v <= MAX_VISITS;
   }
 
   function dismiss(key) {
