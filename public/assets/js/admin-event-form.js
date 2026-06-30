@@ -258,6 +258,27 @@ async function save() {
   const v = (id) => document.getElementById(id).value;
   if (!v('name').trim()) { err.textContent = 'Informe o nome do evento.'; err.classList.remove('hidden'); return; }
 
+  // Avisa se a data limite está depois da data do evento ou já passou.
+  const rsvpDeadline = v('rsvp_deadline');
+  const eventDate = v('event_date');
+  if (rsvpDeadline) {
+    const deadlineMs = new Date(rsvpDeadline).getTime();
+    const now = Date.now();
+    const isInPast = deadlineMs < now - 86400000; // mais de 1 dia no passado
+    const isAfterEvent = eventDate && rsvpDeadline > eventDate;
+    if (isInPast || isAfterEvent) {
+      const msg = isAfterEvent
+        ? 'A data limite de confirmação está depois da data do evento. Deseja continuar mesmo assim?'
+        : 'A data limite de confirmação já passou. Deseja continuar mesmo assim?';
+      const ok = await uiConfirm({
+        title: 'Data limite fora do período',
+        message: msg,
+        confirmText: 'Continuar',
+      });
+      if (!ok) return;
+    }
+  }
+
   const fd = new FormData();
   ['name', 'slug', 'description', 'event_date', 'event_time', 'location', 'city', 'address', 'rsvp_deadline',
    'expected_guests', 'status', 'whatsapp', 'confirm_message', 'decline_message'].forEach((id) => fd.append(id, v(id)));

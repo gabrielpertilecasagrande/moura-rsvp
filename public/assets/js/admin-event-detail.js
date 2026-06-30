@@ -633,10 +633,17 @@ function showUndo(message, onUndo) {
 async function deleteParticipant(pid) {
   const p = LAST_LIST.find((x) => x.id === pid);
   if (!p) return;
-  if (!confirm(`Remover "${p.name}"? Esta ação não pode ser desfeita.`)) return;
+  const ok = await uiConfirm({
+    title: 'Mover para a Lixeira',
+    message: `"${p.name}" será movido para a Lixeira e poderá ser restaurado depois.`,
+    confirmText: 'Mover para Lixeira',
+  });
+  if (!ok) return;
   try {
     await Api.del(`/api/events/${ID}/participants/${pid}`);
-    toast(`${p.name} removido.`);
+    showUndo(`${p.name} movido para a Lixeira.`, async () => {
+      try { await Api.post(`/api/events/${ID}/participants/${pid}/restore`); loadParticipants(); } catch (e2) { toast(e2.message); }
+    });
     loadParticipants();
   } catch (e) { toast(e.message); }
 }
@@ -867,6 +874,14 @@ async function saveBulk() {
     const r = await Api.post(`/api/events/${ID}/participants/bulk`, { text, response });
     closeModal();
     toast(`${r.added} incluído(s)${r.skipped_count ? `, ${r.skipped_count} já existia(m)` : ''}.`);
+    if (r.skipped && r.skipped.length) {
+      const names = r.skipped.map((n) => `<li style="font-size:13px;padding:2px 0">${esc(n)}</li>`).join('');
+      modal(`
+        <h3 style="font-size:17px;margin-bottom:4px">Convidados ignorados (${r.skipped.length})</h3>
+        <p class="muted" style="font-size:13px;margin:0 0 12px">Estes nomes já existem na lista e foram ignorados:</p>
+        <ul style="text-align:left;max-height:300px;overflow-y:auto;padding-left:18px;margin:0 0 16px">${names}</ul>
+        <button class="btn btn-ghost btn-sm" style="width:100%" onclick="closeModal()">Fechar</button>`);
+    }
     loadParticipants();
   } catch (e) { err.textContent = e.message; err.classList.remove('hidden'); }
 }
@@ -992,6 +1007,20 @@ function focusSearch() {
   const el = document.getElementById('search');
   if (el && !('ontouchstart' in window)) el.focus({ preventScroll: true });
 }
+
+// Torna os ícones .info-i clicáveis em dispositivos móveis (onde title/hover não funciona).
+document.addEventListener('click', (e) => {
+  const infoI = e.target.closest('.info-i');
+  if (!infoI) return;
+  const tip = infoI.getAttribute('title') || infoI.dataset.tip;
+  if (!tip) return;
+  e.preventDefault();
+  modal(`
+    <div style="text-align:left">
+      <p style="margin:0 0 16px;font-size:14px;line-height:1.6">${esc(tip)}</p>
+      <button class="btn btn-ghost btn-sm" style="width:100%" onclick="closeModal()">Fechar</button>
+    </div>`);
+});
 
 (async () => {
   await loadEvent();

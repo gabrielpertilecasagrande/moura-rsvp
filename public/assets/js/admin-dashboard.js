@@ -19,8 +19,8 @@ const STAT_DEFS = [
   { k: 'activeEvents',  l: 'Eventos ativos',       tone: 'green', ico: ICO.bolt },
   { k: 'confirmed',     l: 'Confirmados',           tone: 'green', ico: ICO.check },
   { k: 'declined',      l: 'Recusas',               ico: ICO.x,   toneFn: (v) => v > 0 ? 'red' : 'gray' },
-  { k: 'responseRate',  l: 'Taxa de resposta',      tone: 'amber', ico: ICO.rate, fmt: (v) => v !== null ? v + '%' : '—' },
-  { k: 'pending',       l: 'Aguardando',            tone: 'amber', ico: ICO.clock },
+  { k: 'responseRate',  l: 'Taxa de resposta',      tone: 'amber', ico: ICO.rate, fmt: (v) => v !== null ? v + '%' : '—', tip: 'Proporção de respostas em relação ao total de convidados esperados. Configure "Convidados esperados" nos eventos para calcular.' },
+  { k: 'pending',       l: 'Aguardando',            tone: 'amber', ico: ICO.clock, tip: 'Considera apenas eventos com "Convidados esperados" definido.' },
 ];
 
 function statCard(d) {
@@ -53,6 +53,10 @@ function relTime(ts) {
 function renderDashExtra(recent, daily) {
   const slot = document.getElementById('dashExtra');
   if (!slot) return;
+  if ((!recent || !recent.length) && (!daily || !daily.length)) {
+    slot.innerHTML = '';
+    return;
+  }
   let html = '<div class="dash-extra-grid">';
 
   // Últimas confirmações
@@ -71,6 +75,39 @@ function renderDashExtra(recent, daily) {
       </div>`;
     }).join('');
     html += `<div><div class="section-label">Últimas confirmações</div><div class="card recent-list">${rows}</div></div>`;
+  }
+
+  // Gráfico de confirmações por dia (últimos 7 dias)
+  if (daily && daily.length) {
+    const today = new Date();
+    const DAY_LABELS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+    const days7 = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(today);
+      d.setDate(today.getDate() - (6 - i));
+      return d.toISOString().slice(0, 10);
+    });
+    const byDate = {};
+    daily.forEach((item) => { byDate[item.date] = item.n || 0; });
+    const values = days7.map((dt) => byDate[dt] || 0);
+    const max = Math.max(...values, 1);
+    const bars = days7.map((dt, i) => {
+      const pct = Math.round((values[i] / max) * 100);
+      const d = new Date(dt + 'T12:00:00');
+      const label = DAY_LABELS[d.getDay()];
+      return `<div style="display:flex;flex-direction:column;align-items:center;flex:1;gap:4px">
+        <div style="width:100%;height:80px;display:flex;align-items:flex-end">
+          <div style="width:100%;height:${pct}%;background:var(--navy,#1e3a5f);border-radius:3px 3px 0 0;min-height:${values[i] > 0 ? '4px' : '0'}" title="${values[i]} confirmação(ões)"></div>
+        </div>
+        <div style="font-size:11px;color:var(--muted,#64748b);font-weight:500">${label}</div>
+        <div style="font-size:11px;color:var(--muted,#64748b)">${values[i]}</div>
+      </div>`;
+    }).join('');
+    html += `<div>
+      <div class="section-label">Confirmações por dia (últimos 7 dias)</div>
+      <div class="card" style="padding:16px 12px 10px">
+        <div style="display:flex;gap:6px;align-items:flex-end">${bars}</div>
+      </div>
+    </div>`;
   }
 
   html += '</div>';

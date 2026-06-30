@@ -231,8 +231,8 @@ function accessRow(ev) {
     `<td class="ac-cell"><input type="checkbox" data-event="${ev.id}" data-perm="${c.key}" ${ev.perms[c.key] ? 'checked' : ''} ${c.key === 'can_view' ? 'class="ac-view"' : ''} aria-label="${c.label}" /></td>`
   ).join('');
   const date = ev.event_date ? fmtDateBR(ev.event_date) : 'Data a definir';
-  return `<tr data-event-row="${ev.id}" class="${ev.perms.can_view ? '' : 'ac-off'}">
-    <td class="ac-name"><div style="font-weight:600">${esc(ev.name)}</div><div class="muted" style="font-size:12px">${date}</div></td>
+  return `<tr data-event-row="${ev.id}" class="access-row ${ev.perms.can_view ? '' : 'ac-off'}">
+    <td class="ac-name event-name-cell"><div style="font-weight:600">${esc(ev.name)}</div><div class="muted" style="font-size:12px">${date}</div></td>
     ${checks}</tr>`;
 }
 
@@ -252,6 +252,7 @@ function renderAccessModal(u, data) {
       <button class="btn btn-ghost btn-sm" type="button" onclick="accessSelectAllView(false)">Remover todos</button>
       <button class="btn btn-ghost btn-sm" type="button" onclick="accessApplyDefaults()">Aplicar permissões padrão do perfil</button>
     </div>
+    <input type="text" placeholder="Buscar evento…" id="accessSearch" style="width:100%;margin-bottom:12px;padding:8px 12px;border:1px solid var(--border,#e2e8f0);border-radius:8px;font-size:13px;box-sizing:border-box" />
     <div class="access-table-wrap">
       <table class="access-table">
         <thead><tr><th class="ac-name">Evento</th>${head}</tr></thead>
@@ -269,6 +270,14 @@ function renderAccessModal(u, data) {
     if (cb.dataset.perm === 'can_view') syncAccessRow(cb.dataset.event);
   });
   data.events.forEach((ev) => syncAccessRow(ev.id));
+
+  document.getElementById('accessSearch').addEventListener('input', (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    document.querySelectorAll('#accessBody .access-row').forEach((row) => {
+      const name = row.querySelector('.event-name-cell')?.textContent.toLowerCase() || '';
+      row.style.display = q && !name.includes(q) ? 'none' : '';
+    });
+  });
 }
 
 function syncAccessRow(eventId) {

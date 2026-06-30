@@ -12,9 +12,15 @@ const ICON = {
 
 async function load() {
   try {
-    EVENT = await fetch(`/api/public/events/${slug}`).then((r) => { if (!r.ok) throw new Error('404'); return r.json(); });
+    const r = await fetch(`/api/public/events/${slug}`);
+    if (r.status === 404) {
+      root.innerHTML = `<div class="rsvp-card closed-box"><h2>Evento não encontrado</h2><p class="muted">Verifique o link recebido.</p></div>`;
+      return;
+    }
+    if (!r.ok) throw new Error('network');
+    EVENT = await r.json();
   } catch {
-    root.innerHTML = `<div class="rsvp-card closed-box"><h2>Evento não encontrado</h2><p class="muted">Verifique o link recebido.</p></div>`;
+    root.innerHTML = `<div class="rsvp-card closed-box"><h2>Não foi possível carregar agora.</h2><p class="muted">Verifique sua conexão.</p><button class="btn btn-ghost btn-sm" style="margin-top:14px" onclick="load()">Tentar novamente</button></div>`;
     return;
   }
   render();
@@ -45,7 +51,7 @@ function buildCountdown(e, baseClass = 'rsvp-countdown') {
   if (!e.event_date) return '';
   const datePart = e.event_date; // YYYY-MM-DD
   const timePart = e.event_time || '00:00';
-  const eventMs = new Date(`${datePart}T${timePart}`).getTime();
+  const eventMs = new Date(`${datePart}T${timePart}:00-03:00`).getTime();
   if (isNaN(eventMs) || eventMs <= Date.now()) return '';
   return `<div id="countdown" class="${baseClass}" data-base="${baseClass}"></div>`;
 }
@@ -56,11 +62,12 @@ function startCountdown(e) {
   const base = el.dataset.base || 'rsvp-countdown';
   const datePart = e.event_date;
   const timePart = e.event_time || '00:00';
-  const eventMs = new Date(`${datePart}T${timePart}`).getTime();
+  const eventMs = new Date(`${datePart}T${timePart}:00-03:00`).getTime();
 
   function tick() {
     const diff = eventMs - Date.now();
-    if (diff <= 0) { el.remove(); clearInterval(countdownTimer); return; }
+    if (diff <= 0) { el.remove(); if (countdownTimer) clearInterval(countdownTimer); return; }
+    const moreThan24h = diff > 86400000;
     const totalSec = Math.floor(diff / 1000);
     const d = Math.floor(totalSec / 86400);
     const h = Math.floor((totalSec % 86400) / 3600);
@@ -72,13 +79,16 @@ function startCountdown(e) {
     if (d > 0) parts += `<span class="cd-unit"><strong>${d}</strong><em>dias</em></span>`;
     parts += `<span class="cd-unit"><strong>${pad(h)}</strong><em>horas</em></span>`;
     parts += `<span class="cd-unit"><strong>${pad(m)}</strong><em>min</em></span>`;
-    parts += `<span class="cd-unit"><strong>${pad(s)}</strong><em>seg</em></span>`;
+    if (!moreThan24h) parts += `<span class="cd-unit"><strong>${pad(s)}</strong><em>seg</em></span>`;
     el.className = `${base}${warn ? ` ${base}-warn` : ''}`;
     el.innerHTML = `<span class="cd-label">Faltam</span><div class="cd-units">${parts}</div>`;
+
+    // Reschedule with appropriate interval
+    if (countdownTimer) clearInterval(countdownTimer);
+    countdownTimer = setInterval(tick, moreThan24h ? 60000 : 1000);
   }
-  tick();
   if (countdownTimer) clearInterval(countdownTimer);
-  countdownTimer = setInterval(tick, 1000);
+  tick();
 }
 
 // Botões de ação: Google Agenda e Abrir no mapa.
@@ -393,8 +403,14 @@ function optField(f) {
     ? `<label>${esc(f.label)} ${req}</label>`
     : `<label for="${fldId}">${esc(f.label)} ${req}</label>`;
   if (f.builtin) {
+    const extraAttrs = {
+      email: 'autocomplete="email" inputmode="email"',
+      phone: 'autocomplete="tel" inputmode="tel"',
+      company: 'autocomplete="organization"',
+      role: 'autocomplete="organization-title"',
+    }[f.key] || '';
     return `<div class="field">${label}
-      <input id="${fldId}" type="${builtinTypes[f.key] || 'text'}" name="${f.key}" ${f.required ? 'required' : ''} />
+      <input id="${fldId}" type="${builtinTypes[f.key] || 'text'}" name="${f.key}" ${f.required ? 'required' : ''} ${extraAttrs} />
     </div>`;
   }
   const key = esc(f.key);
@@ -461,8 +477,8 @@ function renderForm() {
     ${fieldsHtml}
 
     <div class="divider"></div>
-    <p class="choice-q">Você participará deste evento?</p>
-    <div class="choices">
+    <p class="choice-q">Você participará deste evento? <span class="req">*</span></p>
+    <div class="choices" id="choices-block">
       <label class="choice" id="ch-yes">
         <input type="radio" name="response" value="confirmado" />
         <span>Sim, confirmo minha presença</span>
@@ -489,6 +505,8 @@ function renderForm() {
     </div>
     <p class="error-msg hidden" id="err"></p>
     <button class="btn btn-primary" id="submit" style="width:100%;margin-top:18px">Enviar resposta</button>
+    <hr style="border:none;border-top:1px solid var(--gray-soft,#e2e8f0);margin:20px 0 4px">
+    <div style="text-align:center;font-size:13px;color:var(--muted,#64748b);margin-bottom:8px">Dúvidas? Fale com a organização</div>
     ${whatsappButton('Falar com a organização')}`;
 
   const yes = document.getElementById('ch-yes');
@@ -534,7 +552,11 @@ async function submit() {
   // Aceita nomes de uma palavra (mononímicos/estrangeiros). Exige só que tenha
   // sentido (ao menos 2 letras) — não obriga sobrenome.
   if (body.name.replace(/[^\p{L}]/gu, '').length < 2) return showErr('Por favor, informe seu nome.');
-  if (!body.response) return showErr('Selecione se você participará ou não do evento.');
+  if (!body.response) {
+    const choicesEl = document.getElementById('choices-block');
+    if (choicesEl) { choicesEl.style.border = '2px solid var(--danger)'; choicesEl.style.borderRadius = '10px'; choicesEl.style.padding = '8px'; choicesEl.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    return showErr('Selecione se você participará ou não do evento.');
+  }
   if (!body.accepted_terms || !body.accepted_privacy_policy || !body.accepted_data_processing) {
     return showErr('Para enviar, é necessário aceitar os Termos, a Política de Privacidade e autorizar o tratamento dos dados.');
   }
@@ -576,7 +598,12 @@ async function submit() {
     showErr(e2.message || 'Não foi possível enviar sua resposta agora. Verifique sua conexão e tente novamente.');
   }
 }
-function showErr(m) { const err = document.getElementById('err'); err.textContent = m; err.classList.remove('hidden'); }
+function showErr(m) {
+  const err = document.getElementById('err');
+  err.textContent = m;
+  err.classList.remove('hidden');
+  err.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
 
 // 409 (homônimo sem casamento de contato): exibe um cartão com orientação clara e
 // um caminho de ação (WhatsApp da organização, quando configurado) — em vez de só
@@ -598,6 +625,10 @@ function showHomonymConflict(msg) {
 }
 
 function showResult(r) {
+  if (r.response === 'confirmado' && !r.qr_token) {
+    showErr('Não recebemos sua confirmação corretamente. Tente novamente.');
+    return;
+  }
   const ok = r.response === 'confirmado';
   const check = '<svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg>';
   // Código de entrada (QR): exibido apenas para quem confirmou presença.
@@ -621,7 +652,6 @@ function showResult(r) {
       <p>${esc(r.message)}</p>
       ${qr}
       ${r.updated ? '' : `<div class="note">Precisa alterar sua resposta? Basta acessar este mesmo link novamente e reenviar — seus dados serão atualizados.</div>`}
-      <button class="btn btn-ghost btn-sm" style="margin-top:18px" onclick="location.reload()">Enviar nova resposta</button>
       ${whatsappButton('Falar com a organização')}
     </div>`;
 }
