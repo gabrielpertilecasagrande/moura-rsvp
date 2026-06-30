@@ -26,14 +26,18 @@
         </div>
       </div>
       <p class="muted" style="margin:-6px 0 18px">Registro das ações realizadas pelos usuários administrativos.</p>
-      <div class="toolbar">
+      <div class="toolbar" style="flex-wrap:wrap;gap:8px">
         <input class="search" type="text" id="search" placeholder="Filtrar por usuário, ação ou evento…" />
+        <div id="periodChips" class="cat-filter-inner" style="margin:0"></div>
       </div>
       <div class="card" style="padding:0;overflow:hidden">
         <table class="cards">
           <thead><tr><th>Quando</th><th>Usuário</th><th>Ação</th><th>Detalhe</th></tr></thead>
           <tbody id="rows"><tr><td colspan="4" class="muted" style="padding:24px">Carregando…</td></tr></tbody>
         </table>
+      </div>
+      <div id="loadMoreWrap" style="display:none;text-align:center;margin-top:14px">
+        <button class="btn btn-ghost" id="loadMoreBtn">Carregar mais</button>
       </div>
     </main>
   </div>
