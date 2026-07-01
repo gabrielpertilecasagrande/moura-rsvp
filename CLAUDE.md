@@ -15,6 +15,20 @@
 - Envie print **somente** quando houver dúvida real sobre o resultado visual (ex.: layout quebrado, resultado ambíguo) — e justifique brevemente o motivo.
 - Mudanças apenas de backend (sem efeito visual) nunca precisam de print.
 
+## Lixeira — regra fixa
+
+- **Nenhuma exclusão é definitiva pela interface.** Tudo que puder ser apagado
+  (evento, convidado/participante, usuário, etc.) precisa ir para a Lixeira
+  (soft delete: marcar `deleted_at`/`deleted_by`, nunca `DELETE FROM` direto a
+  partir de um clique do usuário) e aparecer lá com opção de **Restaurar**. Só
+  a Lixeira pode oferecer exclusão definitiva (de preferência restrita a
+  admin).
+- Ao criar uma tela ou botão novo de "excluir"/"remover"/"apagar", sempre
+  verificar se o tipo já está coberto pela Lixeira; se não estiver, adicionar
+  o tipo à Lixeira (listagem + restaurar) como parte da mesma entrega.
+- Vale para qualquer sistema do ecossistema (moura-eventos, moura-expositor,
+  moura-rsvp, moura-checkin).
+
 ## PWA — regra fixa
 
 - O botão "Atualizar" do aviso "Nova versão disponível" **sempre** precisa de

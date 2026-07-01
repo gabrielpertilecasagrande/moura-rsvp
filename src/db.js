@@ -162,6 +162,11 @@ function applyMigrations(db) {
   `);
   db.exec('CREATE INDEX IF NOT EXISTS idx_rsvp_cats_event ON rsvp_categories(event_id)');
   addColumn('participants', 'guest_category_id', 'INTEGER');
+  // Lixeira também cobre categorias de convidados (VIP, Imprensa, etc.): remover
+  // uma categoria pela interface move para a lixeira em vez de apagar de vez.
+  addColumn('rsvp_categories', 'deleted_at', 'TEXT');
+  addColumn('rsvp_categories', 'deleted_by', 'TEXT');
+  db.exec('CREATE INDEX IF NOT EXISTS idx_rsvp_cats_deleted ON rsvp_categories(deleted_at)');
 
   db.exec(`
     CREATE TABLE IF NOT EXISTS data_erasures (

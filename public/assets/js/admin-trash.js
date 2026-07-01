@@ -3,12 +3,12 @@ if (currentRole() !== 'admin') location.href = '/admin/dashboard.html';
 mountShell('trash');
 
 let trashRows = [];
-let activeFilter = 'all';   // all | event | participant | user
+let activeFilter = 'all';   // all | event | participant | user | category
 let searchTerm = '';
 
-const TYPE_LABEL = { event: 'Evento', participant: 'Convidado', user: 'Usuário' };
-const TYPE_ICON  = { event: Icon('calendar'), participant: Icon('users'), user: Icon('badge') };
-const TYPE_PATH  = { event: 'event', participant: 'participant', user: 'user' };
+const TYPE_LABEL = { event: 'Evento', participant: 'Convidado', user: 'Usuário', category: 'Categoria' };
+const TYPE_ICON  = { event: Icon('calendar'), participant: Icon('users'), user: Icon('badge'), category: Icon('ticket') };
+const TYPE_PATH  = { event: 'event', participant: 'participant', user: 'user', category: 'category' };
 const ROLE_LABEL = { admin: 'Administrador', gestor: 'Gestor de Eventos', operador: 'Operador', editor: 'Gestor de Eventos' };
 
 function findItem(type, id) { return trashRows.find((r) => r.type === type && String(r.id) === String(id)); }
@@ -60,6 +60,9 @@ function itemSubtitle(e) {
   if (e.type === 'user') {
     return [e.email, ROLE_LABEL[e.role] || e.role].filter(Boolean).join(' · ') || 'Usuário';
   }
+  if (e.type === 'category') {
+    return e.event_name || 'Categoria';
+  }
   const parts = [];
   if (e.event_date) parts.push('Data: ' + fmtDateBR(e.event_date));
   if (e.location) parts.push(e.location);
@@ -98,11 +101,12 @@ function render() {
 }
 
 async function load() {
-  const data = await Api.get('/api/trash').catch(() => ({ events: [], participants: [], users: [] }));
+  const data = await Api.get('/api/trash').catch(() => ({ events: [], participants: [], users: [], categories: [] }));
   const events = data.events || [];
   const participants = data.participants || [];
   const users = data.users || [];
-  trashRows = [...events, ...participants, ...users].sort((a, b) => (a.deleted_at < b.deleted_at ? 1 : -1));
+  const categories = data.categories || [];
+  trashRows = [...events, ...participants, ...users, ...categories].sort((a, b) => (a.deleted_at < b.deleted_at ? 1 : -1));
   render();
 }
 
@@ -125,6 +129,7 @@ async function previewItem(type, id) {
     const data = await Api.get(`/api/trash/${TYPE_PATH[type]}/${id}/preview`);
     if (type === 'event') return previewEvent(id, data);
     if (type === 'participant') return previewParticipant(id, data);
+    if (type === 'category') return previewCategory(id, data);
     return previewUser(id, data);
   } catch (err) { toast(err.message || 'Não foi possível abrir a pré-visualização.'); }
 }
@@ -155,6 +160,16 @@ function previewParticipant(id, { participant }) {
     ${lineHtml('E-mail', esc(participant.email || '—'))}
     ${lineHtml('Telefone', esc(participant.phone || '—'))}
     ${previewButtons('participant', id)}`);
+}
+
+function previewCategory(id, { category }) {
+  modal(`
+    <h2 style="margin-bottom:4px">${TYPE_ICON.category} ${esc(category.name)}</h2>
+    <div class="muted" style="font-size:13px;margin-bottom:16px">Pré-visualização do que está guardado na lixeira</div>
+    ${lineHtml('Evento', esc(category.event_name || '—'))}
+    ${lineHtml('Cor', `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${esc(category.color || '#2C427E')};vertical-align:middle;margin-right:6px"></span>${esc(category.color || '—')}`)}
+    <p class="muted" style="font-size:12.5px;margin-top:10px">ℹ️ Ao restaurar, a categoria volta a existir, mas os convidados que ficaram sem categoria não são recategorizados automaticamente.</p>
+    ${previewButtons('category', id)}`);
 }
 
 function previewUser(id, { user }) {
@@ -197,7 +212,9 @@ function purgeItem(type, id) {
   const name = it?.name || 'este item';
   const extra = type === 'event'
     ? ' Todos os convidados e o histórico do evento serão apagados para sempre.'
-    : (type === 'user' ? ' A conta e suas permissões serão apagadas para sempre.' : ' O convidado e seu histórico serão apagados para sempre.');
+    : type === 'user' ? ' A conta e suas permissões serão apagadas para sempre.'
+    : type === 'category' ? ' A categoria será apagada para sempre (os convidados já ficaram sem categoria quando ela foi excluída).'
+    : ' O convidado e seu histórico serão apagados para sempre.';
   modal(`
     <h2 style="margin-bottom:6px">${Icon('trash')} Excluir permanentemente</h2>
     <p style="font-size:14px;line-height:1.5;margin-bottom:6px">

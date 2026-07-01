@@ -123,6 +123,30 @@ router.delete('/:pid', requirePerm('can_participants'), (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/events/:id/participants/:pid/restore — desfaz a exclusão (usado
+// pelo toast "Desfazer" logo após excluir um convidado nesta mesma tela). Exige
+// a mesma permissão de quem pode excluir; a Lixeira geral (só admins) também
+// tem seu próprio restaurar em /api/trash/participant/:id/restore.
+router.post('/:pid/restore', requirePerm('can_participants'), (req, res) => {
+  const eventId = Number(req.params.id);
+  const pid = Number(req.params.pid);
+  const p = db.prepare('SELECT * FROM participants WHERE id = ? AND event_id = ? AND deleted_at IS NOT NULL').get(pid, eventId);
+  if (!p) return res.status(404).json({ error: 'Convidado não encontrado na lixeira.' });
+  // Conflito de nome: pode haver outro convidado ATIVO com o mesmo nome neste
+  // evento (índice único event_id + name_normalized).
+  const clash = db.prepare(
+    'SELECT id FROM participants WHERE event_id = ? AND name_normalized = ? AND deleted_at IS NULL AND id <> ?'
+  ).get(eventId, p.name_normalized, pid);
+  if (clash) return res.status(409).json({ error: 'Já existe um convidado ativo com este nome neste evento. Não é possível restaurar.' });
+  const actor = req.admin.name || req.admin.email;
+  const { ip, ua } = getReqMeta(req);
+  db.prepare('UPDATE participants SET deleted_at = NULL, deleted_by = NULL WHERE id = ?').run(pid);
+  db.prepare(`INSERT INTO audit_log (participant_id, event_id, action, actor, details, ip, user_agent, origin) VALUES (?,?,'restaurou',?,'Restaurado da lixeira',?,?,'admin')`)
+    .run(pid, eventId, actor, ip, ua);
+  logActivity(actor, 'restaurou convidado da lixeira', p.name);
+  res.json({ ok: true });
+});
+
 // POST /api/events/:id/participants/mass — ações em massa (confirmar/recusar/excluir)
 router.post('/mass', requirePerm('can_participants'), (req, res) => {
   const eventId = Number(req.params.id);
