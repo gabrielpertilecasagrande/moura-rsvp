@@ -384,6 +384,10 @@ if ('serviceWorker' in navigator) {
       btn.addEventListener('click', () => {
         updateClicked = true; btn.disabled = true; btn.textContent = 'Atualizando…';
         try { worker.postMessage({ type: 'skip-waiting' }); } catch (_) {}
+        // Rede de segurança: se o navegador não trocar de controlador por
+        // qualquer motivo (já aconteceu — o botão ficava travado em
+        // "Atualizando…" para sempre), força o reload mesmo assim.
+        setTimeout(() => { if (!reloading) { reloading = true; window.location.reload(); } }, 3000);
       });
       const close = document.createElement('button');
       close.type = 'button'; close.textContent = '✕';
