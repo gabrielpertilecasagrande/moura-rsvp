@@ -1,3 +1,5 @@
+requireSession();
+if (currentRole() !== 'admin') location.href = '/admin/dashboard.html';
 mountShell('lgpd');
 
 function esc(s) {
