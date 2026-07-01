@@ -234,12 +234,12 @@ function confirmDelete(name) {
   slot.innerHTML = `
     <div class="modal-bg"><div class="modal" style="text-align:left">
       <h3 style="font-size:17px;margin-bottom:6px;color:var(--danger)">Excluir evento</h3>
-      <p style="font-size:14px;margin:0 0 12px">Você está prestes a excluir <strong>${esc(name || 'este evento')}</strong> e <strong>todas as respostas</strong>. Esta ação é permanente.</p>
+      <p style="font-size:14px;margin:0 0 12px">Você está prestes a excluir <strong>${esc(name || 'este evento')}</strong> e <strong>todas as respostas</strong>. O evento vai para a Lixeira, onde pode ser restaurado por até 90 dias antes da exclusão definitiva.</p>
       <p class="muted" style="font-size:13px;margin:0 0 8px">Para confirmar, digite <strong>EXCLUIR</strong> abaixo:</p>
       <input type="text" id="delConfirm" placeholder="EXCLUIR" autocomplete="off" />
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px">
         <button class="btn btn-ghost btn-sm" id="delCancel">Cancelar</button>
-        <button class="btn btn-danger btn-sm" id="delGo" disabled>Excluir definitivamente</button>
+        <button class="btn btn-danger btn-sm" id="delGo" disabled>Mover para a Lixeira</button>
       </div>
     </div></div>`;
   const input = document.getElementById('delConfirm');

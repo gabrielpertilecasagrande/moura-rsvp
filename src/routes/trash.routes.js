@@ -11,7 +11,7 @@ const { logActivity } = require('../utils/activity');
 const { registerAdminEmail } = require('../router');
 const { decrypt, decryptFields } = require('../utils/crypto');
 const {
-  RETENTION_DAYS, hardDeleteEvent, hardDeleteParticipant, hardDeleteAdmin,
+  RETENTION_DAYS, hardDeleteEvent, hardDeleteParticipant, hardDeleteAdmin, hardDeleteCategory,
 } = require('../utils/trash');
 
 const router = express.Router();
@@ -50,7 +50,18 @@ router.get('/', (_req, res) => {
      ORDER BY deleted_at DESC
   `).all().map((r) => ({ ...r, type: 'user', retention_days: RETENTION_DAYS }));
 
-  res.json({ events, participants, users, retention_days: RETENTION_DAYS });
+  // Categorias de convidados na lixeira — só as de eventos ATIVOS (as de um
+  // evento que também está na lixeira voltam junto com o evento).
+  const categories = db.prepare(`
+    SELECT c.id, c.name, c.color, c.deleted_at, c.deleted_by,
+           ${PURGE_AT.replace(/deleted_at/g, 'c.deleted_at')} AS purge_at,
+           e.id AS event_id, e.name AS event_name
+      FROM rsvp_categories c JOIN events e ON e.id = c.event_id
+     WHERE c.deleted_at IS NOT NULL AND e.deleted_at IS NULL
+     ORDER BY c.deleted_at DESC
+  `).all().map((r) => ({ ...r, type: 'category', retention_days: RETENTION_DAYS }));
+
+  res.json({ events, participants, users, categories, retention_days: RETENTION_DAYS });
 });
 
 // ── Pré-visualização (antes de restaurar) ─────────────────────────────────────
@@ -99,6 +110,15 @@ router.get('/user/:id/preview', (req, res) => {
   });
 });
 
+router.get('/category/:id/preview', (req, res) => {
+  const c = db.prepare(`
+    SELECT c.*, e.name AS event_name FROM rsvp_categories c JOIN events e ON e.id = c.event_id
+     WHERE c.id = ? AND c.deleted_at IS NOT NULL
+  `).get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Categoria não encontrada na lixeira.' });
+  res.json({ category: { id: c.id, name: c.name, color: c.color, event_name: c.event_name } });
+});
+
 // ── Restaurar ─────────────────────────────────────────────────────────────────
 router.post('/event/:id/restore', (req, res) => {
   const e = db.prepare('SELECT * FROM events WHERE id = ? AND deleted_at IS NOT NULL').get(req.params.id);
@@ -135,6 +155,19 @@ router.post('/user/:id/restore', (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/category/:id/restore', (req, res) => {
+  const c = db.prepare('SELECT * FROM rsvp_categories WHERE id = ? AND deleted_at IS NOT NULL').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Categoria não encontrada na lixeira.' });
+  // Conflito de nome: pode haver outra categoria ATIVA com o mesmo nome no evento.
+  const clash = db.prepare(
+    'SELECT id FROM rsvp_categories WHERE event_id = ? AND name = ? COLLATE NOCASE AND deleted_at IS NULL AND id <> ?'
+  ).get(c.event_id, c.name, c.id);
+  if (clash) return res.status(409).json({ error: 'Já existe uma categoria ativa com este nome neste evento. Não é possível restaurar.' });
+  db.prepare('UPDATE rsvp_categories SET deleted_at = NULL, deleted_by = NULL WHERE id = ?').run(c.id);
+  logActivity(who(req), 'restaurou categoria da lixeira', c.name);
+  res.json({ ok: true });
+});
+
 // ── Excluir permanentemente (irreversível) ────────────────────────────────────
 router.delete('/event/:id', (req, res) => {
   const e = db.prepare('SELECT name FROM events WHERE id = ? AND deleted_at IS NOT NULL').get(req.params.id);
@@ -157,6 +190,14 @@ router.delete('/user/:id', (req, res) => {
   if (!u) return res.status(404).json({ error: 'Usuário não encontrado na lixeira.' });
   hardDeleteAdmin(db, Number(req.params.id));
   logActivity(who(req), 'excluiu usuário permanentemente', u.name);
+  res.json({ ok: true });
+});
+
+router.delete('/category/:id', (req, res) => {
+  const c = db.prepare('SELECT name FROM rsvp_categories WHERE id = ? AND deleted_at IS NOT NULL').get(req.params.id);
+  if (!c) return res.status(404).json({ error: 'Categoria não encontrada na lixeira.' });
+  hardDeleteCategory(db, Number(req.params.id));
+  logActivity(who(req), 'excluiu categoria permanentemente', c.name);
   res.json({ ok: true });
 });
 

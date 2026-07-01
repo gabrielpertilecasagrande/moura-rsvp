@@ -63,11 +63,18 @@ function hardDeleteAdmin(db, id) {
   return true;
 }
 
+function hardDeleteCategory(db, id) {
+  // Os convidados já foram desvinculados (guest_category_id = NULL) no momento
+  // em que a categoria foi para a lixeira; aqui só apaga o registro da categoria.
+  const info = db.prepare('DELETE FROM rsvp_categories WHERE id = ?').run(id);
+  return info.changes > 0;
+}
+
 // ── Limpeza por vencimento (de um banco/tenant) ───────────────────────────────
 // Apaga definitivamente tudo que está na lixeira há mais de RETENTION_DAYS dias.
 function purgeExpiredTrash(db) {
   const cutoff = `datetime('now', '-${RETENTION_DAYS} days')`;
-  const out = { events: 0, participants: 0, admins: 0 };
+  const out = { events: 0, participants: 0, admins: 0, categories: 0 };
 
   for (const r of db.prepare(`SELECT id FROM events WHERE deleted_at IS NOT NULL AND deleted_at <= ${cutoff}`).all()) {
     if (hardDeleteEvent(db, r.id)) out.events++;
@@ -78,12 +85,15 @@ function purgeExpiredTrash(db) {
   for (const r of db.prepare(`SELECT id FROM admins WHERE deleted_at IS NOT NULL AND deleted_at <= ${cutoff}`).all()) {
     if (hardDeleteAdmin(db, r.id)) out.admins++;
   }
+  for (const r of db.prepare(`SELECT id FROM rsvp_categories WHERE deleted_at IS NOT NULL AND deleted_at <= ${cutoff}`).all()) {
+    if (hardDeleteCategory(db, r.id)) out.categories++;
+  }
   return out;
 }
 
 // Percorre TODAS as organizações e limpa a lixeira vencida de cada uma.
 function purgeAllTenants() {
-  const totals = { events: 0, participants: 0, admins: 0 };
+  const totals = { events: 0, participants: 0, admins: 0, categories: 0 };
   let orgs = [];
   try { orgs = listOrganizations(); } catch { orgs = []; }
   for (const org of orgs) {
@@ -91,6 +101,7 @@ function purgeAllTenants() {
       const db = openTenantDb(org.slug);
       const r  = purgeExpiredTrash(db);
       totals.events += r.events; totals.participants += r.participants; totals.admins += r.admins;
+      totals.categories += r.categories;
     } catch (e) {
       console.error(`[trash] erro ao limpar a organização "${org.slug}":`, e.message);
     }
@@ -103,8 +114,8 @@ function scheduleTrashCleanup() {
   const run = () => {
     try {
       const t = purgeAllTenants();
-      if (t.events || t.participants || t.admins) {
-        console.log(`[trash] limpeza automática: ${t.events} evento(s), ${t.participants} convidado(s) e ${t.admins} usuário(s) removido(s) definitivamente`);
+      if (t.events || t.participants || t.admins || t.categories) {
+        console.log(`[trash] limpeza automática: ${t.events} evento(s), ${t.participants} convidado(s), ${t.admins} usuário(s) e ${t.categories} categoria(s) removido(s) definitivamente`);
       }
     } catch (e) {
       console.error('[trash] erro na limpeza automática:', e.message);
@@ -120,6 +131,7 @@ module.exports = {
   hardDeleteEvent,
   hardDeleteParticipant,
   hardDeleteAdmin,
+  hardDeleteCategory,
   purgeExpiredTrash,
   purgeAllTenants,
   scheduleTrashCleanup,

@@ -346,7 +346,7 @@ router.post('/:id/duplicate', requirePerm('can_duplicate'), (req, res) => {
 router.get('/:id/categories', requirePerm('can_view'), (req, res) => {
   const e = db.prepare('SELECT id FROM events WHERE id = ? AND deleted_at IS NULL').get(req.params.id);
   if (!e) return res.status(404).json({ error: 'Evento não encontrado.' });
-  res.json(db.prepare('SELECT * FROM rsvp_categories WHERE event_id = ? ORDER BY sort_order, name COLLATE NOCASE').all(e.id));
+  res.json(db.prepare('SELECT * FROM rsvp_categories WHERE event_id = ? AND deleted_at IS NULL ORDER BY sort_order, name COLLATE NOCASE').all(e.id));
 });
 
 // POST /api/events/:id/categories — cria categoria de convidados
@@ -360,12 +360,17 @@ router.post('/:id/categories', requirePerm('can_edit'), (req, res) => {
   res.status(201).json(db.prepare('SELECT * FROM rsvp_categories WHERE id = ?').get(info.lastInsertRowid));
 });
 
-// DELETE /api/events/:id/categories/:catId — remove categoria (desvincula convidados)
+// DELETE /api/events/:id/categories/:catId — move a categoria para a LIXEIRA
+// (soft-delete). Desvincula os convidados agora (ficam sem categoria); se a
+// categoria for restaurada depois, os convidados NÃO voltam a ser recategorizados
+// automaticamente (o aviso na tela já avisa disso antes de excluir).
 router.delete('/:id/categories/:catId', requirePerm('can_edit'), (req, res) => {
-  const cat = db.prepare('SELECT * FROM rsvp_categories WHERE id = ? AND event_id = ?').get(req.params.catId, req.params.id);
+  const cat = db.prepare('SELECT * FROM rsvp_categories WHERE id = ? AND event_id = ? AND deleted_at IS NULL').get(req.params.catId, req.params.id);
   if (!cat) return res.status(404).json({ error: 'Categoria não encontrada.' });
   db.prepare('UPDATE participants SET guest_category_id = NULL WHERE guest_category_id = ?').run(cat.id);
-  db.prepare('DELETE FROM rsvp_categories WHERE id = ?').run(cat.id);
+  db.prepare("UPDATE rsvp_categories SET deleted_at = datetime('now'), deleted_by = ? WHERE id = ?")
+    .run(req.admin.name || req.admin.email, cat.id);
+  logActivity(req.admin.name || req.admin.email, 'moveu categoria para a lixeira', cat.name);
   res.json({ ok: true });
 });
 

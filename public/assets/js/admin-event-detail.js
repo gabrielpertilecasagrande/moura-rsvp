@@ -172,7 +172,7 @@ function openCatManager() {
   };
 
   window.deleteCat = async (catId) => {
-    if (!confirm('Remover esta categoria? Os convidados vinculados a ela ficam sem categoria.')) return;
+    if (!confirm('Remover esta categoria? Ela vai para a Lixeira (dá para restaurar depois) e os convidados vinculados a ela ficam sem categoria.')) return;
     try {
       await Api.del(`/api/events/${ID}/categories/${catId}`);
       CATEGORIES = CATEGORIES.filter((c) => c.id !== catId);
@@ -180,6 +180,7 @@ function openCatManager() {
       renderCats();
       renderCatFilter();
       loadParticipants();
+      toast('Categoria movida para a lixeira.');
     } catch (e) { toast(e.message); }
   };
 }
@@ -584,7 +585,7 @@ async function bulkAction(action) {
   const ids = [...SELECTED];
   if (!ids.length) return;
   if (action === 'excluir') {
-    if (!confirm(`Tem certeza que deseja excluir ${ids.length} convidado(s)? Esta ação não poderá ser desfeita.`)) return;
+    if (!confirm(`Mover ${ids.length} convidado(s) para a Lixeira? Dá para restaurar depois.`)) return;
   } else {
     const labels = { confirmar: 'marcar como Confirmado', recusar: 'marcar como Recusado' };
     if (!confirm(`Deseja ${labels[action]} ${ids.length} convidado(s)?`)) return;
