@@ -14,3 +14,13 @@
 - **Não envie prints por padrão.** Capturas de tela consomem tokens e o usuário não quer isso como rotina.
 - Envie print **somente** quando houver dúvida real sobre o resultado visual (ex.: layout quebrado, resultado ambíguo) — e justifique brevemente o motivo.
 - Mudanças apenas de backend (sem efeito visual) nunca precisam de print.
+
+## PWA — regra fixa
+
+- O botão "Atualizar" do aviso "Nova versão disponível" **sempre** precisa de
+  um `setTimeout` de segurança (força `window.location.reload()`, ~3s) além do
+  listener de `controllerchange`. Já aconteceu do `controllerchange` não
+  disparar e o botão ficar travado em "Atualizando…" para sempre — só o
+  listener sozinho não é confiável. Vale para qualquer sistema do ecossistema
+  que tenha esse aviso (moura-eventos, moura-expositor, moura-rsvp,
+  moura-checkin).
